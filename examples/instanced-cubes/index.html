@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BroMetal — 1,000 Instanced Cubes</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0c0c14;
+        overflow: hidden;
+      }
+      #scene {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+      #hud {
+        position: fixed;
+        left: 16px;
+        bottom: 14px;
+        color: #9aa0b4;
+        font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        user-select: none;
+      }
+      #hud strong {
+        color: #e8eaf2;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div id="hud"><strong>1,000 cubes · 1 draw call</strong><br />rotation computed on the GPU — per-frame upload: one mat4 + one float</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
