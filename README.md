@@ -2,4 +2,27 @@
 
 Write TypeScript.  Lift Shaders.  Skip leg day.
 
-BroMetal is an LLVM-inspired compiler that transforms TypeScript into highly optimized GPU shaders for WebGL and WebGPU. Write GPU code in TypeScript, compile to portable GLSL and WGSL, and eliminate shader boilerplate
+BroMetal is an LLVM-inspired compiler that transforms TypeScript into highly optimized GPU shaders for WebGL and WebGPU. Write GPU code in TypeScript, compile to portable GLSL and WGSL, and eliminate shader boilerplate.
+
+TypeScript
+      │
+      ▼
+Parser
+      │
+      ▼
+Type Checker
+      │
+      ▼
+GPU Semantic Analysis
+      │
+      ▼
+GPU IR
+      │
+      ▼
+Optimization Passes
+      │
+      ├────────────┬─────────────┬─────────────┐
+      ▼            ▼             ▼             ▼
+    GLSL         WGSL          HLSL          MSL
+      │            │             │             │
+   WebGL       WebGPU        DirectX        Metal
