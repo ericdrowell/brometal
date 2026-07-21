@@ -1,8 +1,27 @@
 {
   "name": "brometal",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Write TypeScript. Lift shaders. Skip leg day.",
   "license": "MIT",
+  "author": "Eric Rowell",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ericdrowell/brometal.git",
+    "directory": "packages/brometal"
+  },
+  "homepage": "https://github.com/ericdrowell/brometal#readme",
+  "bugs": "https://github.com/ericdrowell/brometal/issues",
+  "keywords": [
+    "webgl",
+    "webgl2",
+    "glsl",
+    "shader",
+    "compiler",
+    "typescript",
+    "gpu",
+    "graphics",
+    "instancing"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

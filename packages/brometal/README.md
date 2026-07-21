@@ -1,0 +1,93 @@
+# BroMetal
+
+Write TypeScript.  Lift Shaders.  Skip leg day.
+
+BroMetal compiles a typed TypeScript DSL to WebGL2 GLSL and ships the WebGL runtime to go with it — buffers, uniforms, instancing, program linking, and the render loop are all handled for you.
+
+## Install
+
+```bash
+npm install brometal
+```
+
+## Write a shader in TypeScript
+
+```ts
+// src/shaders/cube.shader.ts
+import { shader, vec4 } from 'brometal';
+
+export default shader({
+  attributes: { aPosition: 'vec3', aColor: 'vec3' },
+  uniforms: { uMvp: 'mat4' },
+  varyings: { vColor: 'vec3' },
+
+  vertex({ aPosition, aColor }, { uMvp }, v) {
+    v.vColor = aColor;
+    return uMvp.mul(vec4(aPosition, 1));
+  },
+
+  fragment(_uniforms, { vColor }) {
+    return vec4(vColor, 1);
+  },
+});
+```
+
+## Compile it
+
+```bash
+npx brometal dev    # compile all *.shader.ts and watch for changes
+npx brometal prod   # one-shot optimized build (constant folding + minified GLSL)
+```
+
+Each `name.shader.ts` compiles to a sibling `name.shader.gen.ts` — a dependency-free module with the GLSL plus typed interface metadata. Your app imports the generated module; the compiler never reaches your bundle.
+
+## Render
+
+```ts
+import { createRenderer, createProgram, mat4 } from 'brometal';
+import cubeShader from './shaders/cube.shader.gen';
+
+const renderer = createRenderer(canvas);
+const program = createProgram(renderer.gl, cubeShader);
+
+program.attributes.aPosition.set(positions);
+program.attributes.aColor.set(colors);
+program.setIndices(indices);
+
+renderer.loop((t) => {
+  program.uniforms.uMvp.set(mat4.multiply(projection, mat4.multiply(view, mat4.rotationY(t))));
+  program.draw();
+});
+```
+
+Everything is typed end-to-end: the records in `shader()` drive the GLSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors. A typo'd uniform name is a compile error in your app; the shader compiler enforces the varyings contract with `file:line:col` diagnostics.
+
+## Instancing
+
+Declare per-instance inputs with `instanceAttributes` — they upload once and advance per instance, not per vertex. When a shader declares them, `program.draw()` automatically renders instanced:
+
+```ts
+export default shader({
+  attributes: { aPosition: 'vec3', aColor: 'vec3' },
+  instanceAttributes: { iOffset: 'vec3', iAxis: 'vec3', iSpeed: 'float' },
+  uniforms: { uViewProj: 'mat4', uTime: 'float' },
+  // ...
+});
+```
+
+Thousands of independently animated objects, one draw call, one mat4 + one float uploaded per frame.
+
+## What the DSL supports
+
+- Types: `float`, `vec2`, `vec3`, `vec4`, `mat4` (uniforms only for `mat4`)
+- Per-vertex `attributes` and per-instance `instanceAttributes`
+- `const` locals, float arithmetic (`+ - * /`), comparisons, `if`/`else`
+- Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, swizzles (`.x`, `.xyz`, …)
+- Constructors `vec2/vec3/vec4` (composite forms like `vec4(v3, 1)` included)
+- Intrinsics: `normalize dot cross mix clamp length sin cos abs fract floor sqrt pow min max`
+
+Anything outside the subset fails compilation with a precise, actionable error.
+
+## Links
+
+Source, examples (rotating cube, 1,000 instanced cubes), and issues: https://github.com/ericdrowell/brometal
