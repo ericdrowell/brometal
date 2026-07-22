@@ -1,4 +1,4 @@
-export const GPU_TYPES = ['float', 'vec2', 'vec3', 'vec4', 'mat4'] as const;
+export const GPU_TYPES = ['float', 'vec2', 'vec3', 'vec4', 'mat4', 'sampler2D'] as const;
 
 export type GpuType = (typeof GPU_TYPES)[number];
 
@@ -47,6 +47,11 @@ export interface Mat4 {
   mul(other: Vec4): Vec4;
 }
 
+/** Opaque texture handle inside shader code — only usable via texture(sampler, uv). */
+export interface Sampler2D {
+  readonly __brand: 'Sampler2D';
+}
+
 export type GpuValue<T extends GpuType> = T extends 'float'
   ? number
   : T extends 'vec2'
@@ -55,7 +60,9 @@ export type GpuValue<T extends GpuType> = T extends 'float'
       ? Vec3
       : T extends 'vec4'
         ? Vec4
-        : Mat4;
+        : T extends 'mat4'
+          ? Mat4
+          : Sampler2D;
 
 export type Values<R extends GpuRecord> = { -readonly [K in keyof R]: GpuValue<R[K]> };
 
@@ -87,8 +94,8 @@ export function shader<
   return definition;
 }
 
-/** GL upload routine chosen for a uniform at compile time. */
-export type UniformKind = '1f' | '2fv' | '3fv' | '4fv' | 'm4fv';
+/** GL upload routine chosen for a uniform at compile time. '1i' = sampler texture unit. */
+export type UniformKind = '1f' | '2fv' | '3fv' | '4fv' | 'm4fv' | '1i';
 
 export interface AttributeLayoutEntry {
   name: string;
@@ -105,8 +112,10 @@ export interface UniformLayoutEntry {
   name: string;
   type: GpuType;
   kind: UniformKind;
-  /** Expected value length (1 for float scalars). */
+  /** Expected value length (1 for float scalars and samplers). */
   size: number;
+  /** Texture unit, assigned at compile time — present only for samplers. */
+  unit?: number;
 }
 
 /** Precomputed wiring plan — everything the runtime needs, decided at compile time. */

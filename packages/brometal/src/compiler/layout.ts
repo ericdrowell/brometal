@@ -13,6 +13,7 @@ const COMPONENT_COUNTS: Record<GpuType, number> = {
   vec3: 3,
   vec4: 4,
   mat4: 16,
+  sampler2D: 1,
 };
 
 const UNIFORM_KINDS: Record<GpuType, UniformKind> = {
@@ -21,6 +22,7 @@ const UNIFORM_KINDS: Record<GpuType, UniformKind> = {
   vec3: '3fv',
   vec4: '4fv',
   mat4: 'm4fv',
+  sampler2D: '1i',
 };
 
 /**
@@ -38,12 +40,19 @@ export function buildLayout(ir: ShaderIr): ShaderLayout {
     attributes.push({ name, type, location: location++, size: COMPONENT_COUNTS[type], divisor: 1 });
   }
 
-  const uniforms: UniformLayoutEntry[] = Object.entries(ir.uniforms).map(([name, type]) => ({
-    name,
-    type,
-    kind: UNIFORM_KINDS[type],
-    size: COMPONENT_COUNTS[type],
-  }));
+  let nextUnit = 0;
+  const uniforms: UniformLayoutEntry[] = Object.entries(ir.uniforms).map(([name, type]) => {
+    const entry: UniformLayoutEntry = {
+      name,
+      type,
+      kind: UNIFORM_KINDS[type],
+      size: COMPONENT_COUNTS[type],
+    };
+    if (type === 'sampler2D') {
+      entry.unit = nextUnit++;
+    }
+    return entry;
+  });
 
   return { attributes, uniforms };
 }

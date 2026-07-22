@@ -5,7 +5,9 @@ export type {
   GpuType,
   GpuValue,
   Mat4,
+  Sampler2D,
   ShaderDefinition,
+  ShaderLayout,
   Values,
   Vec2,
   Vec3,
@@ -25,8 +27,10 @@ export {
   mix,
   normalize,
   pow,
+  reflect,
   sin,
   sqrt,
+  texture,
   vec2,
   vec3,
   vec4,
@@ -38,3 +42,7 @@ export type { AttributeHandle, BroMetalProgram, UniformHandle } from './runtime/
 export type { UniformValue } from './runtime/uniforms.js';
 export { mat4 } from './math/mat4.js';
 export type { Mat4Array } from './math/mat4.js';
+export { createCamera } from './camera/camera.js';
+export type { Camera, CameraLens, CameraOptions } from './camera/camera.js';
+export { createTexture, loadTexture } from './runtime/texture.js';
+export type { BroMetalTexture, TextureOptions } from './runtime/texture.js';

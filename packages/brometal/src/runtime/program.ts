@@ -55,6 +55,34 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
   const uniforms = {} as { [K in keyof U]: UniformHandle<U[K]> };
   for (const entry of compiled.layout.uniforms) {
     const location = gl.getUniformLocation(program, entry.name);
+
+    if (entry.kind === '1i') {
+      // Samplers: the texture unit was assigned at compile time, so the
+      // uniform itself is set exactly once here; set() only binds the texture.
+      const unit = entry.unit ?? 0;
+      if (location !== null) {
+        useProgramCached(gl, program);
+        gl.uniform1i(location, unit);
+      }
+      uniforms[entry.name as keyof U] = {
+        set(value: UniformValue<U[keyof U]>): void {
+          if (location === null) {
+            warnOnce(`uniform '${entry.name}' is unused in the compiled shader; ignoring set()`);
+            return;
+          }
+          const texture = value as unknown as { glTexture?: WebGLTexture };
+          if (texture === null || typeof texture !== 'object' || texture.glTexture === undefined) {
+            throw new Error(
+              `BroMetal: uniform '${entry.name}' (sampler2D) expects a texture from createTexture()/loadTexture()`,
+            );
+          }
+          gl.activeTexture(gl.TEXTURE0 + unit);
+          gl.bindTexture(gl.TEXTURE_2D, texture.glTexture);
+        },
+      } as UniformHandle<U[keyof U & string]>;
+      continue;
+    }
+
     const setter = location === null ? null : createUniformSetter(gl, entry, location);
     uniforms[entry.name as keyof U] = {
       set(value: UniformValue<U[keyof U]>): void {
@@ -63,7 +91,7 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
           return;
         }
         useProgramCached(gl, program);
-        setter(value);
+        setter(value as number | Float32Array | readonly number[]);
       },
     } as UniformHandle<U[keyof U & string]>;
   }

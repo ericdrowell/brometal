@@ -1,6 +1,6 @@
 import type { GpuRecord } from '../dsl/types.js';
 
-export type IrType = 'float' | 'vec2' | 'vec3' | 'vec4' | 'mat4' | 'bool';
+export type IrType = 'float' | 'vec2' | 'vec3' | 'vec4' | 'mat4' | 'sampler2D' | 'bool';
 
 export type IrBinaryOp =
   | '+'

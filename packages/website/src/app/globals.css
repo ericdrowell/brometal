@@ -1,0 +1,268 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: #0d0d15;
+  color: #c9cede;
+  font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+a {
+  color: #9d8cff;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #c3b8ff;
+}
+
+.site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 24px;
+  background: rgba(13, 13, 21, 0.82);
+  border-bottom: 1px solid #22222f;
+  backdrop-filter: blur(8px);
+}
+
+.site-header .brand {
+  color: #eef0f8;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.site-header nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-left: auto;
+}
+
+.site-header .icon-link {
+  display: inline-flex;
+  color: #9d8cff;
+}
+
+.site-header .icon-link:hover {
+  color: #c3b8ff;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 96px 24px 64px;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.hero-logo {
+  width: min(63vw, 392px);
+  height: auto;
+}
+
+.hero-head {
+  margin-top: 32px;
+  width: min(90vw, 510px);
+  height: auto;
+}
+
+.hero .tagline {
+  margin-top: 28px;
+  color: #8f96ad;
+  font-size: 16px;
+}
+
+.hero .cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 12px 28px;
+  background: #7c6cff;
+  color: #ffffff;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.hero .cta:hover {
+  background: #8f81ff;
+  color: #ffffff;
+}
+
+.example-list {
+  list-style: none;
+  padding: 0;
+  margin: 32px 0 0;
+  display: grid;
+  gap: 14px;
+}
+
+.example-list a {
+  display: block;
+  padding: 18px 20px;
+  border: 1px solid #22222f;
+  border-radius: 10px;
+  background: #12121c;
+}
+
+.example-list a:hover {
+  border-color: #4a4a6a;
+}
+
+.example-list .name {
+  color: #eef0f8;
+  font-weight: 700;
+}
+
+.example-list .desc {
+  margin-top: 4px;
+  color: #8f96ad;
+  font-size: 13px;
+}
+
+/* Demo pages */
+.demo-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+.hud {
+  position: fixed;
+  left: 16px;
+  bottom: 14px;
+  z-index: 10;
+  color: #9aa0b4;
+  font-size: 13px;
+  user-select: none;
+}
+
+.hud strong {
+  color: #e8eaf2;
+}
+
+.panels {
+  position: fixed;
+  top: 76px;
+  right: 16px;
+  z-index: 10;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel {
+  padding: 14px 16px;
+  background: rgba(16, 16, 26, 0.85);
+  border: 1px solid #2a2a3c;
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+  user-select: none;
+}
+
+.panel h1 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: #eef0f8;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.panel h2 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  color: #8f96ad;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 18px 1fr 58px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.row label {
+  color: #8f96ad;
+}
+
+.row input[type='range'] {
+  width: 100%;
+  accent-color: #7c6cff;
+}
+
+.row output {
+  text-align: right;
+  color: #eef0f8;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel button.reset {
+  margin-top: 12px;
+  width: 100%;
+  padding: 6px 0;
+  background: #232338;
+  color: #c9cede;
+  border: 1px solid #2f2f46;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.panel button.reset:hover {
+  background: #2b2b44;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.tiles button {
+  padding: 0;
+  aspect-ratio: 1;
+  border: 2px solid #2f2f46;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #232338;
+}
+
+.tiles button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tiles button.selected {
+  border-color: #ffb454;
+}
+
+.tiles button:hover:not(.selected) {
+  border-color: #4a4a6a;
+}

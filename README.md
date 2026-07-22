@@ -71,6 +71,43 @@ renderer.loop((t) => {
 
 Everything is typed end-to-end: the attribute/uniform records in `shader()` drive the GLSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors — a typo'd uniform name is a compile error in your app, and the compiler enforces the varyings contract (vertex must write every varying) with `file:line:col` diagnostics.
 
+## Camera
+
+`createCamera` gives you a positionable, rotatable camera that compiles down to a single `mat4` uniform:
+
+```ts
+const camera = createCamera({ position: [0, 0, 6] });
+camera.setPosition(x, y, z);
+camera.setRotation(rx, ry, rz);   // radians, applied yaw (Y) → pitch (X) → roll (Z)
+camera.setLens({ fovY, near, far });
+
+renderer.loop(() => {
+  program.uniforms.uViewProj.set(camera.viewProjection(aspect));
+  program.draw();
+});
+```
+
+The view-projection matrix is cached against position, rotation, lens, and aspect — an unmoved camera costs zero matrix math per frame, and nothing allocates. The GPU sees one mat4 regardless of how the camera moves; all per-vertex transformation stays in the shader.
+
+## Textures and lighting
+
+Declare a `sampler2D` uniform and sample it with the `texture()` intrinsic; light sources are just uniforms your shader math consumes (the full Blinn-Phong lighting model is expressible in the DSL — see the textures-with-light example):
+
+```ts
+export default shader({
+  attributes: { aPosition: 'vec3', aNormal: 'vec3', aUv: 'vec2' },
+  uniforms: { uViewProj: 'mat4', uLightPos: 'vec3', uTex: 'sampler2D' },
+  varyings: { vNormal: 'vec3', vUv: 'vec2' },
+  // ...
+  fragment({ uLightPos, uTex }, { vNormal, vUv }) {
+    const diffuse = max(dot(normalize(vNormal), normalize(uLightPos)), 0);
+    return vec4(texture(uTex, vUv).xyz.mul(0.25 + diffuse), 1);
+  },
+});
+```
+
+Texture units are assigned by the compiler and baked into the layout, so the runtime sets each sampler uniform exactly once at link time — `program.uniforms.uTex.set(texture)` only binds. Load textures with `loadTexture(gl, url)` (mipmaps and sensible filtering by default) or wrap any `TexImageSource` with `createTexture`.
+
 ## Instancing
 
 Declare per-instance inputs with `instanceAttributes` — they upload to the GPU once and advance per instance, not per vertex:
@@ -84,27 +121,37 @@ export default shader({
 });
 ```
 
-When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The `examples/instanced-cubes` demo renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
+When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The instanced-cubes example renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
 
-## Examples
+## Website & examples
+
+The examples live as pages of the BroMetal website (`packages/website`, Next.js):
 
 ```bash
 npm install
-npm run build                # build the brometal package
-npm run dev:rotating-cube    # rotating cube      → http://localhost:5173
-npm run dev:instanced-cubes  # 125,000 cubes demo → http://localhost:5174
+npm run build          # build the brometal package
+npm run dev:website    # → http://localhost:3005 (uses the LOCAL workspace package)
+npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
-To iterate on an example's shader, run `npm run shaders:watch` in its directory alongside vite — regenerated modules hot-reload automatically.
+Example pages: `/examples/rotating-cube`, `/examples/instanced-cubes`, `/examples/camera`, `/examples/textures-with-light`.
+
+`dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
+
+### Deploying to Vercel
+
+1. Import the GitHub repo in Vercel and set **Root Directory** to `packages/website` — everything else is auto-detected (`vercel.json` + the `vercel-build` script).
+2. Each deploy builds the workspace compiler, runs the publish preflight, prod-compiles the shaders (minified GLSL), and builds Next against the **published** npm package — so brometal.dev always demos exactly what `npm install brometal` delivers, and the CLI gets exercised in CI on every deploy.
+3. `npm run release` handles the version handoff automatically: after publishing it updates `brometal-published` in the website workspace and commits + pushes the lockfile, so the next Vercel deploy builds against the fresh release. If the site ever uses features not yet published, the preflight fails the deploy with instructions instead of shipping a broken page.
 
 ## What the DSL supports (MVP)
 
-- Types: `float`, `vec2`, `vec3`, `vec4`, `mat4` (uniforms only for `mat4`)
+- Types: `float`, `vec2`, `vec3`, `vec4`, `mat4`, `sampler2D` (uniforms only for `mat4`/`sampler2D`)
 - Per-vertex `attributes` and per-instance `instanceAttributes`
 - `const` locals, float arithmetic (`+ - * /`), comparisons, `if`/`else`
 - Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, swizzles (`.x`, `.xyz`, …)
 - Constructors `vec2/vec3/vec4` (composite forms like `vec4(v3, 1)` included)
-- Intrinsics: `normalize dot cross mix clamp length sin cos abs fract floor sqrt pow min max`
+- Intrinsics: `texture reflect normalize dot cross mix clamp length sin cos abs fract floor sqrt pow min max`
 
 Anything outside the subset fails compilation with a precise, actionable error.
 
@@ -122,9 +169,8 @@ At runtime, the hot path is equally lean: GL state is cached (repeat `useProgram
 ## Repo layout
 
 ```
-packages/brometal/       # the npm package: compiler, CLI, WebGL2 runtime, mat4 math
-examples/rotating-cube   # hello-world: one spinning cube
-examples/instanced-cubes # 125,000 GPU-animated cubes in a single draw call
+packages/brometal/  # the npm package: compiler, CLI, WebGL2 runtime, camera, textures, mat4 math
+packages/website/   # Next.js site (brometal.dev): homepage + all example pages
 ```
 
 ## Development

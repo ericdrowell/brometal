@@ -246,11 +246,11 @@ function parseGpuRecord(
         `'${typeName}' is not a valid GPU type — expected one of ${GPU_TYPES.join(', ')}`,
       );
     }
-    if (typeName === 'mat4' && !options.allowMat4) {
+    if ((typeName === 'mat4' || typeName === 'sampler2D') && !options.allowMat4) {
       throw errorAt(
         sourceFile,
         entry.initializer,
-        `'mat4' is only supported for uniforms in the MVP — ${recordName} must use float/vec2/vec3/vec4`,
+        `'${typeName}' is only supported for uniforms in the MVP — ${recordName} must use float/vec2/vec3/vec4`,
       );
     }
     record[key] = typeName as GpuType;

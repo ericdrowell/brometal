@@ -1,8 +1,11 @@
 import type { GpuType, UniformLayoutEntry } from '../dsl/types.js';
+import type { BroMetalTexture } from './texture.js';
 
 export type UniformValue<T extends GpuType> = T extends 'float'
   ? number
-  : Float32Array | readonly number[];
+  : T extends 'sampler2D'
+    ? BroMetalTexture
+    : Float32Array | readonly number[];
 
 /**
  * Builds the upload routine for one uniform from its compile-time layout
@@ -52,6 +55,9 @@ export function createUniformSetter(
         assertArray(entry, value);
         gl.uniformMatrix4fv(location, false, checkLength(value));
       };
+    case '1i':
+      // Samplers are wired by createProgram (compile-time texture units).
+      throw new Error(`BroMetal: sampler uniform '${entry.name}' cannot use a numeric setter`);
   }
 }
 

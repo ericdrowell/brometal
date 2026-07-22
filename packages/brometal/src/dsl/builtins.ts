@@ -1,4 +1,4 @@
-import type { Vec2, Vec3, Vec4 } from './types.js';
+import type { Sampler2D, Vec2, Vec3, Vec4 } from './types.js';
 
 function gpuOnly(name: string): never {
   throw new Error(
@@ -27,6 +27,16 @@ export function vec4(xy: Vec2, zw: Vec2): Vec4;
 export function vec4(splat: number): Vec4;
 export function vec4(): Vec4 {
   return gpuOnly('vec4');
+}
+
+export function texture(sampler: Sampler2D, uv: Vec2): Vec4;
+export function texture(): Vec4 {
+  return gpuOnly('texture');
+}
+
+export function reflect<T extends Vec2 | Vec3 | Vec4>(incident: T, normal: T): T;
+export function reflect(): never {
+  return gpuOnly('reflect');
 }
 
 export function normalize<T extends Vec2 | Vec3 | Vec4>(v: T): T;

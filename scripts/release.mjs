@@ -48,3 +48,41 @@ exec('git', ['push', 'origin', tag]);
 // the release script, which would bump the version again.
 exec('npm', ['publish', '-w', 'brometal']);
 console.log(`✓ published brometal@${version} and pushed ${tag}`);
+
+// Point the website's published-package alias at the new version so Vercel
+// deploys (which build against the registry package) pick it up.
+console.log('Updating brometal-published in the website workspace...');
+if (await registryHas(version)) {
+  exec('npm', ['update', 'brometal-published', '-w', 'website']);
+  const installed = JSON.parse(
+    readFileSync(new URL('../node_modules/brometal-published/package.json', import.meta.url), 'utf8'),
+  ).version;
+  if (installed !== version) {
+    console.warn(
+      `⚠ brometal-published resolved to ${installed}, expected ${version} — run \`npm update brometal-published -w website\` again shortly`,
+    );
+  }
+  const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim();
+  if (dirty !== '') {
+    exec('git', ['commit', '-am', `point website at brometal ${tag}`]);
+    exec('git', ['push', 'origin', 'HEAD']);
+    console.log(`✓ website now tracks brometal@${installed}`);
+  }
+} else {
+  console.warn(
+    `⚠ registry has not served brometal@${version} yet — run \`npm update brometal-published -w website\`, commit, and push once it appears`,
+  );
+}
+
+async function registryHas(expected) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const latest = execSync('npm view brometal version', { encoding: 'utf8' }).trim();
+      if (latest === expected) return true;
+    } catch {
+      // registry hiccup — retry below
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+  return false;
+}

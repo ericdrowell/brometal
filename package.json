@@ -2,15 +2,14 @@
   "name": "brometal-monorepo",
   "private": true,
   "workspaces": [
-    "packages/*",
-    "examples/*"
+    "packages/*"
   ],
   "scripts": {
     "build": "npm run build -w brometal",
     "test": "npm run test -w brometal",
     "release": "npm test && npm run typecheck && npm run build && node scripts/release.mjs",
-    "typecheck": "npm run typecheck -w brometal && npm run typecheck -w rotating-cube && npm run typecheck -w instanced-cubes",
-    "dev:rotating-cube": "npm run dev -w rotating-cube",
-    "dev:instanced-cubes": "npm run dev -w instanced-cubes"
+    "typecheck": "npm run typecheck -w brometal && npm run typecheck -w website",
+    "dev:website": "npm run dev -w website",
+    "prod:website": "npm run prod -w website"
   }
 }

@@ -80,6 +80,18 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
         ? args[0]!.type
         : null,
   },
+  texture: {
+    signature: 'texture(sampler, uv) expects a sampler2D and a vec2',
+    check: (args) =>
+      args.length === 2 && args[0]!.type === 'sampler2D' && args[1]!.type === 'vec2' ? 'vec4' : null,
+  },
+  reflect: {
+    signature: 'reflect(incident, normal) expects two vectors of the same type',
+    check: (args) =>
+      args.length === 2 && isVec(args[0]!.type) && args[0]!.type === args[1]!.type
+        ? args[0]!.type
+        : null,
+  },
   sin: floatUnary('sin'),
   cos: floatUnary('cos'),
   abs: floatUnary('abs'),
@@ -411,6 +423,13 @@ function lowerConst(ctx: StageContext, scope: Scope, statement: ts.VariableState
   const expr = lowerExpr(ctx, scope, declaration.initializer);
   if (expr.type === 'bool') {
     throw errorAt(ctx.sourceFile, declaration, `bool consts are not supported — inline the condition`);
+  }
+  if (expr.type === 'sampler2D') {
+    throw errorAt(
+      ctx.sourceFile,
+      declaration,
+      `sampler consts are not supported — pass the sampler uniform directly to texture()`,
+    );
   }
   scope.declare(name, { kind: 'local', type: expr.type });
   return { kind: 'const', name, type: expr.type, expr };

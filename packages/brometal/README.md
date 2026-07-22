@@ -62,6 +62,34 @@ renderer.loop((t) => {
 
 Everything is typed end-to-end: the records in `shader()` drive the GLSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors. A typo'd uniform name is a compile error in your app; the shader compiler enforces the varyings contract with `file:line:col` diagnostics.
 
+## Camera
+
+```ts
+const camera = createCamera({ position: [0, 0, 6] });
+camera.setPosition(x, y, z);
+camera.setRotation(rx, ry, rz);   // radians, applied yaw (Y) → pitch (X) → roll (Z)
+
+renderer.loop(() => {
+  program.uniforms.uViewProj.set(camera.viewProjection(aspect));
+  program.draw();
+});
+```
+
+The view-projection matrix is cached against position, rotation, lens, and aspect — an unmoved camera costs zero matrix math per frame, and nothing allocates.
+
+## Textures and lighting
+
+```ts
+uniforms: { uLightPos: 'vec3', uTex: 'sampler2D' },
+// ...
+fragment({ uLightPos, uTex }, { vNormal, vUv }) {
+  const diffuse = max(dot(normalize(vNormal), normalize(uLightPos)), 0);
+  return vec4(texture(uTex, vUv).xyz.mul(0.25 + diffuse), 1);
+},
+```
+
+Texture units are assigned at compile time; `program.uniforms.uTex.set(tex)` only binds. Load with `loadTexture(gl, url)` (mipmapped by default) or wrap any `TexImageSource` with `createTexture`. Lights are plain uniforms — full Blinn-Phong is expressible in the DSL.
+
 ## Instancing
 
 Declare per-instance inputs with `instanceAttributes` — they upload once and advance per instance, not per vertex. When a shader declares them, `program.draw()` automatically renders instanced:
@@ -79,12 +107,12 @@ Thousands of independently animated objects, one draw call, one mat4 + one float
 
 ## What the DSL supports
 
-- Types: `float`, `vec2`, `vec3`, `vec4`, `mat4` (uniforms only for `mat4`)
+- Types: `float`, `vec2`, `vec3`, `vec4`, `mat4`, `sampler2D` (uniforms only for `mat4`/`sampler2D`)
 - Per-vertex `attributes` and per-instance `instanceAttributes`
 - `const` locals, float arithmetic (`+ - * /`), comparisons, `if`/`else`
 - Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, swizzles (`.x`, `.xyz`, …)
 - Constructors `vec2/vec3/vec4` (composite forms like `vec4(v3, 1)` included)
-- Intrinsics: `normalize dot cross mix clamp length sin cos abs fract floor sqrt pow min max`
+- Intrinsics: `texture reflect normalize dot cross mix clamp length sin cos abs fract floor sqrt pow min max`
 
 Anything outside the subset fails compilation with a precise, actionable error.
 
