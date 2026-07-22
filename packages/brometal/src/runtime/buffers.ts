@@ -1,12 +1,3 @@
-import type { GpuType } from '../dsl/types.js';
-
-export const ATTRIBUTE_COMPONENT_COUNTS: Partial<Record<GpuType, number>> = {
-  float: 1,
-  vec2: 2,
-  vec3: 3,
-  vec4: 4,
-};
-
 export interface AttributeState {
   buffer: WebGLBuffer;
   componentCount: number;

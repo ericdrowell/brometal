@@ -32,7 +32,7 @@
     }
   },
   "bin": {
-    "brometal": "./dist/cli/index.js"
+    "brometal": "dist/cli/index.js"
   },
   "files": [
     "dist"

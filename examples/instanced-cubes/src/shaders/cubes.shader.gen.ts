@@ -3,13 +3,13 @@ import type { CompiledShader } from 'brometal';
 
 const cubesShader: CompiledShader<{ aPosition: 'vec3'; aColor: 'vec3' }, { iOffset: 'vec3'; iAxis: 'vec3'; iSpeed: 'float'; iScale: 'float'; iTint: 'vec3' }, { uViewProj: 'mat4'; uTime: 'float' }> = {
   vertexSrc: `#version 300 es
-in vec3 aPosition;
-in vec3 aColor;
-in vec3 iOffset;
-in vec3 iAxis;
-in float iSpeed;
-in float iScale;
-in vec3 iTint;
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec3 aColor;
+layout(location = 2) in vec3 iOffset;
+layout(location = 3) in vec3 iAxis;
+layout(location = 4) in float iSpeed;
+layout(location = 5) in float iScale;
+layout(location = 6) in vec3 iTint;
 uniform mat4 uViewProj;
 uniform float uTime;
 out vec3 vColor;
@@ -34,6 +34,7 @@ void main() {
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   instanceAttributes: { iOffset: 'vec3', iAxis: 'vec3', iSpeed: 'float', iScale: 'float', iTint: 'vec3' },
   uniforms: { uViewProj: 'mat4', uTime: 'float' },
+  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":1,"size":3,"divisor":0},{"name":"iOffset","type":"vec3","location":2,"size":3,"divisor":1},{"name":"iAxis","type":"vec3","location":3,"size":3,"divisor":1},{"name":"iSpeed","type":"float","location":4,"size":1,"divisor":1},{"name":"iScale","type":"float","location":5,"size":1,"divisor":1},{"name":"iTint","type":"vec3","location":6,"size":3,"divisor":1}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16},{"name":"uTime","type":"float","kind":"1f","size":1}]},
 };
 
 export default cubesShader;

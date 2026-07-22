@@ -52,6 +52,9 @@ describe('brometal CLI compilation', () => {
     expect(generated).toContain(`attributes: { aPosition: 'vec3', aColor: 'vec3' }`);
     expect(generated).toContain('instanceAttributes: {}');
     expect(generated).toContain(`uniforms: { uMvp: 'mat4' }`);
+    expect(generated).toContain('layout: {"attributes"');
+    expect(generated).toContain('"location":0');
+    expect(generated).toContain('"kind":"m4fv"');
     expect(generated).toContain('export default cubeShader;');
   });
 

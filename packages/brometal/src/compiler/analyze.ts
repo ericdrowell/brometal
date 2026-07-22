@@ -128,6 +128,8 @@ interface StageContext {
   sourceFile: ts.SourceFile;
   records: Record<RecordRole, GpuRecord>;
   interfaceNames: Set<string>;
+  usedAttributes: Set<string>;
+  usedInstanceAttributes: Set<string>;
   usedUniforms: Set<string>;
   usedVaryings: Set<string>;
   assignedVaryings: Set<string>;
@@ -170,6 +172,8 @@ function analyzeStage(
       ...Object.keys(records.uniforms),
       ...Object.keys(records.varyings),
     ]),
+    usedAttributes: new Set(),
+    usedInstanceAttributes: new Set(),
     usedUniforms: new Set(),
     usedVaryings: new Set(),
     assignedVaryings: new Set(),
@@ -207,7 +211,13 @@ function analyzeStage(
     }
   }
 
-  return { statements, usedUniforms: ctx.usedUniforms, usedVaryings: ctx.usedVaryings };
+  return {
+    statements,
+    usedAttributes: ctx.usedAttributes,
+    usedInstanceAttributes: ctx.usedInstanceAttributes,
+    usedUniforms: ctx.usedUniforms,
+    usedVaryings: ctx.usedVaryings,
+  };
 }
 
 function bindParameter(ctx: StageContext, scope: Scope, param: ts.ParameterDeclaration, role: ParamRole): void {
@@ -779,9 +789,18 @@ function lowerBinary(ctx: StageContext, scope: Scope, node: ts.BinaryExpression)
 function markUse(ctx: StageContext, role: RecordRole, name: string, node: ts.Node): void {
   if (role === 'uniforms') {
     ctx.usedUniforms.add(name);
-  } else if (role === 'varyings') {
+    return;
+  }
+  if (role === 'varyings') {
     ctx.usedVaryings.add(name);
-  } else if (ctx.stage === 'fragment') {
+    return;
+  }
+  if (ctx.stage === 'fragment') {
     throw errorAt(ctx.sourceFile, node, `attributes are not accessible in fragment() — pass values through varyings`);
+  }
+  if (role === 'attributes') {
+    ctx.usedAttributes.add(name);
+  } else {
+    ctx.usedInstanceAttributes.add(name);
   }
 }

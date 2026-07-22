@@ -1,73 +1,65 @@
-import type { GpuType } from '../dsl/types.js';
+import type { GpuType, UniformLayoutEntry } from '../dsl/types.js';
 
 export type UniformValue<T extends GpuType> = T extends 'float'
   ? number
-  : T extends 'mat4'
-    ? Float32Array | readonly number[]
-    : Float32Array | readonly number[];
+  : Float32Array | readonly number[];
 
-const EXPECTED_LENGTHS: Record<Exclude<GpuType, 'float'>, number> = {
-  vec2: 2,
-  vec3: 3,
-  vec4: 4,
-  mat4: 16,
-};
-
+/**
+ * Builds the upload routine for one uniform from its compile-time layout
+ * entry — the GL call and expected length were decided by the compiler.
+ */
 export function createUniformSetter(
   gl: WebGL2RenderingContext,
-  type: GpuType,
-  name: string,
+  entry: UniformLayoutEntry,
   location: WebGLUniformLocation,
 ): (value: number | Float32Array | readonly number[]) => void {
   // The GL calls read but never mutate the value, so accepting readonly
   // arrays is safe despite Float32List being typed as mutable.
   const checkLength = (value: Float32Array | readonly number[]): Float32List => {
-    const expected = EXPECTED_LENGTHS[type as Exclude<GpuType, 'float'>];
-    if (value.length !== expected) {
+    if (value.length !== entry.size) {
       throw new Error(
-        `BroMetal: uniform '${name}' (${type}) expects ${expected} values, got ${value.length}`,
+        `BroMetal: uniform '${entry.name}' (${entry.type}) expects ${entry.size} values, got ${value.length}`,
       );
     }
     return value as Float32List;
   };
 
-  switch (type) {
-    case 'float':
+  switch (entry.kind) {
+    case '1f':
       return (value) => {
         if (typeof value !== 'number') {
-          throw new Error(`BroMetal: uniform '${name}' (float) expects a number`);
+          throw new Error(`BroMetal: uniform '${entry.name}' (float) expects a number`);
         }
         gl.uniform1f(location, value);
       };
-    case 'vec2':
+    case '2fv':
       return (value) => {
-        assertArray(name, type, value);
+        assertArray(entry, value);
         gl.uniform2fv(location, checkLength(value));
       };
-    case 'vec3':
+    case '3fv':
       return (value) => {
-        assertArray(name, type, value);
+        assertArray(entry, value);
         gl.uniform3fv(location, checkLength(value));
       };
-    case 'vec4':
+    case '4fv':
       return (value) => {
-        assertArray(name, type, value);
+        assertArray(entry, value);
         gl.uniform4fv(location, checkLength(value));
       };
-    case 'mat4':
+    case 'm4fv':
       return (value) => {
-        assertArray(name, type, value);
+        assertArray(entry, value);
         gl.uniformMatrix4fv(location, false, checkLength(value));
       };
   }
 }
 
 function assertArray(
-  name: string,
-  type: GpuType,
+  entry: UniformLayoutEntry,
   value: number | Float32Array | readonly number[],
 ): asserts value is Float32Array | readonly number[] {
   if (typeof value === 'number') {
-    throw new Error(`BroMetal: uniform '${name}' (${type}) expects an array of numbers`);
+    throw new Error(`BroMetal: uniform '${entry.name}' (${entry.type}) expects an array of numbers`);
   }
 }

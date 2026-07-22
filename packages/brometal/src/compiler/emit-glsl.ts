@@ -1,4 +1,7 @@
-import type { IrExpr, IrStmt, IrType, ShaderIr, StageIr } from './ir.js';
+import type { ShaderLayout } from '../dsl/types.js';
+import type { IrExpr, IrStmt, IrType, ShaderIr } from './ir.js';
+
+export type GlslPrecision = 'highp' | 'mediump';
 
 const PRECEDENCE: Record<string, number> = {
   '||': 1,
@@ -23,17 +26,18 @@ export interface GlslSources {
   fragmentSrc: string;
 }
 
-export function emitGlsl(ir: ShaderIr): GlslSources {
-  return { vertexSrc: emitVertex(ir), fragmentSrc: emitFragment(ir) };
+export interface EmitOptions {
+  precision: GlslPrecision;
 }
 
-function emitVertex(ir: ShaderIr): string {
+export function emitGlsl(ir: ShaderIr, layout: ShaderLayout, options: EmitOptions): GlslSources {
+  return { vertexSrc: emitVertex(ir, layout), fragmentSrc: emitFragment(ir, options) };
+}
+
+function emitVertex(ir: ShaderIr, layout: ShaderLayout): string {
   const lines: string[] = ['#version 300 es'];
-  for (const [name, type] of Object.entries(ir.attributes)) {
-    lines.push(`in ${type} ${name};`);
-  }
-  for (const [name, type] of Object.entries(ir.instanceAttributes)) {
-    lines.push(`in ${type} ${name};`);
+  for (const entry of layout.attributes) {
+    lines.push(`layout(location = ${entry.location}) in ${entry.type} ${entry.name};`);
   }
   for (const [name, type] of Object.entries(ir.uniforms)) {
     if (ir.vertex.usedUniforms.has(name)) {
@@ -49,8 +53,8 @@ function emitVertex(ir: ShaderIr): string {
   return lines.join('\n') + '\n';
 }
 
-function emitFragment(ir: ShaderIr): string {
-  const lines: string[] = ['#version 300 es', 'precision highp float;'];
+function emitFragment(ir: ShaderIr, options: EmitOptions): string {
+  const lines: string[] = ['#version 300 es', `precision ${options.precision} float;`];
   for (const [name, type] of Object.entries(ir.uniforms)) {
     if (ir.fragment.usedUniforms.has(name)) {
       lines.push(`uniform ${type} ${name};`);

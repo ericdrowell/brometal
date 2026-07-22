@@ -87,6 +87,34 @@ export function shader<
   return definition;
 }
 
+/** GL upload routine chosen for a uniform at compile time. */
+export type UniformKind = '1f' | '2fv' | '3fv' | '4fv' | 'm4fv';
+
+export interface AttributeLayoutEntry {
+  name: string;
+  type: GpuType;
+  /** GLSL location, assigned by the compiler via layout(location = N). */
+  location: number;
+  /** Components per element (floats). */
+  size: number;
+  /** 0 = advances per vertex, 1 = per instance. */
+  divisor: 0 | 1;
+}
+
+export interface UniformLayoutEntry {
+  name: string;
+  type: GpuType;
+  kind: UniformKind;
+  /** Expected value length (1 for float scalars). */
+  size: number;
+}
+
+/** Precomputed wiring plan — everything the runtime needs, decided at compile time. */
+export interface ShaderLayout {
+  attributes: AttributeLayoutEntry[];
+  uniforms: UniformLayoutEntry[];
+}
+
 export interface CompiledShader<
   A extends GpuRecord = GpuRecord,
   I extends GpuRecord = GpuRecord,
@@ -97,4 +125,5 @@ export interface CompiledShader<
   attributes: A;
   instanceAttributes: I;
   uniforms: U;
+  layout: ShaderLayout;
 }

@@ -73,4 +73,32 @@ describe('mat4', () => {
     const [, , z, w] = transform(m, [0, 0, -0.5, 1]);
     expect(z / w).toBeCloseTo(-1, 5);
   });
+
+  it('writes into the out matrix without allocating', () => {
+    const out = mat4.scratch();
+    expect(mat4.rotationY(1.2, out)).toBe(out);
+    expect(mat4.perspective(Math.PI / 3, 1.5, 0.1, 100, out)).toBe(out);
+    expect(mat4.translation(1, 2, 3, out)).toBe(out);
+    expectVecClose(transform(out, [0, 0, 0, 1]), [1, 2, 3, 1]);
+  });
+
+  it('out matrices are fully overwritten regardless of prior contents', () => {
+    const dirty = new Float32Array(16).fill(7);
+    mat4.identity(dirty);
+    expectVecClose([...dirty], [...mat4.identity()]);
+  });
+
+  it('multiply tolerates aliased out arguments', () => {
+    const a = mat4.rotationX(0.5);
+    const b = mat4.rotationY(1.1);
+    const expected = [...mat4.multiply(a, b)];
+
+    const aliasA = mat4.rotationX(0.5);
+    mat4.multiply(aliasA, b, aliasA);
+    expectVecClose([...aliasA], expected);
+
+    const aliasB = mat4.rotationY(1.1);
+    mat4.multiply(a, aliasB, aliasB);
+    expectVecClose([...aliasB], expected);
+  });
 });

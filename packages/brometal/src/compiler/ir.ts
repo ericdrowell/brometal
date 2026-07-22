@@ -32,6 +32,8 @@ export type IrStmt =
 
 export interface StageIr {
   statements: IrStmt[];
+  usedAttributes: Set<string>;
+  usedInstanceAttributes: Set<string>;
   usedUniforms: Set<string>;
   usedVaryings: Set<string>;
 }

@@ -2,6 +2,7 @@ import { watch } from 'chokidar';
 import { readdirSync, readFileSync, statSync, unlinkSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { compileShaderSource } from '../compiler/compile.js';
+import type { GlslPrecision } from '../compiler/emit-glsl.js';
 import { buildGeneratedModule, shaderNameFromFile } from '../compiler/emit-module.js';
 import { CompileError } from '../compiler/errors.js';
 
@@ -10,9 +11,12 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git']);
 const HELP = `BroMetal — compile TypeScript shaders to GLSL
 
 Usage:
-  brometal dev [dir]    Compile all *.shader.ts files and watch for changes
-  brometal dev --once   Compile once without watching (readable output)
-  brometal prod [dir]   Compile once with optimizations (folding + minified GLSL)
+  brometal dev [dir]          Compile all *.shader.ts files and watch for changes
+  brometal dev --once         Compile once without watching (readable output)
+  brometal prod [dir]         Compile once with optimizations (folding, dead-varying
+                              elimination, minified GLSL)
+  --precision=mediump|highp   Fragment shader float precision (default highp;
+                              mediump is faster on many mobile GPUs)
 
 Each src/**/name.shader.ts compiles to a sibling name.shader.gen.ts that your
 app imports and passes to createProgram().
@@ -43,9 +47,17 @@ export function scanShaderFiles(root: string): string[] {
   return results.sort();
 }
 
-export function compileFile(filePath: string, options: { optimize: boolean }): void {
+export interface FileCompileOptions {
+  optimize: boolean;
+  precision?: GlslPrecision;
+}
+
+export function compileFile(filePath: string, options: FileCompileOptions): void {
   const source = readFileSync(filePath, 'utf8');
   const compiled = compileShaderSource(filePath, source, options);
+  for (const warning of compiled.warnings) {
+    log(`⚠ ${warning}`);
+  }
   const generated = buildGeneratedModule(shaderNameFromFile(filePath), compiled);
   writeFileSync(genPathFor(filePath), generated);
 }
@@ -55,7 +67,7 @@ export interface ProjectCompileResult {
   errors: string[];
 }
 
-export function compileProject(root: string, options: { optimize: boolean }): ProjectCompileResult {
+export function compileProject(root: string, options: FileCompileOptions): ProjectCompileResult {
   const result: ProjectCompileResult = { compiled: [], errors: [] };
   for (const filePath of scanShaderFiles(root)) {
     const started = Date.now();
@@ -76,6 +88,19 @@ export async function runCli(argv: string[]): Promise<number> {
   const positional = argv.filter((arg) => !arg.startsWith('--'));
   const command = positional[0];
 
+  let precision: GlslPrecision = 'highp';
+  for (const flag of flags) {
+    if (flag.startsWith('--precision=')) {
+      const value = flag.slice('--precision='.length);
+      if (value !== 'highp' && value !== 'mediump') {
+        log(`✗ invalid --precision '${value}' — use highp or mediump`);
+        return 1;
+      }
+      precision = value;
+      flags.delete(flag);
+    }
+  }
+
   if (command === undefined || flags.has('--help')) {
     log(HELP);
     return command === undefined ? 1 : 0;
@@ -93,7 +118,7 @@ export async function runCli(argv: string[]): Promise<number> {
   }
 
   const optimize = command === 'prod';
-  const result = compileProject(root, { optimize });
+  const result = compileProject(root, { optimize, precision });
   if (result.compiled.length === 0 && result.errors.length === 0) {
     log(`No *.shader.ts files found under ${root}`);
   }
@@ -111,8 +136,8 @@ export async function runCli(argv: string[]): Promise<number> {
     },
   });
 
-  watcher.on('add', (filePath) => recompileOne(root, filePath));
-  watcher.on('change', (filePath) => recompileOne(root, filePath));
+  watcher.on('add', (filePath) => recompileOne(root, filePath, precision));
+  watcher.on('change', (filePath) => recompileOne(root, filePath, precision));
   watcher.on('unlink', (filePath) => {
     if (!isShaderFile(filePath)) return;
     const genPath = genPathFor(filePath);
@@ -127,11 +152,11 @@ export async function runCli(argv: string[]): Promise<number> {
   });
 }
 
-function recompileOne(root: string, filePath: string): void {
+function recompileOne(root: string, filePath: string, precision: GlslPrecision): void {
   if (!isShaderFile(filePath)) return;
   const started = Date.now();
   try {
-    compileFile(filePath, { optimize: false });
+    compileFile(filePath, { optimize: false, precision });
     log(`✓ ${relative(root, filePath)} → ${path.basename(genPathFor(filePath))} (${Date.now() - started}ms)`);
   } catch (error) {
     reportError(error);

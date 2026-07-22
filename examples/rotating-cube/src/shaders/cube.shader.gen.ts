@@ -3,8 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const cubeShader: CompiledShader<{ aPosition: 'vec3'; aColor: 'vec3' }, Record<string, never>, { uMvp: 'mat4' }> = {
   vertexSrc: `#version 300 es
-in vec3 aPosition;
-in vec3 aColor;
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec3 aColor;
 uniform mat4 uMvp;
 out vec3 vColor;
 void main() {
@@ -23,6 +23,7 @@ void main() {
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   instanceAttributes: {},
   uniforms: { uMvp: 'mat4' },
+  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":1,"size":3,"divisor":0}],"uniforms":[{"name":"uMvp","type":"mat4","kind":"m4fv","size":16}]},
 };
 
 export default cubeShader;

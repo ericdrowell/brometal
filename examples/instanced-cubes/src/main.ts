@@ -2,8 +2,8 @@ import { createProgram, createRenderer, mat4 } from 'brometal';
 import cubesShader from './shaders/cubes.shader.gen';
 import { colors, indices, positions } from './geometry';
 
-const GRID = 10; // 10 × 10 × 10 = 1,000 cubes
-const SPACING = 2.6;
+const GRID = 50; // 50 × 50 × 50 = 125,000 cubes
+const SPACING = 2.4;
 const COUNT = GRID * GRID * GRID;
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene');
@@ -11,7 +11,7 @@ if (canvas === null) {
   throw new Error('missing #scene canvas');
 }
 
-const renderer = createRenderer(canvas, { clearColor: [0.05, 0.05, 0.08, 1] });
+const renderer = createRenderer(canvas, { clearColor: [0.05, 0.05, 0.08, 1], cull: 'back' });
 const program = createProgram(renderer.gl, cubesShader);
 
 program.attributes.aPosition.set(positions);
@@ -61,15 +61,22 @@ program.instanceAttributes.iSpeed.set(speeds);
 program.instanceAttributes.iScale.set(scales);
 program.instanceAttributes.iTint.set(tints);
 
-renderer.loop((t) => {
-  const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
-  const projection = mat4.perspective(Math.PI / 4, aspect, 0.1, 200);
-  const view = mat4.multiply(
-    mat4.translation(0, 0, -46),
-    mat4.multiply(mat4.rotationX(0.35), mat4.rotationY(t * 0.12)),
-  );
+// Scratch matrices — the render loop below allocates nothing.
+const eye = mat4.translation(0, 0, -250);
+const tilt = mat4.rotationX(0.35);
+const projection = mat4.scratch();
+const orbit = mat4.scratch();
+const viewProj = mat4.scratch();
 
-  program.uniforms.uViewProj.set(mat4.multiply(projection, view));
+renderer.loop((t) => {
+  const { drawingBufferWidth, drawingBufferHeight } = renderer.gl;
+  const aspect = drawingBufferWidth / Math.max(drawingBufferHeight, 1);
+  mat4.perspective(Math.PI / 4, aspect, 1, 500, projection);
+  mat4.multiply(tilt, mat4.rotationY(t * 0.12, orbit), orbit);
+  mat4.multiply(eye, orbit, viewProj);
+  mat4.multiply(projection, viewProj, viewProj);
+
+  program.uniforms.uViewProj.set(viewProj);
   program.uniforms.uTime.set(t);
   program.draw();
 });

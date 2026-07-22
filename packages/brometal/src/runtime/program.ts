@@ -1,11 +1,6 @@
-import type { CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
-import {
-  ATTRIBUTE_COMPONENT_COUNTS,
-  uploadAttribute,
-  uploadIndices,
-  type AttributeState,
-  type IndexState,
-} from './buffers.js';
+import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
+import { uploadAttribute, uploadIndices, type AttributeState, type IndexState } from './buffers.js';
+import { bindVaoCached, forgetProgram, forgetVao, useProgramCached } from './state.js';
 import { createUniformSetter, type UniformValue } from './uniforms.js';
 
 export interface AttributeHandle {
@@ -39,30 +34,35 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
     throw new Error('BroMetal: failed to create a vertex array object');
   }
 
+  // All wiring below is driven by the compile-time layout: locations, sizes,
+  // and divisors were decided by the compiler — no getAttribLocation calls.
   const vertexStates = new Map<string, AttributeState>();
   const instanceStates = new Map<string, AttributeState>();
-  const attributes = buildAttributeHandles<A>(gl, program, vao, compiled.attributes, vertexStates, 0);
-  const instanceAttributes = buildAttributeHandles<I>(
-    gl,
-    program,
-    vao,
-    compiled.instanceAttributes,
-    instanceStates,
-    1,
-  );
-  const isInstanced = Object.keys(compiled.instanceAttributes).length > 0;
+  const attributes = {} as { [K in keyof A]: AttributeHandle };
+  const instanceAttributes = {} as { [K in keyof I]: AttributeHandle };
+  let isInstanced = false;
+
+  for (const entry of compiled.layout.attributes) {
+    const handle = buildAttributeHandle(gl, vao, entry, entry.divisor === 0 ? vertexStates : instanceStates);
+    if (entry.divisor === 0) {
+      attributes[entry.name as keyof A] = handle;
+    } else {
+      instanceAttributes[entry.name as keyof I] = handle;
+      isInstanced = true;
+    }
+  }
 
   const uniforms = {} as { [K in keyof U]: UniformHandle<U[K]> };
-  for (const [name, type] of Object.entries(compiled.uniforms) as [keyof U & string, GpuType][]) {
-    const location = gl.getUniformLocation(program, name);
-    const setter = location === null ? null : createUniformSetter(gl, type, name, location);
-    uniforms[name] = {
+  for (const entry of compiled.layout.uniforms) {
+    const location = gl.getUniformLocation(program, entry.name);
+    const setter = location === null ? null : createUniformSetter(gl, entry, location);
+    uniforms[entry.name as keyof U] = {
       set(value: UniformValue<U[keyof U]>): void {
         if (setter === null) {
-          warnOnce(`uniform '${name}' is unused in the compiled shader; ignoring set()`);
+          warnOnce(`uniform '${entry.name}' is unused in the compiled shader; ignoring set()`);
           return;
         }
-        gl.useProgram(program);
+        useProgramCached(gl, program);
         setter(value);
       },
     } as UniformHandle<U[keyof U & string]>;
@@ -82,9 +82,8 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
         }
         indexState = { buffer, count: 0, type: gl.UNSIGNED_SHORT };
       }
-      gl.bindVertexArray(vao);
+      bindVaoCached(gl, vao);
       uploadIndices(gl, indexState, data);
-      gl.bindVertexArray(null);
     },
     draw(): void {
       const vertexCount = resolveCount(
@@ -92,8 +91,8 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
         'no vertex data — call program.attributes.<name>.set(...) before draw()',
         'vertices',
       );
-      gl.useProgram(program);
-      gl.bindVertexArray(vao);
+      useProgramCached(gl, program);
+      bindVaoCached(gl, vao);
       if (isInstanced) {
         const instanceCount = resolveCount(
           instanceStates,
@@ -110,7 +109,6 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
       } else {
         gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
       }
-      gl.bindVertexArray(null);
     },
     dispose(): void {
       for (const state of vertexStates.values()) {
@@ -125,49 +123,35 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
         gl.deleteBuffer(indexState.buffer);
         indexState = null;
       }
+      forgetVao(gl, vao);
+      forgetProgram(gl, program);
       gl.deleteVertexArray(vao);
       gl.deleteProgram(program);
     },
   };
 }
 
-function buildAttributeHandles<R extends GpuRecord>(
+function buildAttributeHandle(
   gl: WebGL2RenderingContext,
-  program: WebGLProgram,
   vao: WebGLVertexArrayObject,
-  record: R,
+  entry: AttributeLayoutEntry,
   states: Map<string, AttributeState>,
-  divisor: 0 | 1,
-): { [K in keyof R]: AttributeHandle } {
-  const handles = {} as { [K in keyof R]: AttributeHandle };
-  for (const [name, type] of Object.entries(record) as [keyof R & string, GpuType][]) {
-    const componentCount = ATTRIBUTE_COMPONENT_COUNTS[type];
-    if (componentCount === undefined) {
-      throw new Error(`BroMetal: attribute '${name}' has unsupported type '${type}'`);
-    }
-    const location = gl.getAttribLocation(program, name);
-    handles[name] = {
-      set(data: Float32Array): void {
-        if (location === -1) {
-          warnOnce(`attribute '${name}' was optimized out of the compiled shader; ignoring set()`);
-          return;
+): AttributeHandle {
+  return {
+    set(data: Float32Array): void {
+      let state = states.get(entry.name);
+      if (state === undefined) {
+        const buffer = gl.createBuffer();
+        if (buffer === null) {
+          throw new Error(`BroMetal: failed to create a buffer for attribute '${entry.name}'`);
         }
-        let state = states.get(name);
-        if (state === undefined) {
-          const buffer = gl.createBuffer();
-          if (buffer === null) {
-            throw new Error(`BroMetal: failed to create a buffer for attribute '${name}'`);
-          }
-          state = { buffer, componentCount, elementCount: 0 };
-          states.set(name, state);
-        }
-        gl.bindVertexArray(vao);
-        uploadAttribute(gl, state, location, data, divisor);
-        gl.bindVertexArray(null);
-      },
-    };
-  }
-  return handles;
+        state = { buffer, componentCount: entry.size, elementCount: 0 };
+        states.set(entry.name, state);
+      }
+      bindVaoCached(gl, vao);
+      uploadAttribute(gl, state, entry.location, data, entry.divisor);
+    },
+  };
 }
 
 function resolveCount(states: Map<string, AttributeState>, emptyMessage: string, unit: string): number {

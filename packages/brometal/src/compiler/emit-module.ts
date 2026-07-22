@@ -14,6 +14,7 @@ const ${shaderName}: CompiledShader<${attributeType}, ${instanceAttributeType}, 
   attributes: ${recordValueLiteral(compiled.attributes)},
   instanceAttributes: ${recordValueLiteral(compiled.instanceAttributes)},
   uniforms: ${recordValueLiteral(compiled.uniforms)},
+  layout: ${JSON.stringify(compiled.layout)},
 };
 
 export default ${shaderName};

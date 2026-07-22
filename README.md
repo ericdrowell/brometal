@@ -84,7 +84,7 @@ export default shader({
 });
 ```
 
-When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The `examples/instanced-cubes` demo renders 1,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
+When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The `examples/instanced-cubes` demo renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
 
 ## Examples
 
@@ -92,7 +92,7 @@ When a shader declares instance attributes, `program.draw()` automatically uses 
 npm install
 npm run build                # build the brometal package
 npm run dev:rotating-cube    # rotating cube      → http://localhost:5173
-npm run dev:instanced-cubes  # 1,000 cubes demo   → http://localhost:5174
+npm run dev:instanced-cubes  # 125,000 cubes demo → http://localhost:5174
 ```
 
 To iterate on an example's shader, run `npm run shaders:watch` in its directory alongside vite — regenerated modules hot-reload automatically.
@@ -108,12 +108,23 @@ To iterate on an example's shader, run `npm run shaders:watch` in its directory 
 
 Anything outside the subset fails compilation with a precise, actionable error.
 
+## Compiled, not configured
+
+BroMetal's spirit is to decide everything it can at compile time, so the runtime executes a precomputed plan:
+
+- **Attribute locations** are assigned by the compiler (`layout(location = N)`) and baked into the generated module — the runtime never calls `getAttribLocation`.
+- **Buffer layout** (component sizes, instancing divisors) and **uniform upload routines** are chosen at compile time and shipped as metadata.
+- **Unused attributes, uniforms, and varyings** are compile-time warnings, not runtime surprises; never-read varyings are stripped from prod builds along with the vertex code that fed them.
+- **Fragment precision** is a build flag: `npx brometal prod --precision=mediump` for mobile-leaning targets (default `highp`).
+
+At runtime, the hot path is equally lean: GL state is cached (repeat `useProgram`/VAO binds are skipped), resize handling is `ResizeObserver`-driven so the frame loop never reads DOM layout, `createRenderer` requests the high-performance GPU, opt-in back-face culling (`cull: 'back'`) halves fragment work for closed meshes, and every `mat4` function takes an optional `out` matrix so render loops allocate nothing.
+
 ## Repo layout
 
 ```
 packages/brometal/       # the npm package: compiler, CLI, WebGL2 runtime, mat4 math
 examples/rotating-cube   # hello-world: one spinning cube
-examples/instanced-cubes # 1,000 GPU-animated cubes in a single draw call
+examples/instanced-cubes # 125,000 GPU-animated cubes in a single draw call
 ```
 
 ## Development

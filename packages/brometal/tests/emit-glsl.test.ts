@@ -10,8 +10,8 @@ describe('GLSL emission', () => {
   it('compiles the cube shader to the expected vertex GLSL', () => {
     expect(compile(CUBE_SHADER).vertexSrc).toBe(
       `#version 300 es
-in vec3 aPosition;
-in vec3 aColor;
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec3 aColor;
 uniform mat4 uMvp;
 out vec3 vColor;
 void main() {
@@ -58,7 +58,7 @@ void main() {
   it('compiles if/else, comparisons, unary minus, and float promotion', () => {
     expect(compile(BRANCHING_SHADER).vertexSrc).toBe(
       `#version 300 es
-in vec2 aPosition;
+layout(location = 0) in vec2 aPosition;
 uniform float uThreshold;
 out float vFade;
 void main() {
@@ -78,11 +78,11 @@ void main() {
   it('declares instance attributes as vertex inputs and computes rotation on the GPU', () => {
     expect(compile(INSTANCED_SHADER).vertexSrc).toBe(
       `#version 300 es
-in vec3 aPosition;
-in vec3 aColor;
-in vec3 iOffset;
-in vec3 iAxis;
-in float iSpeed;
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec3 aColor;
+layout(location = 2) in vec3 iOffset;
+layout(location = 3) in vec3 iAxis;
+layout(location = 4) in float iSpeed;
 uniform mat4 uViewProj;
 uniform float uTime;
 out vec3 vColor;
@@ -109,6 +109,27 @@ void main() {
     expect(compiled.attributes).toEqual({ aPosition: 'vec3', aColor: 'vec3' });
     expect(compiled.uniforms).toEqual({ uMvp: 'mat4' });
     expect(compiled.varyings).toEqual({ vColor: 'vec3' });
+  });
+
+  it('precomputes the full wiring layout at compile time', () => {
+    const { layout } = compile(INSTANCED_SHADER);
+    expect(layout.attributes).toEqual([
+      { name: 'aPosition', type: 'vec3', location: 0, size: 3, divisor: 0 },
+      { name: 'aColor', type: 'vec3', location: 1, size: 3, divisor: 0 },
+      { name: 'iOffset', type: 'vec3', location: 2, size: 3, divisor: 1 },
+      { name: 'iAxis', type: 'vec3', location: 3, size: 3, divisor: 1 },
+      { name: 'iSpeed', type: 'float', location: 4, size: 1, divisor: 1 },
+    ]);
+    expect(layout.uniforms).toEqual([
+      { name: 'uViewProj', type: 'mat4', kind: 'm4fv', size: 16 },
+      { name: 'uTime', type: 'float', kind: '1f', size: 1 },
+    ]);
+  });
+
+  it('emits mediump fragment precision when requested', () => {
+    const compiled = compileShaderSource('test.shader.ts', CUBE_SHADER, { precision: 'mediump' });
+    expect(compiled.fragmentSrc).toContain('precision mediump float;');
+    expect(compile(CUBE_SHADER).fragmentSrc).toContain('precision highp float;');
   });
 
   it('parenthesizes according to precedence', () => {

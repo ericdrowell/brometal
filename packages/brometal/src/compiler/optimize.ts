@@ -78,6 +78,49 @@ function evaluate(op: string, a: number, b: number): number | undefined {
 }
 
 /**
+ * Removes varyings that no stage ever reads: the declaration disappears from
+ * both stages and the vertex assignments feeding them are dropped.
+ */
+export function pruneDeadVaryings(ir: ShaderIr): ShaderIr {
+  const dead = new Set(
+    Object.keys(ir.varyings).filter(
+      (name) => !ir.vertex.usedVaryings.has(name) && !ir.fragment.usedVaryings.has(name),
+    ),
+  );
+  if (dead.size === 0) {
+    return ir;
+  }
+  const varyings = Object.fromEntries(Object.entries(ir.varyings).filter(([name]) => !dead.has(name)));
+  return {
+    ...ir,
+    varyings,
+    vertex: { ...ir.vertex, statements: dropAssignments(ir.vertex.statements, dead) },
+  };
+}
+
+function dropAssignments(statements: IrStmt[], dead: Set<string>): IrStmt[] {
+  const result: IrStmt[] = [];
+  for (const statement of statements) {
+    if (statement.kind === 'assign' && dead.has(statement.target)) {
+      continue;
+    }
+    if (statement.kind === 'if') {
+      const pruned: IrStmt = {
+        kind: 'if',
+        condition: statement.condition,
+        then: dropAssignments(statement.then, dead),
+      };
+      result.push(
+        statement.else === undefined ? pruned : { ...pruned, else: dropAssignments(statement.else, dead) },
+      );
+      continue;
+    }
+    result.push(statement);
+  }
+  return result;
+}
+
+/**
  * Whitespace-level GLSL minification. Preprocessor directives keep their own
  * lines; spaces around `+`/`-` are preserved to avoid creating `--`/`++`.
  */
