@@ -6,7 +6,7 @@ BroMetal is LLVM-inspired compiler infrastructure for GPU programming that trans
 
 ```mermaid
 flowchart TD
-    subgraph BUILD ["⚙️ Build time — npx brometal"]
+    subgraph BUILD ["Build time — npx brometal"]
         TS[TypeScript] --> Parser
         Parser --> TC[Type Checker]
         TC --> SA[GPU Semantic Analysis]
@@ -15,7 +15,7 @@ flowchart TD
         OPT --> GLSL
         OPT --> WGSL
     end
-    subgraph RUN ["🌐 Runtime — visitor's browser"]
+    subgraph RUN ["Runtime — browser"]
         WebGL
         WebGPU
     end
@@ -75,8 +75,8 @@ Each `name.shader.ts` compiles to a sibling `name.shader.gen.ts` — a dependenc
 import { createRenderer, createProgram, mat4 } from 'brometal';
 import cubeShader from './shaders/cube.shader.gen';
 
-const renderer = createRenderer(canvas);
-const program = createProgram(renderer.gl, cubeShader);
+const renderer = await createRenderer(canvas);   // WebGPU when available, WebGL2 otherwise
+const program = createProgram(renderer, cubeShader);
 
 program.attributes.aPosition.set(positions);   // Float32Array
 program.attributes.aColor.set(colors);
@@ -141,7 +141,7 @@ export default shader({
 });
 ```
 
-Texture units are assigned by the compiler and baked into the layout, so the runtime sets each sampler uniform exactly once at link time — `program.uniforms.uTex.set(texture)` only binds. Load textures with `loadTexture(gl, url)` (mipmaps and sensible filtering by default) or wrap any `TexImageSource` with `createTexture`.
+Texture units are assigned by the compiler and baked into the layout, so the runtime sets each sampler uniform exactly once at link time — `program.uniforms.uTex.set(texture)` only binds. Load textures with `loadTexture(renderer, url)` (mipmaps and sensible filtering by default) or wrap any `TexImageSource` with `createTexture`.
 
 ## Instancing
 

@@ -47,8 +47,8 @@ Each `name.shader.ts` compiles to a sibling `name.shader.gen.ts` — a dependenc
 import { createRenderer, createProgram, mat4 } from 'brometal';
 import cubeShader from './shaders/cube.shader.gen';
 
-const renderer = createRenderer(canvas);
-const program = createProgram(renderer.gl, cubeShader);
+const renderer = await createRenderer(canvas);   // WebGPU when available, WebGL2 otherwise
+const program = createProgram(renderer, cubeShader);
 
 program.attributes.aPosition.set(positions);
 program.attributes.aColor.set(colors);
@@ -88,7 +88,7 @@ fragment({ uLightPos, uTex }, { vNormal, vUv }) {
 },
 ```
 
-Texture units are assigned at compile time; `program.uniforms.uTex.set(tex)` only binds. Load with `loadTexture(gl, url)` (mipmapped by default) or wrap any `TexImageSource` with `createTexture`. Lights are plain uniforms — full Blinn-Phong is expressible in the DSL.
+Texture units are assigned at compile time; `program.uniforms.uTex.set(tex)` only binds. Load with `loadTexture(renderer, url)` (mipmapped by default) or wrap any `TexImageSource` with `createTexture`. Lights are plain uniforms — full Blinn-Phong is expressible in the DSL.
 
 ## Instancing
 
