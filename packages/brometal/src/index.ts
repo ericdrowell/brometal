@@ -46,3 +46,4 @@ export { createCamera } from './camera/camera.js';
 export type { Camera, CameraLens, CameraOptions } from './camera/camera.js';
 export { createTexture, loadTexture } from './runtime/texture.js';
 export type { BroMetalTexture, TextureOptions } from './runtime/texture.js';
+export * from './geometries/index.js';

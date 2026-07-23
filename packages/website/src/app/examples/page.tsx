@@ -7,8 +7,8 @@ const EXAMPLES = [
     description: 'Hello world: one spinning cube, a TypeScript shader, and the WebGL2 runtime.',
   },
   {
-    slug: 'instanced-cubes',
-    name: 'Instanced Cubes',
+    slug: 'lots-of-cubes',
+    name: 'Lots of Cubes',
     description: '125,000 independently tumbling cubes in a single draw call — rotation computed on the GPU.',
   },
   {
@@ -17,9 +17,19 @@ const EXAMPLES = [
     description: 'Interactive camera: position and rotation sliders driving a cached view-projection matrix.',
   },
   {
-    slug: 'textures-with-light',
-    name: 'Textures with Light',
-    description: 'Blinn-Phong lit cube with a movable point light and nine CC0 textures to choose from.',
+    slug: 'light',
+    name: 'Light',
+    description: 'Blinn-Phong lighting on solid-colored faces with a movable point light.',
+  },
+  {
+    slug: 'textures',
+    name: 'Textures',
+    description: 'A lit, textured cube — move the light and pick from nine CC0 textures.',
+  },
+  {
+    slug: 'geometries',
+    name: 'Geometries',
+    description: 'Every built-in geometry — cube, sphere, torus knot, and friends — with a live selector.',
   },
 ];
 

@@ -266,3 +266,40 @@ a:hover {
 .tiles button:hover:not(.selected) {
   border-color: #4a4a6a;
 }
+
+.geo-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.geo-tiles button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 4px 9px;
+  background: #232338;
+  border: 2px solid #2f2f46;
+  border-radius: 8px;
+  color: #8f96ad;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.geo-tiles button svg {
+  width: 26px;
+  height: 26px;
+}
+
+.geo-tiles button.selected {
+  border-color: #ffb454;
+  color: #eef0f8;
+}
+
+.geo-tiles button:hover:not(.selected) {
+  border-color: #4a4a6a;
+  color: #c9cede;
+}

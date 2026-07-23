@@ -9,7 +9,7 @@ const GRID = 50; // 50 × 50 × 50 = 125,000 cubes
 const SPACING = 2.4;
 const COUNT = GRID * GRID * GRID;
 
-export default function InstancedCubesDemo() {
+export default function LotsOfCubesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {

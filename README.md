@@ -89,6 +89,22 @@ renderer.loop(() => {
 
 The view-projection matrix is cached against position, rotation, lens, and aspect — an unmoved camera costs zero matrix math per frame, and nothing allocates. The GPU sees one mat4 regardless of how the camera moves; all per-vertex transformation stays in the shader.
 
+## Geometries
+
+The classic parametric shapes ship built in, each producing positions, normals, UVs, and indices ready for the runtime:
+
+```ts
+import { createCube, createSphere, createTorusKnot } from 'brometal';
+
+const sphere = createSphere({ radius: 1.3, widthSegments: 32, heightSegments: 16 });
+program.attributes.aPosition.set(sphere.positions);
+program.attributes.aNormal.set(sphere.normals);
+program.attributes.aUv.set(sphere.uvs);
+program.setIndices(sphere.indices);
+```
+
+Available: `createCube`, `createSphere`, `createPlane`, `createCylinder`, `createCone`, `createTorus`, `createTorusKnot`, `createCircle`, `createRing` — Three.js-style parameters, CCW winding validated by tests, automatic 16/32-bit index selection.
+
 ## Textures and lighting
 
 Declare a `sampler2D` uniform and sample it with the `texture()` intrinsic; light sources are just uniforms your shader math consumes (the full Blinn-Phong lighting model is expressible in the DSL — see the textures-with-light example):
@@ -121,7 +137,7 @@ export default shader({
 });
 ```
 
-When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The instanced-cubes example renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
+When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The lots-of-cubes example renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
 
 ## Website & examples
 
@@ -134,7 +150,7 @@ npm run dev:website    # → http://localhost:3005 (uses the LOCAL workspace pac
 npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
-Example pages: `/examples/rotating-cube`, `/examples/instanced-cubes`, `/examples/camera`, `/examples/textures-with-light`.
+Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`.
 
 `dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
 

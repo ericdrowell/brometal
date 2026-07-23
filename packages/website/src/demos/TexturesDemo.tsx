@@ -11,7 +11,7 @@ import {
   type BroMetalProgram,
   type BroMetalTexture,
 } from 'brometal';
-import litShader from '@/shaders/lit-cube.shader.gen';
+import litShader from '@/shaders/textured-cube.shader.gen';
 import { indices, normals, positions, uvs } from '@/lib/cube-geometry';
 
 const TEXTURES = [
@@ -32,7 +32,7 @@ type LitProgram = BroMetalProgram<
   (typeof litShader)['uniforms']
 >;
 
-export default function TexturesWithLightDemo() {
+export default function TexturesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const programRef = useRef<LitProgram | null>(null);
   const textureCacheRef = useRef(new Map<string, Promise<BroMetalTexture>>());
