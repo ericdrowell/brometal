@@ -1,16 +1,12 @@
 import Image from 'next/image';
+import localFont from 'next/font/local';
+
+const delogs = localFont({ src: '../../public/fonts/Delogs Goes Hi-Tech.otf' });
 
 export default function HomePage() {
   return (
     <main className="page hero">
-      <Image
-        src="/bro-metal-logo.png"
-        alt="BroMetal"
-        width={1024}
-        height={326}
-        priority
-        className="hero-logo"
-      />
+      <h1 className={`hero-title ${delogs.className}`}>BroMetal</h1>
       <Image
         src="/bro-metal-head-blue.png"
         alt="A bro's head wearing sunglasses"
