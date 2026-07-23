@@ -21,6 +21,8 @@ flowchart TD
     end
     GLSL --> WebGL
     WGSL --> WebGPU
+    style BUILD fill:none,stroke:#888,stroke-width:1.5px
+    style RUN fill:none,stroke:#888,stroke-width:1.5px
 ```
 
 Everything above the line happens once, on your machine — the browser receives finished shader text and a ~10KB runtime, never the compiler.
