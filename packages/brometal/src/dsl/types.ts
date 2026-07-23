@@ -114,14 +114,21 @@ export interface UniformLayoutEntry {
   kind: UniformKind;
   /** Expected value length (1 for float scalars and samplers). */
   size: number;
-  /** Texture unit, assigned at compile time — present only for samplers. */
+  /** Texture unit (WebGL), assigned at compile time — present only for samplers. */
   unit?: number;
+  /** Byte offset in the WebGPU uniform block — absent for samplers. */
+  offset?: number;
+  /** WebGPU bind group bindings — present only for samplers. */
+  textureBinding?: number;
+  samplerBinding?: number;
 }
 
 /** Precomputed wiring plan — everything the runtime needs, decided at compile time. */
 export interface ShaderLayout {
   attributes: AttributeLayoutEntry[];
   uniforms: UniformLayoutEntry[];
+  /** Total byte size of the WebGPU uniform block (0 = no non-sampler uniforms). */
+  uniformBlockSize: number;
 }
 
 export interface CompiledShader<
@@ -131,6 +138,8 @@ export interface CompiledShader<
 > {
   vertexSrc: string;
   fragmentSrc: string;
+  /** WGSL module (both entry points) — present when compiled with the webgpu target. */
+  wgslSrc?: string;
   attributes: A;
   instanceAttributes: I;
   uniforms: U;

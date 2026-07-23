@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createCamera, createProgram, createRenderer, mat4, type Camera } from 'brometal';
+import { createCamera, createProgram, createRenderer, mat4, type Camera, type RendererBackend } from 'brometal';
 import cubeShader from '@/shaders/camera-cube.shader.gen';
 import { colors, indices, positions } from '@/lib/cube-geometry';
+import BackendBadge from '@/components/BackendBadge';
 
 interface CameraState {
   posX: number;
@@ -20,6 +21,7 @@ const TO_RADIANS = Math.PI / 180;
 
 export default function CameraDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const cameraRef = useRef<Camera | null>(null);
   const [state, setState] = useState<CameraState>(DEFAULTS);
 
@@ -27,8 +29,17 @@ export default function CameraDemo() {
     const canvas = canvasRef.current;
     if (canvas === null) return;
 
-    const renderer = createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1], cull: 'back' });
-    const program = createProgram(renderer.gl, cubeShader);
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    void (async () => {
+    const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1], cull: 'back' });
+    if (cancelled) {
+      renderer.destroy();
+      return;
+    }
+      setBackend(renderer.backend);
+    const program = createProgram(renderer, cubeShader);
     program.attributes.aPosition.set(positions);
     program.attributes.aColor.set(colors);
     program.setIndices(indices);
@@ -40,20 +51,24 @@ export default function CameraDemo() {
     const tilt = mat4.scratch();
 
     const stop = renderer.loop((t) => {
-      const { drawingBufferWidth, drawingBufferHeight } = renderer.gl;
-      const aspect = drawingBufferWidth / Math.max(drawingBufferHeight, 1);
       mat4.multiply(mat4.rotationY(t * 0.9, model), mat4.rotationX(t * 0.6, tilt), model);
 
-      program.uniforms.uViewProj.set(camera.viewProjection(aspect));
+      program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
       program.uniforms.uModel.set(model);
       program.draw();
     });
 
-    return () => {
+    cleanup = () => {
       stop();
       program.dispose();
       renderer.destroy();
       cameraRef.current = null;
+    };
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
     };
   }, []);
 
@@ -110,6 +125,7 @@ export default function CameraDemo() {
           </button>
         </div>
       </div>
+      <BackendBadge backend={backend} />
     </>
   );
 }

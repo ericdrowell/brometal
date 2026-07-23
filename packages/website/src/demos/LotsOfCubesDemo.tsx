@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { createProgram, createRenderer, mat4 } from 'brometal';
+import { useEffect, useRef, useState } from 'react';
+import { createProgram, createRenderer, mat4, type RendererBackend } from 'brometal';
 import cubesShader from '@/shaders/instanced-cubes.shader.gen';
 import { indices, pastelColors, positions } from '@/lib/cube-geometry';
+import BackendBadge from '@/components/BackendBadge';
 
 const GRID = 50; // 50 × 50 × 50 = 125,000 cubes
 const SPACING = 2.4;
@@ -11,13 +12,22 @@ const COUNT = GRID * GRID * GRID;
 
 export default function LotsOfCubesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [backend, setBackend] = useState<RendererBackend | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
-    const renderer = createRenderer(canvas, { clearColor: [0.05, 0.05, 0.08, 1], cull: 'back' });
-    const program = createProgram(renderer.gl, cubesShader);
+    void (async () => {
+    const renderer = await createRenderer(canvas, { clearColor: [0.05, 0.05, 0.08, 1], cull: 'back' });
+    if (cancelled) {
+      renderer.destroy();
+      return;
+    }
+      setBackend(renderer.backend);
+    const program = createProgram(renderer, cubesShader);
     program.attributes.aPosition.set(positions);
     program.attributes.aColor.set(pastelColors);
     program.setIndices(indices);
@@ -70,9 +80,7 @@ export default function LotsOfCubesDemo() {
     const viewProj = mat4.scratch();
 
     const stop = renderer.loop((t) => {
-      const { drawingBufferWidth, drawingBufferHeight } = renderer.gl;
-      const aspect = drawingBufferWidth / Math.max(drawingBufferHeight, 1);
-      mat4.perspective(Math.PI / 4, aspect, 1, 500, projection);
+      mat4.perspective(Math.PI / 4, renderer.aspect, 1, 500, projection);
       mat4.multiply(tilt, mat4.rotationY(t * 0.12, orbit), orbit);
       mat4.multiply(eye, orbit, viewProj);
       mat4.multiply(projection, viewProj, viewProj);
@@ -82,10 +90,16 @@ export default function LotsOfCubesDemo() {
       program.draw();
     });
 
-    return () => {
+    cleanup = () => {
       stop();
       program.dispose();
       renderer.destroy();
+    };
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
     };
   }, []);
 
@@ -97,6 +111,7 @@ export default function LotsOfCubesDemo() {
         <br />
         rotation computed on the GPU — per-frame upload: one mat4 + one float
       </div>
+      <BackendBadge backend={backend} />
     </>
   );
 }

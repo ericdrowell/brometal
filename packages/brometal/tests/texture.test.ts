@@ -67,10 +67,11 @@ export default shader({
 `;
     const { layout } = compile(source);
     expect(layout.uniforms).toEqual([
-      { name: 'uScale', type: 'float', kind: '1f', size: 1 },
-      { name: 'uTexA', type: 'sampler2D', kind: '1i', size: 1, unit: 0 },
-      { name: 'uTexB', type: 'sampler2D', kind: '1i', size: 1, unit: 1 },
+      { name: 'uScale', type: 'float', kind: '1f', size: 1, offset: 0 },
+      { name: 'uTexA', type: 'sampler2D', kind: '1i', size: 1, unit: 0, textureBinding: 1, samplerBinding: 2 },
+      { name: 'uTexB', type: 'sampler2D', kind: '1i', size: 1, unit: 1, textureBinding: 3, samplerBinding: 4 },
     ]);
+    expect(layout.uniformBlockSize).toBe(16);
   });
 
   it('supports the reflect intrinsic', () => {

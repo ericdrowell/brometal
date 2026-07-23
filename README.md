@@ -2,7 +2,7 @@
 
 Write TypeScript.  Lift Shaders.  Skip leg day.
 
-BroMetal is LLVM-inspired compiler infrastructure for GPU programming that transforms TypeScript into highly optimized GPU shaders. Today it compiles a typed TypeScript DSL to WebGL2 GLSL (ES 3.00) and ships the WebGL runtime to go with it — buffers, uniforms, program linking, and the render loop are all handled for you.
+BroMetal is LLVM-inspired compiler infrastructure for GPU programming that transforms TypeScript into highly optimized GPU shaders. It compiles a typed TypeScript DSL to WebGL2 GLSL **and** WGSL, and ships dual WebGL2/WebGPU runtimes to go with it — buffers, uniforms, program linking, and the render loop are all handled for you.
 
 ```mermaid
 flowchart TD
@@ -12,12 +12,19 @@ flowchart TD
     SA --> IR[GPU IR]
     IR --> OPT[Optimization Passes]
     OPT --> GLSL --> WebGL
-    OPT -.-> WGSL -.-> WebGPU
-    OPT -.-> HLSL -.-> DirectX
-    OPT -.-> MSL -.-> Metal
+    OPT --> WGSL --> WebGPU
 ```
 
-Solid lines are implemented; dotted backends are the roadmap.
+## WebGPU + WebGL from one source
+
+Every shader compiles to **both** GLSL ES 3.00 and WGSL by default (`npx brometal dev --targets=webgl2,webgpu` to control it — shader text is tiny, so shipping both costs single-digit KB). At runtime:
+
+```ts
+const renderer = await createRenderer(canvas);          // WebGPU when available, WebGL2 otherwise
+const program = createProgram(renderer, cubeShader);    // same API on both backends
+```
+
+`createRenderer` probes for a working WebGPU adapter and falls back to WebGL2 — same typed program API, same draw loop, no app changes. Pass `backend: 'webgl2' | 'webgpu'` to pin one. The compiler handles the platform differences: WGSL uniform blocks with correct alignment offsets, texture/sampler binding pairs, and the GL→WebGPU clip-space remap are all baked in at build time, so CPU-side matrices work identically on both.
 
 ## Quick start
 

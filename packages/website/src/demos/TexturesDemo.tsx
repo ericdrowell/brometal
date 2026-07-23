@@ -10,9 +10,12 @@ import {
   mat4,
   type BroMetalProgram,
   type BroMetalTexture,
+  type Renderer,
+  type RendererBackend,
 } from 'brometal';
 import litShader from '@/shaders/textured-cube.shader.gen';
 import { indices, normals, positions, uvs } from '@/lib/cube-geometry';
+import BackendBadge from '@/components/BackendBadge';
 
 const TEXTURES = [
   'wood095',
@@ -34,6 +37,8 @@ type LitProgram = BroMetalProgram<
 
 export default function TexturesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const rendererRef = useRef<Renderer | null>(null);
   const programRef = useRef<LitProgram | null>(null);
   const textureCacheRef = useRef(new Map<string, Promise<BroMetalTexture>>());
   const selectedRef = useRef(TEXTURES[0]!);
@@ -44,60 +49,74 @@ export default function TexturesDemo() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
-    const renderer = createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1], cull: 'back' });
-    const { gl } = renderer;
-    const program = createProgram(gl, litShader);
-    programRef.current = program;
+    void (async () => {
+      const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1], cull: 'back' });
+      if (cancelled) {
+        renderer.destroy();
+        return;
+      }
+      setBackend(renderer.backend);
+      rendererRef.current = renderer;
+      const program = createProgram(renderer, litShader);
+      programRef.current = program;
 
-    program.attributes.aPosition.set(positions);
-    program.attributes.aNormal.set(normals);
-    program.attributes.aUv.set(uvs);
-    program.setIndices(indices);
+      program.attributes.aPosition.set(positions);
+      program.attributes.aNormal.set(normals);
+      program.attributes.aUv.set(uvs);
+      program.setIndices(indices);
 
-    const cameraPos: [number, number, number] = [0, 0, 6];
-    const camera = createCamera({ position: cameraPos });
-    program.uniforms.uViewPos.set(cameraPos);
+      const cameraPos: [number, number, number] = [0, 0, 6];
+      const camera = createCamera({ position: cameraPos });
+      program.uniforms.uViewPos.set(cameraPos);
 
-    const placeholder = new ImageData(new Uint8ClampedArray([160, 160, 170, 255]), 1, 1);
-    const placeholderTexture = createTexture(gl, placeholder);
-    program.uniforms.uTex.set(placeholderTexture);
-    selectTexture(gl, selectedRef.current);
+      const placeholder = new ImageData(new Uint8ClampedArray([160, 160, 170, 255]), 1, 1);
+      const placeholderTexture = createTexture(renderer, placeholder);
+      program.uniforms.uTex.set(placeholderTexture);
+      selectTexture(renderer, selectedRef.current);
 
-    const model = mat4.scratch();
-    const tilt = mat4.scratch();
+      const model = mat4.scratch();
+      const tilt = mat4.scratch();
 
-    const stop = renderer.loop((t) => {
-      const { drawingBufferWidth, drawingBufferHeight } = gl;
-      const aspect = drawingBufferWidth / Math.max(drawingBufferHeight, 1);
-      mat4.multiply(mat4.rotationY(t * 0.5, model), mat4.rotationX(t * 0.3, tilt), model);
+      const stop = renderer.loop((t) => {
+        mat4.multiply(mat4.rotationY(t * 0.5, model), mat4.rotationX(t * 0.3, tilt), model);
 
-      program.uniforms.uViewProj.set(camera.viewProjection(aspect));
-      program.uniforms.uModel.set(model);
-      program.uniforms.uLightPos.set(lightRef.current);
-      program.draw();
-    });
+        program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
+        program.uniforms.uModel.set(model);
+        program.uniforms.uLightPos.set(lightRef.current);
+        program.draw();
+      });
+
+      cleanup = () => {
+        stop();
+        placeholderTexture.dispose();
+        program.dispose();
+        renderer.destroy();
+        programRef.current = null;
+        rendererRef.current = null;
+        textureCacheRef.current.clear();
+      };
+    })();
 
     return () => {
-      stop();
-      placeholderTexture.dispose();
-      program.dispose();
-      renderer.destroy();
-      programRef.current = null;
+      cancelled = true;
+      cleanup?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function selectTexture(gl: WebGL2RenderingContext, name: string): void {
+  function selectTexture(renderer: Renderer, name: string): void {
     const cache = textureCacheRef.current;
     let pending = cache.get(name);
     if (pending === undefined) {
-      pending = loadTexture(gl, `/textures/${name}.jpg`);
+      pending = loadTexture(renderer, `/textures/${name}.jpg`);
       cache.set(name, pending);
     }
     pending.then(
       (loaded) => {
-        if (selectedRef.current === name) {
+        if (selectedRef.current === name && rendererRef.current === renderer) {
           programRef.current?.uniforms.uTex.set(loaded);
         }
       },
@@ -108,10 +127,9 @@ export default function TexturesDemo() {
   const onTileClick = (name: string): void => {
     selectedRef.current = name;
     setSelected(name);
-    const canvas = canvasRef.current;
-    const gl = canvas?.getContext('webgl2');
-    if (gl != null) {
-      selectTexture(gl, name);
+    const renderer = rendererRef.current;
+    if (renderer !== null) {
+      selectTexture(renderer, name);
     }
   };
 
@@ -166,6 +184,7 @@ export default function TexturesDemo() {
           </div>
         </div>
       </div>
+      <BackendBadge backend={backend} />
     </>
   );
 }

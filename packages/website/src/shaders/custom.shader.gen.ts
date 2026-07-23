@@ -33,10 +33,48 @@ void main() {
   fragColor = vec4(palette(value * 0.5 + 0.15), 1.0);
 }
 `,
+  wgslSrc: `struct BmUniforms {
+  uTime : f32,
+}
+@group(0) @binding(0) var<uniform> bm_u : BmUniforms;
+struct BmVSIn {
+  @location(0) aPosition : vec3f,
+  @location(1) aUv : vec2f,
+}
+struct BmVSOut {
+  @builtin(position) bm_position : vec4f,
+  @location(0) vUv : vec2f,
+}
+fn palette(t : f32) -> vec3f {
+  return vec3f(0.5 + 0.5 * cos(6.28318 * (t + 0.0)), 0.5 + 0.5 * cos(6.28318 * (t + 0.33)), 0.5 + 0.5 * cos(6.28318 * (t + 0.67)));
+}
+@vertex
+fn vs_main(bm_in : BmVSIn) -> BmVSOut {
+  var bm_out : BmVSOut;
+  bm_out.vUv = bm_in.aUv;
+  bm_out.bm_position = vec4f(bm_in.aPosition, 1.0);
+  bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;
+  return bm_out;
+}
+@fragment
+fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
+  let x = bm_in.vUv.x * 6.0 - 3.0;
+  let y = bm_in.vUv.y * 6.0 - 3.0;
+  var value = 0.0;
+  var frequency = 1.0;
+  var amplitude = 0.6;
+  for (var i = 0.0; i < 5.0; i = i + 1.0) {
+    value = value + amplitude * sin(x * frequency + bm_u.uTime + i * 1.7) * cos(y * frequency - bm_u.uTime * 0.6 + i * 0.9);
+    frequency = frequency * 1.9;
+    amplitude = amplitude * 0.65;
+  }
+  return vec4f(palette(value * 0.5 + 0.15), 1.0);
+}
+`,
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   instanceAttributes: {},
   uniforms: { uTime: 'float' },
-  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0}],"uniforms":[{"name":"uTime","type":"float","kind":"1f","size":1}]},
+  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0}],"uniforms":[{"name":"uTime","type":"float","kind":"1f","size":1,"offset":0}],"uniformBlockSize":16},
 };
 
 export default customShader;

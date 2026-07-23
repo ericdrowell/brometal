@@ -1,5 +1,7 @@
 import { startLoop, type LoopHandle } from './loop.js';
 
+export type RendererBackend = 'webgl2' | 'webgpu';
+
 export interface RendererOptions {
   clearColor?: readonly [number, number, number, number];
   antialias?: boolean;
@@ -11,16 +13,44 @@ export interface RendererOptions {
   cull?: 'back' | 'none';
   /** GPU selection hint on dual-GPU machines. Defaults to 'high-performance'. */
   powerPreference?: WebGLPowerPreference;
+  /**
+   * 'auto' (default) uses WebGPU when the browser provides a working adapter
+   * and falls back to WebGL2 otherwise. Force a backend to pin it.
+   */
+  backend?: 'auto' | RendererBackend;
 }
 
 export interface Renderer {
-  readonly gl: WebGL2RenderingContext;
+  readonly backend: RendererBackend;
   readonly canvas: HTMLCanvasElement;
+  /** Drawing-buffer aspect ratio, for building projection matrices. */
+  readonly aspect: number;
+  /** The underlying context — WebGL2 backend only. */
+  readonly gl?: WebGL2RenderingContext;
   loop(callback: (elapsedSeconds: number) => void): () => void;
   destroy(): void;
 }
 
-export function createRenderer(canvas: HTMLCanvasElement, options: RendererOptions = {}): Renderer {
+export async function createRenderer(
+  canvas: HTMLCanvasElement,
+  options: RendererOptions = {},
+): Promise<Renderer> {
+  const backend = options.backend ?? 'auto';
+  if (backend === 'webgl2') {
+    return createWebgl2Renderer(canvas, options);
+  }
+  const { createWebgpuRenderer } = await import('./webgpu.js');
+  if (backend === 'webgpu') {
+    return createWebgpuRenderer(canvas, options);
+  }
+  try {
+    return await createWebgpuRenderer(canvas, options);
+  } catch {
+    return createWebgl2Renderer(canvas, options);
+  }
+}
+
+function createWebgl2Renderer(canvas: HTMLCanvasElement, options: RendererOptions): Renderer {
   const gl = canvas.getContext('webgl2', {
     antialias: options.antialias ?? true,
     powerPreference: options.powerPreference ?? 'high-performance',
@@ -42,8 +72,12 @@ export function createRenderer(canvas: HTMLCanvasElement, options: RendererOptio
   const activeLoops = new Set<LoopHandle>();
 
   return {
+    backend: 'webgl2',
     gl,
     canvas,
+    get aspect(): number {
+      return gl.drawingBufferWidth / Math.max(gl.drawingBufferHeight, 1);
+    },
     loop(callback: (elapsedSeconds: number) => void): () => void {
       const handle = startLoop(gl, canvas, callback);
       activeLoops.add(handle);

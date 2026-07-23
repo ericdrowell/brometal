@@ -76,7 +76,12 @@ const GLSL_RESERVED = new Set([
 const IDENT_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function isValidGlslName(name: string): boolean {
-  return IDENT_PATTERN.test(name) && !GLSL_RESERVED.has(name) && !name.startsWith('gl_');
+  return (
+    IDENT_PATTERN.test(name) &&
+    !GLSL_RESERVED.has(name) &&
+    !name.startsWith('gl_') &&
+    !name.startsWith('bm_') // reserved for compiler-generated WGSL plumbing
+  );
 }
 
 export function parseShaderModule(fileName: string, source: string): ParsedShaderModule {

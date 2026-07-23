@@ -31,10 +31,46 @@ void main() {
   fragColor = vec4(vColor, 1.0);
 }
 `,
+  wgslSrc: `struct BmUniforms {
+  uViewProj : mat4x4f,
+  uTime : f32,
+}
+@group(0) @binding(0) var<uniform> bm_u : BmUniforms;
+struct BmVSIn {
+  @location(0) aPosition : vec3f,
+  @location(1) aColor : vec3f,
+  @location(2) iOffset : vec3f,
+  @location(3) iAxis : vec3f,
+  @location(4) iSpeed : f32,
+  @location(5) iScale : f32,
+  @location(6) iTint : vec3f,
+}
+struct BmVSOut {
+  @builtin(position) bm_position : vec4f,
+  @location(0) vColor : vec3f,
+}
+@vertex
+fn vs_main(bm_in : BmVSIn) -> BmVSOut {
+  var bm_out : BmVSOut;
+  let angle = bm_u.uTime * bm_in.iSpeed;
+  let c = cos(angle);
+  let s = sin(angle);
+  let p = bm_in.aPosition * bm_in.iScale;
+  let rotated = p * c + cross(bm_in.iAxis, p) * s + bm_in.iAxis * (dot(bm_in.iAxis, p) * (1.0 - c));
+  bm_out.vColor = bm_in.aColor * bm_in.iTint;
+  bm_out.bm_position = bm_u.uViewProj * vec4f(rotated + bm_in.iOffset, 1.0);
+  bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;
+  return bm_out;
+}
+@fragment
+fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
+  return vec4f(bm_in.vColor, 1.0);
+}
+`,
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   instanceAttributes: { iOffset: 'vec3', iAxis: 'vec3', iSpeed: 'float', iScale: 'float', iTint: 'vec3' },
   uniforms: { uViewProj: 'mat4', uTime: 'float' },
-  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":1,"size":3,"divisor":0},{"name":"iOffset","type":"vec3","location":2,"size":3,"divisor":1},{"name":"iAxis","type":"vec3","location":3,"size":3,"divisor":1},{"name":"iSpeed","type":"float","location":4,"size":1,"divisor":1},{"name":"iScale","type":"float","location":5,"size":1,"divisor":1},{"name":"iTint","type":"vec3","location":6,"size":3,"divisor":1}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16},{"name":"uTime","type":"float","kind":"1f","size":1}]},
+  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":1,"size":3,"divisor":0},{"name":"iOffset","type":"vec3","location":2,"size":3,"divisor":1},{"name":"iAxis","type":"vec3","location":3,"size":3,"divisor":1},{"name":"iSpeed","type":"float","location":4,"size":1,"divisor":1},{"name":"iScale","type":"float","location":5,"size":1,"divisor":1},{"name":"iTint","type":"vec3","location":6,"size":3,"divisor":1}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uTime","type":"float","kind":"1f","size":1,"offset":64}],"uniformBlockSize":80},
 };
 
 export default instancedCubesShader;

@@ -1,3 +1,6 @@
+import type { Renderer } from './context.js';
+import { createWebgpuTexture } from './webgpu.js';
+
 export interface TextureOptions {
   /** Flip the image vertically on upload so UV (0,0) is the bottom-left. Default true. */
   flipY?: boolean;
@@ -7,14 +10,30 @@ export interface TextureOptions {
 }
 
 export interface BroMetalTexture {
-  readonly glTexture: WebGLTexture;
+  /** Present on WebGL2-backed textures. */
+  readonly glTexture?: WebGLTexture;
   dispose(): void;
 }
 
 export function createTexture(
-  gl: WebGL2RenderingContext,
+  renderer: Renderer,
   source: TexImageSource,
   options: TextureOptions = {},
+): BroMetalTexture {
+  if (renderer.backend === 'webgpu') {
+    return createWebgpuTexture(renderer, source, options);
+  }
+  const gl = renderer.gl;
+  if (gl === undefined) {
+    throw new Error('BroMetal: renderer has no WebGL2 context');
+  }
+  return createWebgl2Texture(gl, source, options);
+}
+
+function createWebgl2Texture(
+  gl: WebGL2RenderingContext,
+  source: TexImageSource,
+  options: TextureOptions,
 ): BroMetalTexture {
   const glTexture = gl.createTexture();
   if (glTexture === null) {
@@ -48,7 +67,7 @@ export function createTexture(
 }
 
 export async function loadTexture(
-  gl: WebGL2RenderingContext,
+  renderer: Renderer,
   url: string,
   options: TextureOptions = {},
 ): Promise<BroMetalTexture> {
@@ -60,5 +79,10 @@ export async function loadTexture(
   } catch {
     throw new Error(`BroMetal: failed to load texture '${url}'`);
   }
-  return createTexture(gl, image, options);
+  if (renderer.backend === 'webgpu') {
+    // ImageBitmap is the universally-supported WebGPU copy source.
+    const bitmap = await createImageBitmap(image);
+    return createTexture(renderer, bitmap, options);
+  }
+  return createTexture(renderer, image, options);
 }

@@ -19,8 +19,11 @@ import {
   mat4,
   type BroMetalProgram,
   type Geometry,
+  type Renderer,
+  type RendererBackend,
 } from 'brometal';
 import litShader from '@/shaders/textured-cube.shader.gen';
+import BackendBadge from '@/components/BackendBadge';
 
 const DEFAULT_TEXTURE = 'wood095';
 
@@ -115,6 +118,8 @@ function applyGeometry(program: LitProgram, geometry: Geometry): void {
 
 export default function GeometriesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const rendererRef = useRef<Renderer | null>(null);
   const programRef = useRef<LitProgram | null>(null);
   const geometryCacheRef = useRef(new Map<string, Geometry>());
   const [selected, setSelected] = useState(GEOMETRIES[0]!.key);
@@ -133,10 +138,19 @@ export default function GeometriesDemo() {
     const canvas = canvasRef.current;
     if (canvas === null) return;
 
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    void (async () => {
     // No back-face culling: plane, circle, and ring are single-sided.
-    const renderer = createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1] });
-    const { gl } = renderer;
-    const program = createProgram(gl, litShader);
+    const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1] });
+    if (cancelled) {
+      renderer.destroy();
+      return;
+    }
+      setBackend(renderer.backend);
+    rendererRef.current = renderer;
+    const program = createProgram(renderer, litShader);
     programRef.current = program;
     applyGeometry(program, getGeometry(GEOMETRIES[0]!.key));
 
@@ -146,9 +160,9 @@ export default function GeometriesDemo() {
     program.uniforms.uLightPos.set([4, 3, 6]);
 
     const placeholder = new ImageData(new Uint8ClampedArray([160, 160, 170, 255]), 1, 1);
-    const placeholderTexture = createTexture(gl, placeholder);
+    const placeholderTexture = createTexture(renderer, placeholder);
     program.uniforms.uTex.set(placeholderTexture);
-    loadTexture(gl, `/textures/${DEFAULT_TEXTURE}.jpg`).then(
+    loadTexture(renderer, `/textures/${DEFAULT_TEXTURE}.jpg`).then(
       (loaded) => programRef.current?.uniforms.uTex.set(loaded),
       (error: unknown) => console.error(error),
     );
@@ -157,21 +171,26 @@ export default function GeometriesDemo() {
     const tilt = mat4.scratch();
 
     const stop = renderer.loop((t) => {
-      const { drawingBufferWidth, drawingBufferHeight } = gl;
-      const aspect = drawingBufferWidth / Math.max(drawingBufferHeight, 1);
       mat4.multiply(mat4.rotationY(t * 0.5, model), mat4.rotationX(t * 0.3, tilt), model);
 
-      program.uniforms.uViewProj.set(camera.viewProjection(aspect));
+      program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
       program.uniforms.uModel.set(model);
       program.draw();
     });
 
-    return () => {
+    cleanup = () => {
       stop();
       placeholderTexture.dispose();
       program.dispose();
       renderer.destroy();
       programRef.current = null;
+      rendererRef.current = null;
+    };
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -206,6 +225,7 @@ export default function GeometriesDemo() {
           </div>
         </div>
       </div>
+      <BackendBadge backend={backend} />
     </>
   );
 }

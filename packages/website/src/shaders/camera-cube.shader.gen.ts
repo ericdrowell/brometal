@@ -21,10 +21,36 @@ void main() {
   fragColor = vec4(vColor, 1.0);
 }
 `,
+  wgslSrc: `struct BmUniforms {
+  uViewProj : mat4x4f,
+  uModel : mat4x4f,
+}
+@group(0) @binding(0) var<uniform> bm_u : BmUniforms;
+struct BmVSIn {
+  @location(0) aPosition : vec3f,
+  @location(1) aColor : vec3f,
+}
+struct BmVSOut {
+  @builtin(position) bm_position : vec4f,
+  @location(0) vColor : vec3f,
+}
+@vertex
+fn vs_main(bm_in : BmVSIn) -> BmVSOut {
+  var bm_out : BmVSOut;
+  bm_out.vColor = bm_in.aColor;
+  bm_out.bm_position = bm_u.uViewProj * (bm_u.uModel * vec4f(bm_in.aPosition, 1.0));
+  bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;
+  return bm_out;
+}
+@fragment
+fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
+  return vec4f(bm_in.vColor, 1.0);
+}
+`,
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   instanceAttributes: {},
   uniforms: { uViewProj: 'mat4', uModel: 'mat4' },
-  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":1,"size":3,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16},{"name":"uModel","type":"mat4","kind":"m4fv","size":16}]},
+  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":1,"size":3,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uModel","type":"mat4","kind":"m4fv","size":16,"offset":64}],"uniformBlockSize":128},
 };
 
 export default cameraCubeShader;

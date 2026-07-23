@@ -121,9 +121,10 @@ void main() {
       { name: 'iSpeed', type: 'float', location: 4, size: 1, divisor: 1 },
     ]);
     expect(layout.uniforms).toEqual([
-      { name: 'uViewProj', type: 'mat4', kind: 'm4fv', size: 16 },
-      { name: 'uTime', type: 'float', kind: '1f', size: 1 },
+      { name: 'uViewProj', type: 'mat4', kind: 'm4fv', size: 16, offset: 0 },
+      { name: 'uTime', type: 'float', kind: '1f', size: 1, offset: 64 },
     ]);
+    expect(layout.uniformBlockSize).toBe(80);
   });
 
   it('emits mediump fragment precision when requested', () => {

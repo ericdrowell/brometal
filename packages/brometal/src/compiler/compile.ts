@@ -1,13 +1,18 @@
 import type { GpuRecord, ShaderLayout } from '../dsl/types.js';
 import { analyzeShader } from './analyze.js';
 import { emitGlsl, helperClosure, type GlslPrecision } from './emit-glsl.js';
+import { emitWgsl } from './emit-wgsl.js';
 import { buildLayout } from './layout.js';
 import { foldConstants, minifyGlsl, pruneDeadVaryings } from './optimize.js';
 import { parseShaderModule } from './parse.js';
 
+export type CompileTarget = 'webgl2' | 'webgpu';
+
 export interface CompileOptions {
   optimize?: boolean;
   precision?: GlslPrecision;
+  /** Backends to emit. Default: both. */
+  targets?: CompileTarget[];
 }
 
 export interface CompiledShaderModule {
@@ -18,6 +23,7 @@ export interface CompiledShaderModule {
   layout: ShaderLayout;
   vertexSrc: string;
   fragmentSrc: string;
+  wgslSrc?: string;
   /** Compile-time diagnostics that do not block compilation. */
   warnings: string[];
 }
@@ -36,6 +42,7 @@ export function compileShaderSource(
   }
 
   const layout = buildLayout(ir);
+  const targets = options.targets ?? ['webgl2', 'webgpu'];
   let { vertexSrc, fragmentSrc } = emitGlsl(ir, layout, {
     precision: options.precision ?? 'highp',
   });
@@ -44,7 +51,7 @@ export function compileShaderSource(
     fragmentSrc = minifyGlsl(fragmentSrc);
   }
 
-  return {
+  const result: CompiledShaderModule = {
     attributes: ir.attributes,
     instanceAttributes: ir.instanceAttributes,
     uniforms: ir.uniforms,
@@ -54,6 +61,14 @@ export function compileShaderSource(
     fragmentSrc,
     warnings,
   };
+  if (!targets.includes('webgl2')) {
+    result.vertexSrc = '';
+    result.fragmentSrc = '';
+  }
+  if (targets.includes('webgpu')) {
+    result.wgslSrc = emitWgsl(ir, layout);
+  }
+  return result;
 }
 
 function collectWarnings(fileName: string, ir: ReturnType<typeof analyzeShader>): string[] {

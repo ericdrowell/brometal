@@ -39,10 +39,52 @@ void main() {
   fragColor = vec4(lit, 1.0);
 }
 `,
+  wgslSrc: `struct BmUniforms {
+  uViewProj : mat4x4f,
+  uModel : mat4x4f,
+  uLightPos : vec3f,
+  uViewPos : vec3f,
+}
+@group(0) @binding(0) var<uniform> bm_u : BmUniforms;
+struct BmVSIn {
+  @location(0) aPosition : vec3f,
+  @location(1) aNormal : vec3f,
+  @location(2) aColor : vec3f,
+}
+struct BmVSOut {
+  @builtin(position) bm_position : vec4f,
+  @location(0) vNormal : vec3f,
+  @location(1) vColor : vec3f,
+  @location(2) vWorldPos : vec3f,
+}
+@vertex
+fn vs_main(bm_in : BmVSIn) -> BmVSOut {
+  var bm_out : BmVSOut;
+  let world = bm_u.uModel * vec4f(bm_in.aPosition, 1.0);
+  bm_out.vWorldPos = world.xyz;
+  bm_out.vNormal = (bm_u.uModel * vec4f(bm_in.aNormal, 0.0)).xyz;
+  bm_out.vColor = bm_in.aColor;
+  bm_out.bm_position = bm_u.uViewProj * world;
+  bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;
+  return bm_out;
+}
+@fragment
+fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
+  let ambient = 0.25;
+  let n = normalize(bm_in.vNormal);
+  let lightDir = normalize(bm_u.uLightPos - bm_in.vWorldPos);
+  let diffuse = max(dot(n, lightDir), 0.0);
+  let viewDir = normalize(bm_u.uViewPos - bm_in.vWorldPos);
+  let halfway = normalize(lightDir + viewDir);
+  let specular = pow(max(dot(n, halfway), 0.0), 32.0) * 0.4;
+  let lit = bm_in.vColor * (ambient + diffuse) + vec3f(1.0, 1.0, 1.0) * specular;
+  return vec4f(lit, 1.0);
+}
+`,
   attributes: { aPosition: 'vec3', aNormal: 'vec3', aColor: 'vec3' },
   instanceAttributes: {},
   uniforms: { uViewProj: 'mat4', uModel: 'mat4', uLightPos: 'vec3', uViewPos: 'vec3' },
-  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aNormal","type":"vec3","location":1,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":2,"size":3,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16},{"name":"uModel","type":"mat4","kind":"m4fv","size":16},{"name":"uLightPos","type":"vec3","kind":"3fv","size":3},{"name":"uViewPos","type":"vec3","kind":"3fv","size":3}]},
+  layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aNormal","type":"vec3","location":1,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":2,"size":3,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uModel","type":"mat4","kind":"m4fv","size":16,"offset":64},{"name":"uLightPos","type":"vec3","kind":"3fv","size":3,"offset":128},{"name":"uViewPos","type":"vec3","kind":"3fv","size":3,"offset":144}],"uniformBlockSize":160},
 };
 
 export default lightCubeShader;

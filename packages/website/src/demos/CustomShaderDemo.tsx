@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { createPlane, createProgram, createRenderer } from 'brometal';
+import { useEffect, useRef, useState } from 'react';
+import { createPlane, createProgram, createRenderer, type RendererBackend } from 'brometal';
 import customShader from '@/shaders/custom.shader.gen';
+import BackendBadge from '@/components/BackendBadge';
 
 const FRAGMENT_SOURCE = `function palette(t: number): Vec3 {
   return vec3(
@@ -30,30 +31,45 @@ fragment({ uTime }, { vUv }) {
 
 export default function CustomShaderDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [backend, setBackend] = useState<RendererBackend | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
-    const renderer = createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1] });
-    const program = createProgram(renderer.gl, customShader);
+    void (async () => {
+      const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1] });
+      if (cancelled) {
+        renderer.destroy();
+        return;
+      }
+      setBackend(renderer.backend);
+      const program = createProgram(renderer, customShader);
 
-    // A clip-space quad: the vertex stage outputs positions directly, so the
-    // plane's -1..1 extent fills the viewport with no camera at all.
-    const quad = createPlane({ width: 2, height: 2 });
-    program.attributes.aPosition.set(quad.positions);
-    program.attributes.aUv.set(quad.uvs);
-    program.setIndices(quad.indices);
+      // A clip-space quad: the vertex stage outputs positions directly, so the
+      // plane's -1..1 extent fills the viewport with no camera at all.
+      const quad = createPlane({ width: 2, height: 2 });
+      program.attributes.aPosition.set(quad.positions);
+      program.attributes.aUv.set(quad.uvs);
+      program.setIndices(quad.indices);
 
-    const stop = renderer.loop((t) => {
-      program.uniforms.uTime.set(t);
-      program.draw();
-    });
+      const stop = renderer.loop((t) => {
+        program.uniforms.uTime.set(t);
+        program.draw();
+      });
+
+      cleanup = () => {
+        stop();
+        program.dispose();
+        renderer.destroy();
+      };
+    })();
 
     return () => {
-      stop();
-      program.dispose();
-      renderer.destroy();
+      cancelled = true;
+      cleanup?.();
     };
   }, []);
 
@@ -64,11 +80,12 @@ export default function CustomShaderDemo() {
         <h1>Custom Shader</h1>
         <p className="code-note">
           Plain TypeScript — a helper function, <code>let</code> accumulators, and a{' '}
-          <code>for</code> loop — compiled to GLSL at build time. No engine, no materials: this
+          <code>for</code> loop — compiled to GLSL and WGSL at build time. No engine, no materials: this
           page is one quad and your code.
         </p>
         <pre>{FRAGMENT_SOURCE}</pre>
       </div>
+      <BackendBadge backend={backend} />
     </>
   );
 }

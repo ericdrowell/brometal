@@ -48,7 +48,7 @@ export {
   vec4,
 } from './dsl/builtins.js';
 export { createRenderer } from './runtime/context.js';
-export type { Renderer, RendererOptions } from './runtime/context.js';
+export type { Renderer, RendererBackend, RendererOptions } from './runtime/context.js';
 export { createProgram } from './runtime/program.js';
 export type { AttributeHandle, BroMetalProgram, UniformHandle } from './runtime/program.js';
 export type { UniformValue } from './runtime/uniforms.js';

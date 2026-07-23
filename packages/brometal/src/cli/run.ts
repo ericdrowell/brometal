@@ -1,7 +1,7 @@
 import { watch } from 'chokidar';
 import { readdirSync, readFileSync, statSync, unlinkSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { compileShaderSource } from '../compiler/compile.js';
+import { compileShaderSource, type CompileTarget } from '../compiler/compile.js';
 import type { GlslPrecision } from '../compiler/emit-glsl.js';
 import { buildGeneratedModule, shaderNameFromFile } from '../compiler/emit-module.js';
 import { CompileError } from '../compiler/errors.js';
@@ -17,6 +17,8 @@ Usage:
                               elimination, minified GLSL)
   --precision=mediump|highp   Fragment shader float precision (default highp;
                               mediump is faster on many mobile GPUs)
+  --targets=webgl2,webgpu     Backends to emit into the generated module
+                              (default both: GLSL + WGSL; shader text is tiny)
 
 Each src/**/name.shader.ts compiles to a sibling name.shader.gen.ts that your
 app imports and passes to createProgram().
@@ -50,6 +52,7 @@ export function scanShaderFiles(root: string): string[] {
 export interface FileCompileOptions {
   optimize: boolean;
   precision?: GlslPrecision;
+  targets?: CompileTarget[];
 }
 
 export function compileFile(filePath: string, options: FileCompileOptions): void {
@@ -89,6 +92,7 @@ export async function runCli(argv: string[]): Promise<number> {
   const command = positional[0];
 
   let precision: GlslPrecision = 'highp';
+  let targets: CompileTarget[] = ['webgl2', 'webgpu'];
   for (const flag of flags) {
     if (flag.startsWith('--precision=')) {
       const value = flag.slice('--precision='.length);
@@ -97,6 +101,14 @@ export async function runCli(argv: string[]): Promise<number> {
         return 1;
       }
       precision = value;
+      flags.delete(flag);
+    } else if (flag.startsWith('--targets=')) {
+      const parts = flag.slice('--targets='.length).split(',').filter((part) => part.length > 0);
+      if (parts.length === 0 || parts.some((part) => part !== 'webgl2' && part !== 'webgpu')) {
+        log(`✗ invalid --targets '${flag}' — use a comma list of webgl2, webgpu`);
+        return 1;
+      }
+      targets = parts as CompileTarget[];
       flags.delete(flag);
     }
   }
@@ -118,7 +130,7 @@ export async function runCli(argv: string[]): Promise<number> {
   }
 
   const optimize = command === 'prod';
-  const result = compileProject(root, { optimize, precision });
+  const result = compileProject(root, { optimize, precision, targets });
   if (result.compiled.length === 0 && result.errors.length === 0) {
     log(`No *.shader.ts files found under ${root}`);
   }
@@ -136,8 +148,8 @@ export async function runCli(argv: string[]): Promise<number> {
     },
   });
 
-  watcher.on('add', (filePath) => recompileOne(root, filePath, precision));
-  watcher.on('change', (filePath) => recompileOne(root, filePath, precision));
+  watcher.on('add', (filePath) => recompileOne(root, filePath, precision, targets));
+  watcher.on('change', (filePath) => recompileOne(root, filePath, precision, targets));
   watcher.on('unlink', (filePath) => {
     if (!isShaderFile(filePath)) return;
     const genPath = genPathFor(filePath);
@@ -152,11 +164,16 @@ export async function runCli(argv: string[]): Promise<number> {
   });
 }
 
-function recompileOne(root: string, filePath: string, precision: GlslPrecision): void {
+function recompileOne(
+  root: string,
+  filePath: string,
+  precision: GlslPrecision,
+  targets: CompileTarget[],
+): void {
   if (!isShaderFile(filePath)) return;
   const started = Date.now();
   try {
-    compileFile(filePath, { optimize: false, precision });
+    compileFile(filePath, { optimize: false, precision, targets });
     log(`✓ ${relative(root, filePath)} → ${path.basename(genPathFor(filePath))} (${Date.now() - started}ms)`);
   } catch (error) {
     reportError(error);

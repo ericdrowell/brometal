@@ -275,6 +275,31 @@ a:hover {
   border-color: #4a4a6a;
 }
 
+.backend-badge {
+  position: fixed;
+  right: 16px;
+  bottom: 14px;
+  z-index: 10;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid #2a2a3c;
+  background: rgba(16, 16, 26, 0.85);
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+.backend-badge.webgpu {
+  color: #ffb454;
+  border-color: rgba(255, 180, 84, 0.4);
+}
+
+.backend-badge.webgl2 {
+  color: #9d8cff;
+  border-color: rgba(157, 140, 255, 0.4);
+}
+
 .code-panel {
   position: fixed;
   top: 76px;

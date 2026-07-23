@@ -1,7 +1,9 @@
 import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
 import { uploadAttribute, uploadIndices, type AttributeState, type IndexState } from './buffers.js';
+import type { Renderer } from './context.js';
 import { bindVaoCached, forgetProgram, forgetVao, useProgramCached } from './state.js';
 import { createUniformSetter, type UniformValue } from './uniforms.js';
+import { createWebgpuProgram } from './webgpu.js';
 
 export interface AttributeHandle {
   set(data: Float32Array): void;
@@ -25,9 +27,21 @@ export interface BroMetalProgram<
 }
 
 export function createProgram<A extends GpuRecord, I extends GpuRecord, U extends GpuRecord>(
-  gl: WebGL2RenderingContext,
+  renderer: Renderer,
   compiled: CompiledShader<A, I, U>,
 ): BroMetalProgram<A, I, U> {
+  if (renderer.backend === 'webgpu') {
+    return createWebgpuProgram(renderer, compiled);
+  }
+  const gl = renderer.gl;
+  if (gl === undefined) {
+    throw new Error('BroMetal: renderer has no WebGL2 context');
+  }
+  if (compiled.vertexSrc === '') {
+    throw new Error(
+      'BroMetal: this shader was compiled without the webgl2 target — recompile with --targets=webgl2,webgpu',
+    );
+  }
   const program = linkProgram(gl, compiled.vertexSrc, compiled.fragmentSrc);
   const vao = gl.createVertexArray();
   if (vao === null) {
