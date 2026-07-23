@@ -25,10 +25,31 @@ export type IrExpr =
   | { kind: 'swizzle'; obj: IrExpr; components: string; type: IrType };
 
 export type IrStmt =
-  | { kind: 'const'; name: string; type: IrType; expr: IrExpr }
+  | { kind: 'decl'; name: string; type: IrType; mutable: boolean; expr: IrExpr }
   | { kind: 'assign'; target: string; expr: IrExpr }
   | { kind: 'if'; condition: IrExpr; then: IrStmt[]; else?: IrStmt[] }
+  | {
+      kind: 'for';
+      init: { name: string; expr: IrExpr };
+      condition: IrExpr;
+      update: IrStmt;
+      body: IrStmt[];
+    }
   | { kind: 'return'; expr: IrExpr };
+
+export interface HelperParam {
+  name: string;
+  type: IrType;
+}
+
+export interface HelperIr {
+  name: string;
+  params: HelperParam[];
+  returnType: IrType;
+  statements: IrStmt[];
+  /** Names of earlier-declared helpers this one calls. */
+  usedHelpers: string[];
+}
 
 export interface StageIr {
   statements: IrStmt[];
@@ -36,6 +57,7 @@ export interface StageIr {
   usedInstanceAttributes: Set<string>;
   usedUniforms: Set<string>;
   usedVaryings: Set<string>;
+  usedHelpers: Set<string>;
 }
 
 export interface ShaderIr {
@@ -43,6 +65,7 @@ export interface ShaderIr {
   instanceAttributes: GpuRecord;
   uniforms: GpuRecord;
   varyings: GpuRecord;
+  helpers: HelperIr[];
   vertex: StageIr;
   fragment: StageIr;
 }

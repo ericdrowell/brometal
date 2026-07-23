@@ -4,7 +4,7 @@ import { errorAt } from './errors.js';
 import type { IrBinaryOp, IrExpr, IrStmt, IrType, ShaderIr, StageIr } from './ir.js';
 import { isValidGlslName, type ParsedShaderModule, type ShaderFn } from './parse.js';
 
-type Stage = 'vertex' | 'fragment';
+type Stage = 'vertex' | 'fragment' | 'helper';
 
 type RecordRole = 'attributes' | 'instanceAttributes' | 'uniforms' | 'varyings';
 
@@ -14,7 +14,13 @@ type ParamRole = 'vertexInputs' | 'uniforms' | 'varyings';
 type Binding =
   | { kind: 'value'; role: RecordRole; glslName: string; type: IrType }
   | { kind: 'record'; role: ParamRole }
-  | { kind: 'local'; type: IrType };
+  | { kind: 'local'; type: IrType; mutable: boolean };
+
+interface HelperSignature {
+  name: string;
+  params: IrType[];
+  returnType: IrType;
+}
 
 const PARAM_ROLE_LABELS: Record<ParamRole, string> = {
   vertexInputs: 'attributes',
@@ -94,13 +100,39 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
   },
   sin: floatUnary('sin'),
   cos: floatUnary('cos'),
+  tan: floatUnary('tan'),
+  asin: floatUnary('asin'),
+  acos: floatUnary('acos'),
   abs: floatUnary('abs'),
   fract: floatUnary('fract'),
   floor: floatUnary('floor'),
   sqrt: floatUnary('sqrt'),
+  exp: floatUnary('exp'),
+  exp2: floatUnary('exp2'),
+  log: floatUnary('log'),
+  sign: floatUnary('sign'),
   pow: floatBinary('pow'),
   min: floatBinary('min'),
   max: floatBinary('max'),
+  mod: floatBinary('mod'),
+  step: floatBinary('step'),
+  atan: {
+    signature: 'atan(y, x) or atan(x) expects float arguments',
+    check: (args) =>
+      (args.length === 1 || args.length === 2) && args.every((arg) => arg.type === 'float')
+        ? 'float'
+        : null,
+  },
+  smoothstep: {
+    signature: 'smoothstep(edge0, edge1, x) expects three floats',
+    check: (args) =>
+      args.length === 3 && args.every((arg) => arg.type === 'float') ? 'float' : null,
+  },
+  distance: {
+    signature: 'distance(a, b) expects two vectors of the same type',
+    check: (args) =>
+      args.length === 2 && isVec(args[0]!.type) && args[0]!.type === args[1]!.type ? 'float' : null,
+  },
 };
 
 function floatUnary(name: string): IntrinsicRule {
@@ -137,15 +169,28 @@ class Scope {
 
 interface StageContext {
   stage: Stage;
+  /** Human label for messages: vertex(), fragment(), or helper 'name'. */
+  ownerLabel: string;
+  returnType: IrType;
+  returnDescription: string;
   sourceFile: ts.SourceFile;
   records: Record<RecordRole, GpuRecord>;
   interfaceNames: Set<string>;
+  helpers: Map<string, HelperSignature>;
   usedAttributes: Set<string>;
   usedInstanceAttributes: Set<string>;
   usedUniforms: Set<string>;
   usedVaryings: Set<string>;
+  usedHelpers: Set<string>;
   assignedVaryings: Set<string>;
 }
+
+const EMPTY_RECORDS: Record<RecordRole, GpuRecord> = {
+  attributes: {},
+  instanceAttributes: {},
+  uniforms: {},
+  varyings: {},
+};
 
 export function analyzeShader(parsed: ParsedShaderModule): ShaderIr {
   const records: Record<RecordRole, GpuRecord> = {
@@ -155,27 +200,93 @@ export function analyzeShader(parsed: ParsedShaderModule): ShaderIr {
     varyings: parsed.varyings,
   };
 
-  const vertex = analyzeStage('vertex', parsed.vertexFn, parsed.sourceFile, records);
-  const fragment = analyzeStage('fragment', parsed.fragmentFn, parsed.sourceFile, records);
+  // Helpers are analyzed in declaration order; each may call only the ones
+  // declared before it, which also rules out recursion.
+  const helperSignatures = new Map<string, HelperSignature>();
+  const helpers = parsed.helpers.map((helper) => {
+    if (INTRINSICS[helper.name] !== undefined || ['vec2', 'vec3', 'vec4'].includes(helper.name)) {
+      throw errorAt(parsed.sourceFile, helper.fn, `helper '${helper.name}' shadows a built-in function`);
+    }
+    const ir = analyzeHelper(helper, parsed.sourceFile, helperSignatures);
+    helperSignatures.set(helper.name, {
+      name: helper.name,
+      params: helper.params.map((param) => param.type),
+      returnType: helper.returnType,
+    });
+    return ir;
+  });
+
+  const vertex = analyzeStage('vertex', parsed.vertexFn, parsed.sourceFile, records, helperSignatures);
+  const fragment = analyzeStage('fragment', parsed.fragmentFn, parsed.sourceFile, records, helperSignatures);
 
   return {
     attributes: parsed.attributes,
     instanceAttributes: parsed.instanceAttributes,
     uniforms: parsed.uniforms,
     varyings: parsed.varyings,
+    helpers,
     vertex,
     fragment,
   };
 }
 
+function analyzeHelper(
+  helper: ParsedShaderModule['helpers'][number],
+  sourceFile: ts.SourceFile,
+  helperSignatures: Map<string, HelperSignature>,
+): ShaderIr['helpers'][number] {
+  const ctx: StageContext = {
+    stage: 'helper',
+    ownerLabel: `helper '${helper.name}'`,
+    returnType: helper.returnType,
+    returnDescription: `its declared return type`,
+    sourceFile,
+    records: EMPTY_RECORDS,
+    interfaceNames: new Set(),
+    helpers: helperSignatures,
+    usedAttributes: new Set(),
+    usedInstanceAttributes: new Set(),
+    usedUniforms: new Set(),
+    usedVaryings: new Set(),
+    usedHelpers: new Set(),
+    assignedVaryings: new Set(),
+  };
+
+  const scope = new Scope();
+  for (const param of helper.params) {
+    scope.declare(param.name, { kind: 'local', type: param.type, mutable: false });
+  }
+
+  const body = helper.fn.body;
+  if (body === undefined) {
+    throw errorAt(sourceFile, helper.fn, `${ctx.ownerLabel} must have a body`);
+  }
+  const statements = lowerStatements(ctx, scope, body.statements, { topLevel: true });
+  if (statements.length === 0 || statements[statements.length - 1]!.kind !== 'return') {
+    throw errorAt(sourceFile, helper.fn, `${ctx.ownerLabel} must end with a return statement`);
+  }
+
+  return {
+    name: helper.name,
+    params: helper.params,
+    returnType: helper.returnType,
+    statements,
+    usedHelpers: [...ctx.usedHelpers],
+  };
+}
+
 function analyzeStage(
-  stage: Stage,
+  stage: 'vertex' | 'fragment',
   fn: ShaderFn,
   sourceFile: ts.SourceFile,
   records: Record<RecordRole, GpuRecord>,
+  helpers: Map<string, HelperSignature>,
 ): StageIr {
   const ctx: StageContext = {
     stage,
+    ownerLabel: `${stage}()`,
+    returnType: 'vec4',
+    returnDescription: stage === 'vertex' ? 'clip-space position' : 'output color',
     sourceFile,
     records,
     interfaceNames: new Set([
@@ -184,10 +295,12 @@ function analyzeStage(
       ...Object.keys(records.uniforms),
       ...Object.keys(records.varyings),
     ]),
+    helpers,
     usedAttributes: new Set(),
     usedInstanceAttributes: new Set(),
     usedUniforms: new Set(),
     usedVaryings: new Set(),
+    usedHelpers: new Set(),
     assignedVaryings: new Set(),
   };
 
@@ -229,6 +342,7 @@ function analyzeStage(
     usedInstanceAttributes: ctx.usedInstanceAttributes,
     usedUniforms: ctx.usedUniforms,
     usedVaryings: ctx.usedVaryings,
+    usedHelpers: ctx.usedHelpers,
   };
 }
 
@@ -336,11 +450,15 @@ function lowerStatement(
   options: { topLevel: boolean },
 ): IrStmt {
   if (ts.isVariableStatement(statement)) {
-    return lowerConst(ctx, scope, statement);
+    return lowerDecl(ctx, scope, statement);
   }
 
   if (ts.isExpressionStatement(statement)) {
-    return lowerAssignment(ctx, scope, statement, options);
+    return lowerMutation(ctx, scope, statement.expression, options);
+  }
+
+  if (ts.isForStatement(statement)) {
+    return lowerFor(ctx, scope, statement);
   }
 
   if (ts.isReturnStatement(statement)) {
@@ -348,11 +466,11 @@ function lowerStatement(
       throw errorAt(
         ctx.sourceFile,
         statement,
-        `return inside if/else is not supported in the MVP — return must be the final top-level statement`,
+        `return inside if/else/for is not supported in the MVP — return must be the final top-level statement`,
       );
     }
     if (statement.expression === undefined) {
-      throw errorAt(ctx.sourceFile, statement, `${ctx.stage}() must return a vec4`);
+      throw errorAt(ctx.sourceFile, statement, `${ctx.ownerLabel} must return a ${ctx.returnType}`);
     }
     const expr = lowerExpr(ctx, scope, statement.expression);
     requireReturnType(ctx, statement, expr);
@@ -391,20 +509,22 @@ function lowerBranch(ctx: StageContext, scope: Scope, statement: ts.Statement): 
   return [lowerStatement(ctx, branchScope, statement, { topLevel: false })];
 }
 
-function lowerConst(ctx: StageContext, scope: Scope, statement: ts.VariableStatement): IrStmt {
-  const isConst = (statement.declarationList.flags & ts.NodeFlags.Const) !== 0;
-  if (!isConst) {
-    throw errorAt(ctx.sourceFile, statement, `only \`const\` declarations are supported in shader code`);
+function lowerDecl(ctx: StageContext, scope: Scope, statement: ts.VariableStatement): IrStmt {
+  const flags = statement.declarationList.flags;
+  const isConst = (flags & ts.NodeFlags.Const) !== 0;
+  const isLet = (flags & ts.NodeFlags.Let) !== 0;
+  if (!isConst && !isLet) {
+    throw errorAt(ctx.sourceFile, statement, `\`var\` is not supported in shader code — use const or let`);
   }
   if (statement.declarationList.declarations.length !== 1) {
-    throw errorAt(ctx.sourceFile, statement, `declare one const per statement`);
+    throw errorAt(ctx.sourceFile, statement, `declare one variable per statement`);
   }
   const declaration = statement.declarationList.declarations[0]!;
   if (!ts.isIdentifier(declaration.name)) {
-    throw errorAt(ctx.sourceFile, declaration, `destructuring const declarations are not supported in shader code`);
+    throw errorAt(ctx.sourceFile, declaration, `destructuring declarations are not supported in shader code`);
   }
   if (declaration.initializer === undefined) {
-    throw errorAt(ctx.sourceFile, declaration, `const declarations must have an initializer`);
+    throw errorAt(ctx.sourceFile, declaration, `declarations must have an initializer`);
   }
   const name = declaration.name.text;
   if (!isValidGlslName(name)) {
@@ -422,39 +542,127 @@ function lowerConst(ctx: StageContext, scope: Scope, statement: ts.VariableState
   }
   const expr = lowerExpr(ctx, scope, declaration.initializer);
   if (expr.type === 'bool') {
-    throw errorAt(ctx.sourceFile, declaration, `bool consts are not supported — inline the condition`);
+    throw errorAt(ctx.sourceFile, declaration, `bool variables are not supported — inline the condition`);
   }
   if (expr.type === 'sampler2D') {
     throw errorAt(
       ctx.sourceFile,
       declaration,
-      `sampler consts are not supported — pass the sampler uniform directly to texture()`,
+      `sampler variables are not supported — pass the sampler uniform directly to texture()`,
     );
   }
-  scope.declare(name, { kind: 'local', type: expr.type });
-  return { kind: 'const', name, type: expr.type, expr };
+  scope.declare(name, { kind: 'local', type: expr.type, mutable: isLet });
+  return { kind: 'decl', name, type: expr.type, mutable: isLet, expr };
 }
 
-function lowerAssignment(
+const COMPOUND_OPS: Partial<Record<ts.SyntaxKind, '+' | '-' | '*' | '/'>> = {
+  [ts.SyntaxKind.PlusEqualsToken]: '+',
+  [ts.SyntaxKind.MinusEqualsToken]: '-',
+  [ts.SyntaxKind.AsteriskEqualsToken]: '*',
+  [ts.SyntaxKind.SlashEqualsToken]: '/',
+};
+
+/** Lowers assignment-like expressions: varying writes, local writes, compound ops, x++/x--. */
+function lowerMutation(
   ctx: StageContext,
   scope: Scope,
-  statement: ts.ExpressionStatement,
+  expr: ts.Expression,
   options: { topLevel: boolean },
 ): IrStmt {
-  const expr = statement.expression;
-  if (
-    !ts.isBinaryExpression(expr) ||
-    expr.operatorToken.kind !== ts.SyntaxKind.EqualsToken ||
-    !ts.isPropertyAccessExpression(expr.left)
-  ) {
-    throw errorAt(
-      ctx.sourceFile,
-      statement,
-      `expression statements must be varying assignments (v.name = ...) — other side effects are not supported`,
-    );
+  if (ts.isPostfixUnaryExpression(expr) && ts.isIdentifier(expr.operand)) {
+    const op = expr.operator === ts.SyntaxKind.PlusPlusToken ? '+' : '-';
+    const binding = requireMutableFloat(ctx, scope, expr.operand, `${op}${op}`);
+    const one: IrExpr = { kind: 'literal', value: 1, type: 'float' };
+    const current: IrExpr = { kind: 'ident', name: expr.operand.text, type: binding.type };
+    return {
+      kind: 'assign',
+      target: expr.operand.text,
+      expr: { kind: 'binary', op, left: current, right: one, type: 'float' },
+    };
   }
 
-  const target = expr.left;
+  if (ts.isBinaryExpression(expr)) {
+    const compound = COMPOUND_OPS[expr.operatorToken.kind];
+    if (compound !== undefined && ts.isIdentifier(expr.left)) {
+      const binding = requireMutableFloat(ctx, scope, expr.left, `${compound}=`);
+      const value = lowerExpr(ctx, scope, expr.right);
+      if (value.type !== 'float') {
+        throw errorAt(ctx.sourceFile, expr.right, `'${compound}=' expects a float value, got ${value.type}`);
+      }
+      const current: IrExpr = { kind: 'ident', name: expr.left.text, type: binding.type };
+      return {
+        kind: 'assign',
+        target: expr.left.text,
+        expr: { kind: 'binary', op: compound, left: current, right: value, type: 'float' },
+      };
+    }
+
+    if (expr.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(expr.left)) {
+      const binding = scope.lookup(expr.left.text);
+      if (binding === undefined || binding.kind !== 'local') {
+        throw errorAt(ctx.sourceFile, expr.left, `cannot assign to '${expr.left.text}' — it is not a local variable`);
+      }
+      if (!binding.mutable) {
+        throw errorAt(
+          ctx.sourceFile,
+          expr.left,
+          `'${expr.left.text}' is a const — declare it with \`let\` to reassign it`,
+        );
+      }
+      const value = lowerExpr(ctx, scope, expr.right);
+      if (value.type !== binding.type) {
+        throw errorAt(
+          ctx.sourceFile,
+          expr.right,
+          `cannot assign ${value.type} to '${expr.left.text}' (declared ${binding.type})`,
+        );
+      }
+      return { kind: 'assign', target: expr.left.text, expr: value };
+    }
+
+    if (expr.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(expr.left)) {
+      return lowerVaryingAssignment(ctx, scope, expr, expr.left, options);
+    }
+  }
+
+  throw errorAt(
+    ctx.sourceFile,
+    expr,
+    `expression statements must be assignments (v.name = ..., x = ..., x += ..., x++) — other side effects are not supported`,
+  );
+}
+
+function requireMutableFloat(
+  ctx: StageContext,
+  scope: Scope,
+  identifier: ts.Identifier,
+  operator: string,
+): Binding & { kind: 'local' } {
+  const binding = scope.lookup(identifier.text);
+  if (binding === undefined || binding.kind !== 'local' || !binding.mutable) {
+    throw errorAt(
+      ctx.sourceFile,
+      identifier,
+      `'${operator}' requires a mutable local — declare '${identifier.text}' with \`let\``,
+    );
+  }
+  if (binding.type !== 'float') {
+    throw errorAt(
+      ctx.sourceFile,
+      identifier,
+      `'${operator}' works on floats only — use explicit vector methods (e.g. x = x.add(y)) for ${binding.type}`,
+    );
+  }
+  return binding;
+}
+
+function lowerVaryingAssignment(
+  ctx: StageContext,
+  scope: Scope,
+  expr: ts.BinaryExpression,
+  target: ts.PropertyAccessExpression,
+  options: { topLevel: boolean },
+): IrStmt {
   if (!ts.isIdentifier(target.expression)) {
     throw errorAt(ctx.sourceFile, target, `varying assignments must be of the form v.name = ...`);
   }
@@ -467,7 +675,7 @@ function lowerAssignment(
     );
   }
   if (ctx.stage === 'fragment') {
-    throw errorAt(ctx.sourceFile, statement, `varyings are read-only in fragment()`);
+    throw errorAt(ctx.sourceFile, expr, `varyings are read-only in fragment()`);
   }
 
   const varyingName = target.name.text;
@@ -495,12 +703,63 @@ function lowerAssignment(
   return { kind: 'assign', target: varyingName, expr: value };
 }
 
+function lowerFor(ctx: StageContext, scope: Scope, statement: ts.ForStatement): IrStmt {
+  const initializer = statement.initializer;
+  if (
+    initializer === undefined ||
+    !ts.isVariableDeclarationList(initializer) ||
+    (initializer.flags & ts.NodeFlags.Let) === 0 ||
+    initializer.declarations.length !== 1
+  ) {
+    throw errorAt(
+      ctx.sourceFile,
+      statement,
+      `for loops must declare their counter inline: for (let i = 0; i < n; i += 1)`,
+    );
+  }
+  const declaration = initializer.declarations[0]!;
+  if (!ts.isIdentifier(declaration.name) || declaration.initializer === undefined) {
+    throw errorAt(ctx.sourceFile, declaration, `for-loop counters need a name and an initial value`);
+  }
+  const name = declaration.name.text;
+  if (!isValidGlslName(name) || ctx.interfaceNames.has(name)) {
+    throw errorAt(ctx.sourceFile, declaration, `'${name}' is not a usable loop counter name`);
+  }
+  const initExpr = lowerExpr(ctx, scope, declaration.initializer);
+  if (initExpr.type !== 'float') {
+    throw errorAt(ctx.sourceFile, declaration, `loop counters must be floats, got ${initExpr.type}`);
+  }
+
+  const loopScope = new Scope(scope);
+  loopScope.declare(name, { kind: 'local', type: 'float', mutable: true });
+
+  if (statement.condition === undefined) {
+    throw errorAt(ctx.sourceFile, statement, `for loops need a condition (e.g. i < 10)`);
+  }
+  const condition = lowerExpr(ctx, loopScope, statement.condition);
+  if (condition.type !== 'bool') {
+    throw errorAt(ctx.sourceFile, statement.condition, `for-loop conditions must be boolean comparisons`);
+  }
+
+  if (statement.incrementor === undefined) {
+    throw errorAt(ctx.sourceFile, statement, `for loops need an update (e.g. i += 1)`);
+  }
+  const update = lowerMutation(ctx, loopScope, statement.incrementor, { topLevel: false });
+
+  const bodyScope = new Scope(loopScope);
+  const body = ts.isBlock(statement.statement)
+    ? lowerStatements(ctx, bodyScope, statement.statement.statements, { topLevel: false })
+    : [lowerStatement(ctx, bodyScope, statement.statement, { topLevel: false })];
+
+  return { kind: 'for', init: { name, expr: initExpr }, condition, update, body };
+}
+
 function requireReturnType(ctx: StageContext, node: ts.Node, expr: IrExpr): void {
-  if (expr.type !== 'vec4') {
+  if (expr.type !== ctx.returnType) {
     throw errorAt(
       ctx.sourceFile,
       node,
-      `${ctx.stage}() must return a vec4 (${ctx.stage === 'vertex' ? 'clip-space position' : 'output color'}), got ${expr.type}`,
+      `${ctx.ownerLabel} must return a ${ctx.returnType} (${ctx.returnDescription}), got ${expr.type}`,
     );
   }
 }
@@ -656,22 +915,38 @@ function lowerCall(ctx: StageContext, scope: Scope, node: ts.CallExpression): Ir
   }
 
   const intrinsic = INTRINSICS[callee];
-  if (intrinsic === undefined) {
-    throw errorAt(
-      ctx.sourceFile,
-      node,
-      `unknown function '${callee}' — supported: vec2/vec3/vec4 constructors and ${Object.keys(INTRINSICS).join(', ')} (module-level helper functions are not supported in the MVP)`,
-    );
+  if (intrinsic !== undefined) {
+    const result = intrinsic.check(args);
+    if (result === null) {
+      throw errorAt(
+        ctx.sourceFile,
+        node,
+        `${intrinsic.signature} — got (${args.map((a) => a.type).join(', ')})`,
+      );
+    }
+    return { kind: 'call', callee, args, type: result };
   }
-  const result = intrinsic.check(args);
-  if (result === null) {
-    throw errorAt(
-      ctx.sourceFile,
-      node,
-      `${intrinsic.signature} — got (${args.map((a) => a.type).join(', ')})`,
-    );
+
+  const helper = ctx.helpers.get(callee);
+  if (helper !== undefined) {
+    const expected = helper.params;
+    const actual = args.map((arg) => arg.type);
+    if (expected.length !== actual.length || expected.some((type, i) => type !== actual[i])) {
+      throw errorAt(
+        ctx.sourceFile,
+        node,
+        `${callee}(${expected.join(', ')}) does not match the arguments (${actual.join(', ')})`,
+      );
+    }
+    ctx.usedHelpers.add(callee);
+    return { kind: 'call', callee, args, type: helper.returnType };
   }
-  return { kind: 'call', callee, args, type: result };
+
+  throw errorAt(
+    ctx.sourceFile,
+    node,
+    `unknown function '${callee}' — supported: vec2/vec3/vec4 constructors, ${Object.keys(INTRINSICS).join(', ')}, and module-level helper functions declared above their first use`,
+  );
 }
 
 function lowerVecConstructor(

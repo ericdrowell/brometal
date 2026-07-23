@@ -92,14 +92,31 @@ describe('shader validation', () => {
     ).toThrow(/WhileStatement is not supported/);
   });
 
-  it('rejects let declarations', () => {
+  it('rejects var declarations but accepts let', () => {
     expect(() =>
       compile(
         minimalShader({
-          vertex: `({ aPosition }, _u, v) => { let x = 1; v.vFade = x; return vec4(aPosition, 1); }`,
+          vertex: `({ aPosition }, _u, v) => { var x = 1; v.vFade = x; return vec4(aPosition, 1); }`,
         }),
       ),
-    ).toThrow(/only `const` declarations/);
+    ).toThrow(/`var` is not supported/);
+    expect(() =>
+      compile(
+        minimalShader({
+          vertex: `({ aPosition }, _u, v) => { let x = 1; x = x + 1; v.vFade = x; return vec4(aPosition, 1); }`,
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects assignment to const locals', () => {
+    expect(() =>
+      compile(
+        minimalShader({
+          vertex: `({ aPosition }, _u, v) => { const x = 1; x = 2; v.vFade = x; return vec4(aPosition, 1); }`,
+        }),
+      ),
+    ).toThrow(/declare it with `let`/);
   });
 
   it('rejects return inside if branches', () => {

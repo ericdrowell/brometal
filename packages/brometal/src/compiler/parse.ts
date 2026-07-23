@@ -4,12 +4,23 @@ import { errorAt, type CompileError } from './errors.js';
 
 export type ShaderFn = ts.ArrowFunction | ts.FunctionExpression | ts.MethodDeclaration;
 
+/** DSL value types usable in helper signatures ('float' maps from `number`). */
+export type HelperType = 'float' | 'vec2' | 'vec3' | 'vec4' | 'mat4';
+
+export interface ParsedHelper {
+  name: string;
+  fn: ts.FunctionDeclaration;
+  params: { name: string; type: HelperType }[];
+  returnType: HelperType;
+}
+
 export interface ParsedShaderModule {
   sourceFile: ts.SourceFile;
   attributes: GpuRecord;
   instanceAttributes: GpuRecord;
   uniforms: GpuRecord;
   varyings: GpuRecord;
+  helpers: ParsedHelper[];
   vertexFn: ShaderFn;
   fragmentFn: ShaderFn;
 }
@@ -181,7 +192,73 @@ export function parseShaderModule(fileName: string, source: string): ParsedShade
     }
   }
 
-  return { sourceFile, attributes, instanceAttributes, uniforms, varyings, vertexFn, fragmentFn };
+  const helpers = parseHelpers(sourceFile);
+  return { sourceFile, attributes, instanceAttributes, uniforms, varyings, helpers, vertexFn, fragmentFn };
+}
+
+function helperTypeFromAnnotation(node: ts.TypeNode): HelperType | undefined {
+  if (node.kind === ts.SyntaxKind.NumberKeyword) {
+    return 'float';
+  }
+  if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) {
+    const byName: Record<string, HelperType> = { Vec2: 'vec2', Vec3: 'vec3', Vec4: 'vec4', Mat4: 'mat4' };
+    return byName[node.typeName.text];
+  }
+  return undefined;
+}
+
+/** Module-level `function` declarations become GLSL helper functions. */
+function parseHelpers(sourceFile: ts.SourceFile): ParsedHelper[] {
+  const helpers: ParsedHelper[] = [];
+  const seen = new Set<string>();
+  for (const statement of sourceFile.statements) {
+    if (!ts.isFunctionDeclaration(statement)) continue;
+    if (statement.name === undefined) {
+      throw errorAt(sourceFile, statement, `shader helper functions must be named`);
+    }
+    const name = statement.name.text;
+    if (!isValidGlslName(name)) {
+      throw errorAt(sourceFile, statement, `helper '${name}' is not a usable GLSL identifier`);
+    }
+    if (seen.has(name)) {
+      throw errorAt(sourceFile, statement, `helper '${name}' is declared twice`);
+    }
+    if (statement.asteriskToken !== undefined || statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) === true) {
+      throw errorAt(sourceFile, statement, `helper '${name}' cannot be async or a generator`);
+    }
+    if (statement.typeParameters !== undefined) {
+      throw errorAt(sourceFile, statement, `helper '${name}' cannot be generic`);
+    }
+    if (statement.body === undefined) {
+      throw errorAt(sourceFile, statement, `helper '${name}' must have a body`);
+    }
+    const params = statement.parameters.map((param) => {
+      if (!ts.isIdentifier(param.name) || param.dotDotDotToken !== undefined || param.initializer !== undefined) {
+        throw errorAt(sourceFile, param, `helper '${name}' parameters must be plain identifiers without defaults`);
+      }
+      if (param.type === undefined) {
+        throw errorAt(sourceFile, param, `helper '${name}' parameters need type annotations (number, Vec2, Vec3, Vec4, or Mat4)`);
+      }
+      const type = helperTypeFromAnnotation(param.type);
+      if (type === undefined) {
+        throw errorAt(sourceFile, param.type, `helper parameters must be number, Vec2, Vec3, Vec4, or Mat4`);
+      }
+      if (!isValidGlslName(param.name.text)) {
+        throw errorAt(sourceFile, param, `parameter '${param.name.text}' is not a usable GLSL identifier`);
+      }
+      return { name: param.name.text, type };
+    });
+    if (statement.type === undefined) {
+      throw errorAt(sourceFile, statement, `helper '${name}' needs a return type annotation (number, Vec2, Vec3, or Vec4)`);
+    }
+    const returnType = helperTypeFromAnnotation(statement.type);
+    if (returnType === undefined || returnType === 'mat4') {
+      throw errorAt(sourceFile, statement.type, `helper return types must be number, Vec2, Vec3, or Vec4`);
+    }
+    seen.add(name);
+    helpers.push({ name, fn: statement, params, returnType });
+  }
+  return helpers;
 }
 
 function findShaderImportName(sourceFile: ts.SourceFile): string | undefined {

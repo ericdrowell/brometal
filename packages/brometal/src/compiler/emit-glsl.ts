@@ -34,6 +34,34 @@ export function emitGlsl(ir: ShaderIr, layout: ShaderLayout, options: EmitOption
   return { vertexSrc: emitVertex(ir, layout), fragmentSrc: emitFragment(ir, options) };
 }
 
+/** Expands a stage's directly-called helpers to include everything they call. */
+export function helperClosure(ir: ShaderIr, roots: Iterable<string>): Set<string> {
+  const byName = new Map(ir.helpers.map((helper) => [helper.name, helper]));
+  const result = new Set<string>();
+  const visit = (name: string): void => {
+    if (result.has(name)) return;
+    result.add(name);
+    for (const dependency of byName.get(name)?.usedHelpers ?? []) {
+      visit(dependency);
+    }
+  };
+  for (const root of roots) {
+    visit(root);
+  }
+  return result;
+}
+
+function emitHelperFunctions(lines: string[], ir: ShaderIr, roots: Set<string>): void {
+  const closure = helperClosure(ir, roots);
+  for (const helper of ir.helpers) {
+    if (!closure.has(helper.name)) continue;
+    const params = helper.params.map((param) => `${glslType(param.type)} ${param.name}`).join(', ');
+    lines.push(`${glslType(helper.returnType)} ${helper.name}(${params}) {`);
+    emitStatements(lines, helper.statements, null, 1);
+    lines.push('}');
+  }
+}
+
 function emitVertex(ir: ShaderIr, layout: ShaderLayout): string {
   const lines: string[] = ['#version 300 es'];
   for (const entry of layout.attributes) {
@@ -47,6 +75,7 @@ function emitVertex(ir: ShaderIr, layout: ShaderLayout): string {
   for (const [name, type] of Object.entries(ir.varyings)) {
     lines.push(`out ${type} ${name};`);
   }
+  emitHelperFunctions(lines, ir, ir.vertex.usedHelpers);
   lines.push('void main() {');
   emitStatements(lines, ir.vertex.statements, 'gl_Position', 1);
   lines.push('}');
@@ -66,24 +95,35 @@ function emitFragment(ir: ShaderIr, options: EmitOptions): string {
     }
   }
   lines.push('out vec4 fragColor;');
+  emitHelperFunctions(lines, ir, ir.fragment.usedHelpers);
   lines.push('void main() {');
   emitStatements(lines, ir.fragment.statements, 'fragColor', 1);
   lines.push('}');
   return lines.join('\n') + '\n';
 }
 
-function emitStatements(lines: string[], statements: IrStmt[], returnTarget: string, depth: number): void {
+/** returnTarget null means emit real `return` statements (helper functions). */
+function emitStatements(
+  lines: string[],
+  statements: IrStmt[],
+  returnTarget: string | null,
+  depth: number,
+): void {
   const indent = '  '.repeat(depth);
   for (const statement of statements) {
     switch (statement.kind) {
-      case 'const':
+      case 'decl':
         lines.push(`${indent}${glslType(statement.type)} ${statement.name} = ${emitExpr(statement.expr, 0)};`);
         break;
       case 'assign':
         lines.push(`${indent}${statement.target} = ${emitExpr(statement.expr, 0)};`);
         break;
       case 'return':
-        lines.push(`${indent}${returnTarget} = ${emitExpr(statement.expr, 0)};`);
+        if (returnTarget === null) {
+          lines.push(`${indent}return ${emitExpr(statement.expr, 0)};`);
+        } else {
+          lines.push(`${indent}${returnTarget} = ${emitExpr(statement.expr, 0)};`);
+        }
         break;
       case 'if': {
         lines.push(`${indent}if (${emitExpr(statement.condition, 0)}) {`);
@@ -92,6 +132,14 @@ function emitStatements(lines: string[], statements: IrStmt[], returnTarget: str
           lines.push(`${indent}} else {`);
           emitStatements(lines, statement.else, returnTarget, depth + 1);
         }
+        lines.push(`${indent}}`);
+        break;
+      }
+      case 'for': {
+        const init = `float ${statement.init.name} = ${emitExpr(statement.init.expr, 0)}`;
+        const update = `${statement.update.kind === 'assign' ? `${statement.update.target} = ${emitExpr(statement.update.expr, 0)}` : ''}`;
+        lines.push(`${indent}for (${init}; ${emitExpr(statement.condition, 0)}; ${update}) {`);
+        emitStatements(lines, statement.body, returnTarget, depth + 1);
         lines.push(`${indent}}`);
         break;
       }

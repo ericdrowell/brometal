@@ -275,6 +275,39 @@ a:hover {
   border-color: #4a4a6a;
 }
 
+.code-panel {
+  position: fixed;
+  top: 76px;
+  left: 16px;
+  z-index: 10;
+  width: min(90vw, 460px);
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
+.code-panel .code-note {
+  margin: 6px 0 10px;
+  color: #8f96ad;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.code-panel code {
+  color: #c9cede;
+}
+
+.code-panel pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: #101018;
+  border: 1px solid #22222f;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #aeb6d0;
+}
+
 .geo-tiles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

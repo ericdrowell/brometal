@@ -31,6 +31,12 @@ const EXAMPLES = [
     name: 'Geometries',
     description: 'Every built-in geometry — cube, sphere, torus knot, and friends — with a live selector.',
   },
+  {
+    slug: 'custom-shader',
+    name: 'Custom Shader',
+    description:
+      'Procedural plasma written in plain TypeScript — helper functions, let, and for loops compiled to GLSL.',
+  },
 ];
 
 export default function ExamplesPage() {

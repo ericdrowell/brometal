@@ -3,6 +3,7 @@ import type { IrExpr, IrStmt, ShaderIr } from './ir.js';
 export function foldConstants(ir: ShaderIr): ShaderIr {
   return {
     ...ir,
+    helpers: ir.helpers.map((helper) => ({ ...helper, statements: helper.statements.map(foldStmt) })),
     vertex: { ...ir.vertex, statements: ir.vertex.statements.map(foldStmt) },
     fragment: { ...ir.fragment, statements: ir.fragment.statements.map(foldStmt) },
   };
@@ -10,7 +11,7 @@ export function foldConstants(ir: ShaderIr): ShaderIr {
 
 function foldStmt(statement: IrStmt): IrStmt {
   switch (statement.kind) {
-    case 'const':
+    case 'decl':
       return { ...statement, expr: foldExpr(statement.expr) };
     case 'assign':
       return { ...statement, expr: foldExpr(statement.expr) };
@@ -24,6 +25,14 @@ function foldStmt(statement: IrStmt): IrStmt {
       };
       return statement.else === undefined ? folded : { ...folded, else: statement.else.map(foldStmt) };
     }
+    case 'for':
+      return {
+        kind: 'for',
+        init: { name: statement.init.name, expr: foldExpr(statement.init.expr) },
+        condition: foldExpr(statement.condition),
+        update: foldStmt(statement.update),
+        body: statement.body.map(foldStmt),
+      };
   }
 }
 
@@ -113,6 +122,10 @@ function dropAssignments(statements: IrStmt[], dead: Set<string>): IrStmt[] {
       result.push(
         statement.else === undefined ? pruned : { ...pruned, else: dropAssignments(statement.else, dead) },
       );
+      continue;
+    }
+    if (statement.kind === 'for') {
+      result.push({ ...statement, body: dropAssignments(statement.body, dead) });
       continue;
     }
     result.push(statement);

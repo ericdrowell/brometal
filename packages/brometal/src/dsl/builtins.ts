@@ -108,6 +108,69 @@ export function pow(): number {
   return gpuOnly('pow');
 }
 
+export function tan(x: number): number;
+export function tan(): number {
+  return gpuOnly('tan');
+}
+
+export function asin(x: number): number;
+export function asin(): number {
+  return gpuOnly('asin');
+}
+
+export function acos(x: number): number;
+export function acos(): number {
+  return gpuOnly('acos');
+}
+
+export function atan(y: number, x: number): number;
+export function atan(x: number): number;
+export function atan(): number {
+  return gpuOnly('atan');
+}
+
+export function exp(x: number): number;
+export function exp(): number {
+  return gpuOnly('exp');
+}
+
+export function exp2(x: number): number;
+export function exp2(): number {
+  return gpuOnly('exp2');
+}
+
+export function log(x: number): number;
+export function log(): number {
+  return gpuOnly('log');
+}
+
+export function sign(x: number): number;
+export function sign(): number {
+  return gpuOnly('sign');
+}
+
+export function mod(a: number, b: number): number;
+export function mod(): number {
+  return gpuOnly('mod');
+}
+
+export function step(edge: number, x: number): number;
+export function step(): number {
+  return gpuOnly('step');
+}
+
+export function smoothstep(edge0: number, edge1: number, x: number): number;
+export function smoothstep(): number {
+  return gpuOnly('smoothstep');
+}
+
+export function distance(a: Vec2, b: Vec2): number;
+export function distance(a: Vec3, b: Vec3): number;
+export function distance(a: Vec4, b: Vec4): number;
+export function distance(): number {
+  return gpuOnly('distance');
+}
+
 export function min(a: number, b: number): number;
 export function min(): number {
   return gpuOnly('min');

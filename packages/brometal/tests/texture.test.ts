@@ -118,7 +118,7 @@ export default shader({
   },
 });
 `;
-    expect(() => compile(samplerConst)).toThrow(/sampler consts are not supported/);
+    expect(() => compile(samplerConst)).toThrow(/sampler variables are not supported/);
 
     const badArgs = `
 import { shader, vec4, texture } from 'brometal';

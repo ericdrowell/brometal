@@ -1,6 +1,6 @@
 import type { GpuRecord, ShaderLayout } from '../dsl/types.js';
 import { analyzeShader } from './analyze.js';
-import { emitGlsl, type GlslPrecision } from './emit-glsl.js';
+import { emitGlsl, helperClosure, type GlslPrecision } from './emit-glsl.js';
 import { buildLayout } from './layout.js';
 import { foldConstants, minifyGlsl, pruneDeadVaryings } from './optimize.js';
 import { parseShaderModule } from './parse.js';
@@ -78,6 +78,12 @@ function collectWarnings(fileName: string, ir: ReturnType<typeof analyzeShader>)
       warnings.push(
         `${fileName} — varying '${name}' is never read — it will be removed from prod builds`,
       );
+    }
+  }
+  const usedHelpers = helperClosure(ir, [...ir.vertex.usedHelpers, ...ir.fragment.usedHelpers]);
+  for (const helper of ir.helpers) {
+    if (!usedHelpers.has(helper.name)) {
+      warnings.push(`${fileName} — helper '${helper.name}' is declared but never called`);
     }
   }
   return warnings;

@@ -109,10 +109,12 @@ Thousands of independently animated objects, one draw call, one mat4 + one float
 
 - Types: `float`, `vec2`, `vec3`, `vec4`, `mat4`, `sampler2D` (uniforms only for `mat4`/`sampler2D`)
 - Per-vertex `attributes` and per-instance `instanceAttributes`
-- `const` locals, float arithmetic (`+ - * /`), comparisons, `if`/`else`
+- `const` and mutable `let` locals, float arithmetic (`+ - * /`), compound assignment (`+= -= *= /=`, `x++`), comparisons, `if`/`else`
+- `for` loops with float counters — `for (let i = 0; i < n; i += 1)`
+- Module-level **helper functions** with typed signatures (`function palette(t: number): Vec3`), compiled to GLSL functions; helpers can call earlier helpers
 - Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, swizzles (`.x`, `.xyz`, …)
 - Constructors `vec2/vec3/vec4` (composite forms like `vec4(v3, 1)` included)
-- Intrinsics: `texture reflect normalize dot cross mix clamp length sin cos abs fract floor sqrt pow min max`
+- Intrinsics: `texture reflect normalize dot cross mix clamp length distance sin cos tan asin acos atan abs sign fract floor sqrt pow exp exp2 log mod step smoothstep min max`
 
 Anything outside the subset fails compilation with a precise, actionable error.
 
