@@ -6,14 +6,24 @@ BroMetal is LLVM-inspired compiler infrastructure for GPU programming that trans
 
 ```mermaid
 flowchart TD
-    TS[TypeScript] --> Parser
-    Parser --> TC[Type Checker]
-    TC --> SA[GPU Semantic Analysis]
-    SA --> IR[GPU IR]
-    IR --> OPT[Optimization Passes]
-    OPT --> GLSL --> WebGL
-    OPT --> WGSL --> WebGPU
+    subgraph BUILD ["⚙️ Build time — npx brometal"]
+        TS[TypeScript] --> Parser
+        Parser --> TC[Type Checker]
+        TC --> SA[GPU Semantic Analysis]
+        SA --> IR[GPU IR]
+        IR --> OPT[Optimization Passes]
+        OPT --> GLSL
+        OPT --> WGSL
+    end
+    subgraph RUN ["🌐 Runtime — visitor's browser"]
+        WebGL
+        WebGPU
+    end
+    GLSL --> WebGL
+    WGSL --> WebGPU
 ```
+
+Everything above the line happens once, on your machine — the browser receives finished shader text and a ~10KB runtime, never the compiler.
 
 ## WebGPU + WebGL from one source
 
