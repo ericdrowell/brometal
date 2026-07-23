@@ -41,6 +41,14 @@ a:hover {
   letter-spacing: 0.06em;
 }
 
+.site-header .version {
+  margin-left: 8px;
+  color: #8f96ad;
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
 .site-header nav {
   display: flex;
   align-items: center;

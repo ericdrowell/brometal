@@ -24,6 +24,15 @@ if (!['patch', 'minor', 'major'].includes(bumpType)) {
   fail(`unknown release type '${bumpType}' — use patch, minor, or major`);
 }
 
+// Verify npm auth before touching anything — an expired session would
+// otherwise surface only after the version bump and tag are already pushed.
+try {
+  const user = execSync('npm whoami', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  console.log(`✓ npm session: ${user}`);
+} catch {
+  fail('not logged in to npm (or the session expired) — run `npm login` first');
+}
+
 const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim();
 if (dirty !== '') {
   fail(`working tree is not clean — commit or stash before releasing:\n${dirty}`);

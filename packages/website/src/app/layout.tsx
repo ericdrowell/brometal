@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BROMETAL_VERSION } from '@/lib/version';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="site-header">
           <Link href="/" className="brand">
             BroMetal
+            <span className="version">v{BROMETAL_VERSION}</span>
           </Link>
           <nav>
             <Link href="/examples">Examples</Link>
