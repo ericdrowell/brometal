@@ -235,6 +235,16 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
       : `textureSampleLevel(${sampler.name}, ${sampler.name}_sampler, ${uv}, 0.0)`;
   }
 
+  if (expr.callee === 'clamp' && args[0]!.type !== 'float') {
+    // GLSL allows clamp(vec, float, float); WGSL requires matching types —
+    // splat the scalar bounds into vectors.
+    const ctor = WGSL_TYPES[args[0]!.type];
+    const x = emitExpr(args[0]!, ctx, 0);
+    const lo = emitExpr(args[1]!, ctx, 0);
+    const hi = emitExpr(args[2]!, ctx, 0);
+    return `clamp(${x}, ${ctor}(${lo}), ${ctor}(${hi}))`;
+  }
+
   if (expr.callee === 'mod') {
     // GLSL mod() is floor-based; WGSL % is trunc-based, so spell it out.
     const a = emitExpr(args[0]!, ctx, 0);

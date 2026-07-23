@@ -1,8 +1,15 @@
 import ts from 'typescript';
 import type { GpuRecord, GpuType } from '../dsl/types.js';
+import { SHADER_LIBRARY } from '../shader-functions/library-source.js';
 import { errorAt } from './errors.js';
 import type { IrBinaryOp, IrExpr, IrStmt, IrType, ShaderIr, StageIr } from './ir.js';
-import { isValidGlslName, type ParsedShaderModule, type ShaderFn } from './parse.js';
+import {
+  isValidGlslName,
+  parseHelpers,
+  type ParsedHelper,
+  type ParsedShaderModule,
+  type ShaderFn,
+} from './parse.js';
 
 type Stage = 'vertex' | 'fragment' | 'helper';
 
@@ -192,6 +199,49 @@ const EMPTY_RECORDS: Record<RecordRole, GpuRecord> = {
   varyings: {},
 };
 
+/**
+ * Resolves 'brometal/shader-functions' imports to parsed helpers: each imported name
+ * plus its transitive dependencies, in dependency order, each parsed from its
+ * library source exactly like a module-level helper.
+ */
+function resolveLibraryHelpers(names: string[], sourceFile: ts.SourceFile): ParsedHelper[] {
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+  const visit = (name: string): void => {
+    if (seen.has(name)) return;
+    const entry = SHADER_LIBRARY[name];
+    if (entry === undefined) {
+      throw errorAt(
+        sourceFile,
+        sourceFile,
+        `'${name}' is not a brometal/shader-functions function — available: ${Object.keys(SHADER_LIBRARY).join(', ')}`,
+      );
+    }
+    seen.add(name);
+    for (const dep of entry.deps) {
+      visit(dep);
+    }
+    ordered.push(name);
+  };
+  for (const name of names) {
+    visit(name);
+  }
+
+  return ordered.map((name) => {
+    const librarySource = ts.createSourceFile(
+      `brometal/shader-functions/${name}.ts`,
+      SHADER_LIBRARY[name]!.source,
+      ts.ScriptTarget.ES2022,
+      true,
+    );
+    const parsed = parseHelpers(librarySource);
+    if (parsed.length !== 1 || parsed[0]!.name !== name) {
+      throw new Error(`BroMetal internal: library source for '${name}' did not parse to one helper`);
+    }
+    return parsed[0]!;
+  });
+}
+
 export function analyzeShader(parsed: ParsedShaderModule): ShaderIr {
   const records: Record<RecordRole, GpuRecord> = {
     attributes: parsed.attributes,
@@ -200,14 +250,26 @@ export function analyzeShader(parsed: ParsedShaderModule): ShaderIr {
     varyings: parsed.varyings,
   };
 
-  // Helpers are analyzed in declaration order; each may call only the ones
-  // declared before it, which also rules out recursion.
+  const libraryHelpers = resolveLibraryHelpers(parsed.libraryImports, parsed.sourceFile);
+  const libraryNames = new Set(libraryHelpers.map((helper) => helper.name));
+  for (const helper of parsed.helpers) {
+    if (libraryNames.has(helper.name)) {
+      throw errorAt(
+        parsed.sourceFile,
+        helper.fn,
+        `helper '${helper.name}' shadows a function imported from brometal/shader-functions`,
+      );
+    }
+  }
+
+  // Helpers are analyzed in declaration order (library first); each may call
+  // only the ones declared before it, which also rules out recursion.
   const helperSignatures = new Map<string, HelperSignature>();
-  const helpers = parsed.helpers.map((helper) => {
+  const helpers = [...libraryHelpers, ...parsed.helpers].map((helper) => {
     if (INTRINSICS[helper.name] !== undefined || ['vec2', 'vec3', 'vec4'].includes(helper.name)) {
       throw errorAt(parsed.sourceFile, helper.fn, `helper '${helper.name}' shadows a built-in function`);
     }
-    const ir = analyzeHelper(helper, parsed.sourceFile, helperSignatures);
+    const ir = analyzeHelper(helper, helper.fn.getSourceFile(), helperSignatures);
     helperSignatures.set(helper.name, {
       name: helper.name,
       params: helper.params.map((param) => param.type),

@@ -1,6 +1,6 @@
 # BroMetal
 
-Write TypeScript.  Lift Shaders.  Skip leg day.
+Write TypeScript.  Lift Shaders.  Ship Shredded.
 
 BroMetal is LLVM-inspired compiler infrastructure for GPU programming that transforms TypeScript into highly optimized GPU shaders. It compiles a typed TypeScript DSL to WebGL2 GLSL **and** WGSL from one source, and ships dual WebGL2/WebGPU runtimes — buffers, uniforms, pipelines, program linking, and the render loop are all handled for you. `await createRenderer(canvas)` uses WebGPU when the browser provides it and falls back to WebGL2, behind one typed API.
 
@@ -76,6 +76,44 @@ renderer.loop(() => {
 ```
 
 The view-projection matrix is cached against position, rotation, lens, and aspect — an unmoved camera costs zero matrix math per frame, and nothing allocates.
+
+## Prebuilt shaders
+
+`brometal/shaders` ships 30 complete, ready-to-draw shaders — fire, caustics, domain warp, a raymarched scene, CRT/glitch/halftone image effects, and more — precompiled at package build time. Zero shader compilation happens in your app:
+
+```ts
+import { createRenderer, createProgram, createPlane } from 'brometal';
+import { fireShader } from 'brometal/shaders';
+
+const renderer = await createRenderer(canvas);
+const program = createProgram(renderer, fireShader);
+// set a fullscreen quad + uTime/uAspect per frame — that's it
+```
+
+Every prebuilt targets a fullscreen quad (`aPosition`/`aUv` from `createPlane({ width: 2, height: 2 })`) with `uTime`/`uAspect` uniforms; image effects add a `uTex` sampler.
+
+## Shader functions
+
+`brometal/shader-functions` ships a curated library of typed GPU functions — noise, hash, easing, color, lighting, and 2D SDFs — that inline into your shader at build time. Import them like any TypeScript function:
+
+```ts
+import { shader, vec2, vec3, vec4 } from 'brometal';
+import { fbm2, cosinePalette } from 'brometal/shader-functions';
+
+export default shader({
+  // ...
+  fragment({ uTime }, { vUv }) {
+    const n = fbm2(vUv.scale(4).add(vec2(uTime, 0)), 5);
+    return vec4(cosinePalette(n, a, b, c, d), 1);
+  },
+});
+```
+
+The compiler resolves imports (and their dependencies — `fbm2` pulls in `vnoise2` and `hash21` automatically), type-checks every call against the library signatures, and emits only the functions each stage actually uses — into both GLSL and WGSL. Nothing ships at runtime; it's tree-shaken shader text.
+
+Included: `hash11 hash21 hash22 hash31` · `vnoise2 gnoise2 fbm2 turbulence2 warp2 voronoi2 worleyEdge2 curl2 vnoise3 fbm3` · `remap smootherstep rotate2` · easings (`quad/cubic/sine/expo/back/elastic/bounce` families) · `luminance rgb2hsv hsv2rgb cosinePalette adjustSaturation brightnessContrast blendScreen blendOverlay tonemapACES tonemapReinhard gammaCorrect filmGrain` · `lambert blinnPhongSpec specGGX fresnel toonShade hemisphereLight` · `sdCircle sdBox2 sdRoundedBox2 sdHexagon sdSegment2 smoothUnion smoothSubtract smoothIntersect fillAA strokeAA` · `sdSphere3 sdBox3 sdTorus3 sdCapsule3 sdOctahedron3 sdPlane3`
+
+Because every function is typed and compile-checked, they're also ideal building blocks for AI coding agents: an agent composing known-good primitives with signatures it cannot violate beats one hand-deriving noise math every time.
 
 ## Textures and lighting
 

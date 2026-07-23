@@ -21,6 +21,8 @@ export interface ParsedShaderModule {
   uniforms: GpuRecord;
   varyings: GpuRecord;
   helpers: ParsedHelper[];
+  /** Function names imported from 'brometal/shader-functions'. */
+  libraryImports: string[];
   vertexFn: ShaderFn;
   fragmentFn: ShaderFn;
 }
@@ -198,7 +200,18 @@ export function parseShaderModule(fileName: string, source: string): ParsedShade
   }
 
   const helpers = parseHelpers(sourceFile);
-  return { sourceFile, attributes, instanceAttributes, uniforms, varyings, helpers, vertexFn, fragmentFn };
+  const libraryImports = findLibraryImports(sourceFile);
+  return {
+    sourceFile,
+    attributes,
+    instanceAttributes,
+    uniforms,
+    varyings,
+    helpers,
+    libraryImports,
+    vertexFn,
+    fragmentFn,
+  };
 }
 
 function helperTypeFromAnnotation(node: ts.TypeNode): HelperType | undefined {
@@ -213,7 +226,7 @@ function helperTypeFromAnnotation(node: ts.TypeNode): HelperType | undefined {
 }
 
 /** Module-level `function` declarations become GLSL helper functions. */
-function parseHelpers(sourceFile: ts.SourceFile): ParsedHelper[] {
+export function parseHelpers(sourceFile: ts.SourceFile): ParsedHelper[] {
   const helpers: ParsedHelper[] = [];
   const seen = new Set<string>();
   for (const statement of sourceFile.statements) {
@@ -264,6 +277,37 @@ function parseHelpers(sourceFile: ts.SourceFile): ParsedHelper[] {
     helpers.push({ name, fn: statement, params, returnType });
   }
   return helpers;
+}
+
+/** Value imports from 'brometal/shader-functions' — each names a library helper to inline. */
+function findLibraryImports(sourceFile: ts.SourceFile): string[] {
+  const names: string[] = [];
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    if (statement.moduleSpecifier.text !== 'brometal/shader-functions') continue;
+    if (statement.importClause?.isTypeOnly === true) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings === undefined || !ts.isNamedImports(bindings)) {
+      throw errorAt(
+        sourceFile,
+        statement,
+        `brometal/shader-functions must be imported with named imports: import { fbm2 } from 'brometal/shader-functions'`,
+      );
+    }
+    for (const element of bindings.elements) {
+      if (element.isTypeOnly) continue;
+      if (element.propertyName !== undefined) {
+        throw errorAt(
+          sourceFile,
+          element,
+          `brometal/shader-functions imports cannot be aliased — the function name is compiled into the shader`,
+        );
+      }
+      names.push(element.name.text);
+    }
+  }
+  return names;
 }
 
 function findShaderImportName(sourceFile: ts.SourceFile): string | undefined {

@@ -19,7 +19,10 @@ export default function HomePage() {
         priority
         className="hero-head"
       />
-      <p className="tagline">&ldquo;Write TypeScript.&nbsp;&nbsp;Lift Shaders.&nbsp;&nbsp;Skip leg day.&rdquo;</p>
+      <p className="tagline">&ldquo;Write TypeScript.&nbsp;&nbsp;Lift Shaders.&nbsp;&nbsp;Ship Shredded.&rdquo;</p>
+      <p className="subhead">
+        Typed shaders compiled at build time &mdash; WebGL2 + WebGPU from one source, ~10KB runtime.
+      </p>
       <a
         className="cta"
         href="https://www.npmjs.com/package/brometal"

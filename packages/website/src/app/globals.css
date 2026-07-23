@@ -95,6 +95,12 @@ a:hover {
   font-size: 16px;
 }
 
+.hero .subhead {
+  margin-top: 10px;
+  color: #6b7089;
+  font-size: 13px;
+}
+
 .hero .cta {
   display: inline-flex;
   align-items: center;
@@ -331,6 +337,47 @@ a:hover {
   font-size: 11px;
   line-height: 1.55;
   color: #aeb6d0;
+}
+
+.panel-note {
+  margin: 4px 0 8px;
+  color: #8f96ad;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.panel-note code {
+  color: #c9cede;
+}
+
+.uses-note {
+  margin: 10px 0 0;
+  color: #ffb454;
+  text-align: center;
+}
+
+.effect-select {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  background: #232338;
+  color: #eef0f8;
+  border: 1px solid #2f2f46;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fn-signature {
+  margin-top: 10px;
+  color: #ffb454;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.effect-select:focus {
+  outline: none;
+  border-color: #7c6cff;
 }
 
 .geo-tiles {

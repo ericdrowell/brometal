@@ -23,13 +23,25 @@ const EXAMPLES = [
   },
   {
     slug: 'textures',
-    name: 'Textures',
+    name: 'Texture',
     description: 'A lit, textured cube — move the light and pick from nine CC0 textures.',
   },
   {
     slug: 'geometries',
-    name: 'Geometries',
+    name: 'Geometry',
     description: 'Every built-in geometry — cube, sphere, torus knot, and friends — with a live selector.',
+  },
+  {
+    slug: 'shader-functions',
+    name: 'Shader Functions',
+    description:
+      'A visual reference example for every function in brometal/shader-functions — noise, easing, color, lighting, SDFs.',
+  },
+  {
+    slug: 'shader-library',
+    name: 'Shader Library',
+    description:
+      '30 prebuilt shaders shipped in brometal/shaders — fire, raymarching, fractals, image effects — zero compilation in your app.',
   },
   {
     slug: 'custom-shader',

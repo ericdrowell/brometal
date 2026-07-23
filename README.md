@@ -1,6 +1,6 @@
 # BroMetal
 
-Write TypeScript.  Lift Shaders.  Skip leg day.
+Write TypeScript.  Lift Shaders.  Ship Shredded.
 
 BroMetal is LLVM-inspired compiler infrastructure for GPU programming that transforms TypeScript into highly optimized GPU shaders. It compiles a typed TypeScript DSL to WebGL2 GLSL **and** WGSL, and ships dual WebGL2/WebGPU runtimes to go with it — buffers, uniforms, program linking, and the render loop are all handled for you.
 
@@ -124,6 +124,44 @@ program.setIndices(sphere.indices);
 
 Available: `createCube`, `createSphere`, `createPlane`, `createCylinder`, `createCone`, `createTorus`, `createTorusKnot`, `createCircle`, `createRing` — Three.js-style parameters, CCW winding validated by tests, automatic 16/32-bit index selection.
 
+## Prebuilt shaders
+
+`brometal/shaders` ships 30 complete, ready-to-draw shaders — fire, caustics, domain warp, a raymarched scene, CRT/glitch/halftone image effects, and more — precompiled at package build time. Zero shader compilation happens in your app:
+
+```ts
+import { createRenderer, createProgram, createPlane } from 'brometal';
+import { fireShader } from 'brometal/shaders';
+
+const renderer = await createRenderer(canvas);
+const program = createProgram(renderer, fireShader);
+// set a fullscreen quad + uTime/uAspect per frame — that's it
+```
+
+Every prebuilt targets a fullscreen quad (`aPosition`/`aUv` from `createPlane({ width: 2, height: 2 })`) with `uTime`/`uAspect` uniforms; image effects add a `uTex` sampler.
+
+## Shader functions
+
+`brometal/shader-functions` ships a curated library of typed GPU functions — noise, hash, easing, color, lighting, and 2D SDFs — that inline into your shader at build time. Import them like any TypeScript function:
+
+```ts
+import { shader, vec2, vec3, vec4 } from 'brometal';
+import { fbm2, cosinePalette } from 'brometal/shader-functions';
+
+export default shader({
+  // ...
+  fragment({ uTime }, { vUv }) {
+    const n = fbm2(vUv.scale(4).add(vec2(uTime, 0)), 5);
+    return vec4(cosinePalette(n, a, b, c, d), 1);
+  },
+});
+```
+
+The compiler resolves imports (and their dependencies — `fbm2` pulls in `vnoise2` and `hash21` automatically), type-checks every call against the library signatures, and emits only the functions each stage actually uses — into both GLSL and WGSL. Nothing ships at runtime; it's tree-shaken shader text.
+
+Included: `hash11 hash21 hash22 hash31` · `vnoise2 gnoise2 fbm2 turbulence2 warp2 voronoi2 worleyEdge2 curl2 vnoise3 fbm3` · `remap smootherstep rotate2` · easings (`quad/cubic/sine/expo/back/elastic/bounce` families) · `luminance rgb2hsv hsv2rgb cosinePalette adjustSaturation brightnessContrast blendScreen blendOverlay tonemapACES tonemapReinhard gammaCorrect filmGrain` · `lambert blinnPhongSpec specGGX fresnel toonShade hemisphereLight` · `sdCircle sdBox2 sdRoundedBox2 sdHexagon sdSegment2 smoothUnion smoothSubtract smoothIntersect fillAA strokeAA` · `sdSphere3 sdBox3 sdTorus3 sdCapsule3 sdOctahedron3 sdPlane3`
+
+Because every function is typed and compile-checked, they're also ideal building blocks for AI coding agents: an agent composing known-good primitives with signatures it cannot violate beats one hand-deriving noise math every time.
+
 ## Textures and lighting
 
 Declare a `sampler2D` uniform and sample it with the `texture()` intrinsic; light sources are just uniforms your shader math consumes (the full Blinn-Phong lighting model is expressible in the DSL — see the textures-with-light example):
@@ -169,7 +207,7 @@ npm run dev:website    # → http://localhost:3005 (uses the LOCAL workspace pac
 npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
-Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`.
+Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`.
 
 `dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
 

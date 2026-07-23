@@ -102,6 +102,22 @@ export default shader({
     expect(wgsl).toContain('(angle - 6.28318 * floor(angle / 6.28318))');
   });
 
+  it('splats scalar bounds for vector clamp (WGSL has no mixed overload)', () => {
+    const source = `
+import { shader, vec3, vec4, clamp } from 'brometal';
+export default shader({
+  attributes: { aPosition: 'vec3' },
+  vertex({ aPosition }) {
+    const bounded = clamp(aPosition.scale(2), 0, 1);
+    return vec4(bounded, 1);
+  },
+  fragment() { return vec4(1, 1, 1, 1); },
+});
+`;
+    const wgsl = compile(source).wgslSrc!;
+    expect(wgsl).toContain('clamp(bm_in.aPosition * 2.0, vec3f(0.0), vec3f(1.0))');
+  });
+
   it('honors target selection', () => {
     const webglOnly = compileShaderSource('t.shader.ts', CUBE_SHADER, { targets: ['webgl2'] });
     expect(webglOnly.wgslSrc).toBeUndefined();
