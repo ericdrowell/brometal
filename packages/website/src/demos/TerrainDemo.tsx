@@ -79,7 +79,7 @@ export default function TerrainDemo() {
         <div className="panel">
           <h1>Terrain</h1>
           <p className="panel-note">
-            A flat 256×256 plane, displaced by <code>fbm2</code> noise <em>in the vertex shader</em> —
+            A flat 256×256 plane, displaced by <code>gfbm2</code> noise <em>in the vertex shader</em> —
             heights and normals computed per vertex, lit per pixel on the GPU.
           </p>
           <div className="row">

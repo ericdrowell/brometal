@@ -199,9 +199,52 @@ a:hover {
   color: #e8eaf2;
 }
 
-.panels {
+.example-nav {
   position: fixed;
   top: 76px;
+  left: 16px;
+  right: 16px;
+  z-index: 11;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  pointer-events: none;
+}
+
+.example-nav > :first-child {
+  justify-self: start;
+}
+
+.example-nav > :last-child {
+  justify-self: end;
+}
+
+.example-nav-title {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.example-nav-link {
+  pointer-events: auto;
+  padding: 8px 14px;
+  background: rgba(16, 16, 26, 0.85);
+  border: 1px solid #2a2a3c;
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+  color: #eef0f8;
+  font-size: 13px;
+}
+
+.example-nav-link:hover {
+  border-color: #4a4a6a;
+}
+
+.panels {
+  position: fixed;
+  top: 130px;
   right: 16px;
   z-index: 10;
   width: 280px;
@@ -223,7 +266,7 @@ a:hover {
 .panel h1 {
   margin: 0 0 6px;
   font-size: 15px;
-  color: #eef0f8;
+  color: rgba(255, 255, 255, 0.5);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -334,11 +377,11 @@ a:hover {
 
 .code-panel {
   position: fixed;
-  top: 76px;
+  top: 130px;
   left: 16px;
   z-index: 10;
   width: min(90vw, 460px);
-  max-height: calc(100vh - 100px);
+  max-height: calc(100vh - 154px);
   overflow-y: auto;
 }
 

@@ -114,7 +114,7 @@ export default shader({
 
 The compiler resolves imports (and their dependencies — `fbm2` pulls in `vnoise2` and `hash21` automatically), type-checks every call against the library signatures, and emits only the functions each stage actually uses — into both GLSL and WGSL. Nothing ships at runtime; it's tree-shaken shader text.
 
-Included: `hash11 hash21 hash22 hash31` · `vnoise2 gnoise2 fbm2 turbulence2 warp2 voronoi2 worleyEdge2 curl2 vnoise3 fbm3` · `remap smootherstep rotate2` · easings (`quad/cubic/sine/expo/back/elastic/bounce` families) · `luminance rgb2hsv hsv2rgb cosinePalette adjustSaturation brightnessContrast blendScreen blendOverlay tonemapACES tonemapReinhard gammaCorrect filmGrain` · `lambert blinnPhongSpec specGGX fresnel toonShade hemisphereLight` · `sdCircle sdBox2 sdRoundedBox2 sdHexagon sdSegment2 smoothUnion smoothSubtract smoothIntersect fillAA strokeAA` · `sdSphere3 sdBox3 sdTorus3 sdCapsule3 sdOctahedron3 sdPlane3`
+Included: `hash11 hash21 hash22 hash31` · `vnoise2 gnoise2 fbm2 gfbm2 turbulence2 warp2 voronoi2 worleyEdge2 curl2 vnoise3 fbm3` · `remap smootherstep rotate2 rotate3 gerstnerWave` · easings (`quad/cubic/sine/expo/back/elastic/bounce` families) · `luminance rgb2hsv hsv2rgb cosinePalette adjustSaturation brightnessContrast blendScreen blendOverlay tonemapACES tonemapReinhard gammaCorrect filmGrain` · `lambert blinnPhongSpec specGGX fresnel toonShade hemisphereLight` · `sdCircle sdBox2 sdRoundedBox2 sdHexagon sdSegment2 smoothUnion smoothSubtract smoothIntersect fillAA strokeAA` · `sdSphere3 sdBox3 sdTorus3 sdCapsule3 sdOctahedron3 sdPlane3`
 
 Because every function is typed and compile-checked, they're also ideal building blocks for AI coding agents: an agent composing known-good primitives with signatures it cannot violate beats one hand-deriving noise math every time.
 
@@ -130,6 +130,24 @@ fragment({ uLightPos, uTex }, { vNormal, vUv }) {
 ```
 
 Texture units are assigned at compile time; `program.uniforms.uTex.set(tex)` only binds. Load with `loadTexture(renderer, url)` (mipmapped by default) or wrap any `TexImageSource` with `createTexture`. Lights are plain uniforms — full Blinn-Phong is expressible in the DSL.
+
+## Models
+
+`loadGlb(url)` fetches and parses a glTF-Binary (.glb) file into attribute-ready typed arrays — positions, normals, uvs, indices — plus any embedded images:
+
+```ts
+const model = await loadGlb('/models/ship.glb');
+const mesh = model.meshes[0];
+program.attributes.aPosition.set(mesh.positions);
+program.attributes.aNormal.set(mesh.normals!);
+program.attributes.aUv.set(mesh.uvs!);
+program.setIndices(mesh.indices!);
+const image = model.images[mesh.imageIndex!];
+const bitmap = await createImageBitmap(new Blob([image.data], { type: image.mimeType }));
+program.uniforms.uTex.set(createTexture(renderer, bitmap, { flipY: false }));
+```
+
+Scope: triangle primitives with embedded (GLB-chunk) buffers and images. Draco compression, skinning, node transforms, and external URIs are not supported; `parseGlb(bytes)` is the fetch-free variant.
 
 ## Instancing
 

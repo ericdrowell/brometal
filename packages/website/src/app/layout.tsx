@@ -5,7 +5,20 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'BroMetal',
-  description: 'Write TypeScript. Lift shaders. Skip leg day.',
+  description: 'Write TypeScript. Lift Shaders. Ship Shredded.',
+  openGraph: {
+    title: 'BroMetal',
+    description: 'Write TypeScript. Lift Shaders. Ship Shredded.',
+    siteName: 'BroMetal',
+    type: 'website',
+    images: [{ url: '/brometal-og.png', width: 1314, height: 1434 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'BroMetal',
+    description: 'Write TypeScript. Lift Shaders. Ship Shredded.',
+    images: ['/brometal-og.png'],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

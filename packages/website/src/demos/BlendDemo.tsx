@@ -52,7 +52,7 @@ export default function BlendDemo() {
       cubeProgram.uniforms.uLightDir.set([0.5, 0.8, 0.4]);
 
       // Same shader, three programs — the only difference is the blend option.
-      const sphere = createSphere({ radius: 1, widthSegments: 20, heightSegments: 14 });
+      const sphere = createSphere({ radius: 1 });
       const orbPrograms = new Map(
         MODES.map(({ mode }) => {
           const program = createProgram(renderer, glowShader, { blend: mode });

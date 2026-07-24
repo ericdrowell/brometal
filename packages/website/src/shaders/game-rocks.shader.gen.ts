@@ -41,9 +41,11 @@ uniform vec3 uLightDir;
 in vec3 vNormal;
 in float vTint;
 out vec4 fragColor;
+float lambert(vec3 normal, vec3 lightDir) {
+  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
+}
 void main() {
-  vec3 n = normalize(vNormal);
-  float diffuse = max(dot(n, normalize(uLightDir)), 0.0);
+  float diffuse = lambert(vNormal, uLightDir);
   vec3 base = vec3(0.6, 0.5, 0.44) * vTint;
   fragColor = vec4(base * (0.25 + diffuse * 0.85), 1.0);
 }
@@ -77,6 +79,9 @@ fn rotate2(p : vec2f, angle : f32) -> vec2f {
 fn hash11(p : f32) -> f32 {
   return fract(sin(p * 127.1) * 43758.5453);
 }
+fn lambert(normal : vec3f, lightDir : vec3f) -> f32 {
+  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
+}
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
@@ -94,8 +99,7 @@ fn vs_main(bm_in : BmVSIn) -> BmVSOut {
 }
 @fragment
 fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
-  let n = normalize(bm_in.vNormal);
-  let diffuse = max(dot(n, normalize(bm_u.uLightDir)), 0.0);
+  let diffuse = lambert(bm_in.vNormal, bm_u.uLightDir);
   let base = vec3f(0.6, 0.5, 0.44) * bm_in.vTint;
   return vec4f(base * (0.25 + diffuse * 0.85), 1.0);
 }

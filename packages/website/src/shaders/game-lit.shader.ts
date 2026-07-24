@@ -1,4 +1,5 @@
-import { shader, vec3, vec4, normalize, dot, max, mix } from 'brometal';
+import { shader, vec3, vec4 } from 'brometal';
+import { lambert, hemisphereLight } from 'brometal/shader-functions';
 
 export default shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3' },
@@ -12,9 +13,8 @@ export default shader({
   },
 
   fragment({ uColor, uLightDir }, { vNormal }) {
-    const n = normalize(vNormal);
-    const diffuse = max(dot(n, normalize(uLightDir)), 0);
-    const ambient = mix(vec3(0.3, 0.28, 0.36), vec3(0.5, 0.55, 0.7), n.y * 0.5 + 0.5);
+    const diffuse = lambert(vNormal, uLightDir);
+    const ambient = hemisphereLight(vNormal, vec3(0.5, 0.55, 0.7), vec3(0.3, 0.28, 0.36));
     return vec4(uColor.scale(diffuse * 0.75).add(uColor.mul(ambient).scale(0.5)), 1);
   },
 });

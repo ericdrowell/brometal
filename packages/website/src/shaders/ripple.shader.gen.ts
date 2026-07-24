@@ -46,8 +46,11 @@ uniform vec3 uLightDir;
 in vec3 vNormal;
 in float vHeight;
 out vec4 fragColor;
+float lambert(vec3 normal, vec3 lightDir) {
+  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
+}
 void main() {
-  float diffuse = max(dot(normalize(vNormal), normalize(uLightDir)), 0.0);
+  float diffuse = lambert(vNormal, uLightDir);
   vec3 low = vec3(0.1, 0.25, 0.35);
   vec3 high = vec3(0.85, 0.8, 0.7);
   fragColor = vec4(mix(low, high, vHeight) * (0.3 + diffuse * 0.8), 1.0);
@@ -79,6 +82,9 @@ fn easeInOutCubic(t : f32) -> f32 {
   }
   return result;
 }
+fn lambert(normal : vec3f, lightDir : vec3f) -> f32 {
+  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
+}
 fn rippleHeight(uv : vec2f, phaseTime : f32, spacing : f32) -> f32 {
   let dist = length(uv - vec2f(0.5, 0.5));
   let phase = clamp(fract(phaseTime - dist * spacing), 0.0, 1.0);
@@ -104,7 +110,7 @@ fn vs_main(bm_in : BmVSIn) -> BmVSOut {
 }
 @fragment
 fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
-  let diffuse = max(dot(normalize(bm_in.vNormal), normalize(bm_u.uLightDir)), 0.0);
+  let diffuse = lambert(bm_in.vNormal, bm_u.uLightDir);
   let low = vec3f(0.1, 0.25, 0.35);
   let high = vec3f(0.85, 0.8, 0.7);
   return vec4f(mix(low, high, bm_in.vHeight) * (0.3 + diffuse * 0.8), 1.0);

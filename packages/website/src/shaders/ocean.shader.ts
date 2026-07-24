@@ -1,20 +1,11 @@
-import { shader, vec2, vec3, vec4, normalize, dot, cross, max, mix, sin, cos, sqrt, pow, clamp, type Vec2, type Vec3 } from 'brometal';
-import { fbm2, fresnel, blinnPhongSpec } from 'brometal/shader-functions';
-
-function gerstner(p: Vec2, dirX: number, dirY: number, steepness: number, wavelength: number, time: number): Vec3 {
-  const k = 6.28318 / wavelength;
-  const c = sqrt(9.8 / k);
-  const d = normalize(vec2(dirX, dirY));
-  const f = k * (dot(d, p) - c * time);
-  const a = steepness / k;
-  return vec3(d.x * a * cos(f), d.y * a * cos(f), a * sin(f));
-}
+import { shader, vec2, vec3, vec4, normalize, dot, cross, max, mix, pow, clamp, type Vec2, type Vec3 } from 'brometal';
+import { fbm2, fresnel, blinnPhongSpec, gerstnerWave, filmGrain } from 'brometal/shader-functions';
 
 function oceanOffset(p: Vec2, time: number): Vec3 {
-  const w1 = gerstner(p, 1, 0.6, 0.18, 5.2, time);
-  const w2 = gerstner(p, -0.7, 1, 0.14, 3.1, time);
-  const w3 = gerstner(p, 1, -1.3, 0.1, 1.8, time);
-  const w4 = gerstner(p, -0.4, -0.9, 0.08, 1.1, time);
+  const w1 = gerstnerWave(p, vec2(1, 0.6), 0.18, 5.2, time);
+  const w2 = gerstnerWave(p, vec2(-0.7, 1), 0.14, 3.1, time);
+  const w3 = gerstnerWave(p, vec2(1, -1.3), 0.1, 1.8, time);
+  const w4 = gerstnerWave(p, vec2(-0.4, -0.9), 0.08, 1.1, time);
   return w1.add(w2).add(w3).add(w4);
 }
 
@@ -69,6 +60,9 @@ export default shader({
     // Crest lightening from wave height.
     const lift = clamp(vWorldPos.y * 1.3 + 0.15, 0, 1);
     color = color.add(vec3(0.05, 0.09, 0.11).scale(pow(lift, 3)));
+
+    // A whisper of animated grain keeps the dark water from banding.
+    color = color.add(vec3(1, 1, 1).scale(filmGrain(vUv, uTime) * 0.04));
     return vec4(color, 1);
   },
 });

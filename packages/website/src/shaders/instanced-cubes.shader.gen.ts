@@ -13,12 +13,14 @@ layout(location = 6) in vec3 iTint;
 uniform mat4 uViewProj;
 uniform float uTime;
 out vec3 vColor;
-void main() {
-  float angle = uTime * iSpeed;
+vec3 rotate3(vec3 p, vec3 axis, float angle) {
+  vec3 a = normalize(axis);
   float c = cos(angle);
   float s = sin(angle);
-  vec3 p = aPosition * iScale;
-  vec3 rotated = p * c + cross(iAxis, p) * s + iAxis * (dot(iAxis, p) * (1.0 - c));
+  return p * c + cross(a, p) * s + a * (dot(a, p) * (1.0 - c));
+}
+void main() {
+  vec3 rotated = rotate3(aPosition * iScale, iAxis, uTime * iSpeed);
   vColor = aColor * iTint;
   gl_Position = uViewProj * vec4(rotated + iOffset, 1.0);
 }
@@ -49,14 +51,16 @@ struct BmVSOut {
   @builtin(position) bm_position : vec4f,
   @location(0) vColor : vec3f,
 }
+fn rotate3(p : vec3f, axis : vec3f, angle : f32) -> vec3f {
+  let a = normalize(axis);
+  let c = cos(angle);
+  let s = sin(angle);
+  return p * c + cross(a, p) * s + a * (dot(a, p) * (1.0 - c));
+}
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
-  let angle = bm_u.uTime * bm_in.iSpeed;
-  let c = cos(angle);
-  let s = sin(angle);
-  let p = bm_in.aPosition * bm_in.iScale;
-  let rotated = p * c + cross(bm_in.iAxis, p) * s + bm_in.iAxis * (dot(bm_in.iAxis, p) * (1.0 - c));
+  let rotated = rotate3(bm_in.aPosition * bm_in.iScale, bm_in.iAxis, bm_u.uTime * bm_in.iSpeed);
   bm_out.vColor = bm_in.aColor * bm_in.iTint;
   bm_out.bm_position = bm_u.uViewProj * vec4f(rotated + bm_in.iOffset, 1.0);
   bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;

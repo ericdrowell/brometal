@@ -11,19 +11,19 @@ uniform float uTime;
 out vec3 vNormal;
 out vec3 vWorldPos;
 out vec2 vUv;
-vec3 gerstner(vec2 p, float dirX, float dirY, float steepness, float wavelength, float time) {
+vec3 gerstnerWave(vec2 p, vec2 dir, float steepness, float wavelength, float time) {
   float k = 6.28318 / wavelength;
   float c = sqrt(9.8 / k);
-  vec2 d = normalize(vec2(dirX, dirY));
+  vec2 d = normalize(dir);
   float f = k * (dot(d, p) - c * time);
   float a = steepness / k;
   return vec3(d.x * a * cos(f), d.y * a * cos(f), a * sin(f));
 }
 vec3 oceanOffset(vec2 p, float time) {
-  vec3 w1 = gerstner(p, 1.0, 0.6, 0.18, 5.2, time);
-  vec3 w2 = gerstner(p, -0.7, 1.0, 0.14, 3.1, time);
-  vec3 w3 = gerstner(p, 1.0, -1.3, 0.1, 1.8, time);
-  vec3 w4 = gerstner(p, -0.4, -0.9, 0.08, 1.1, time);
+  vec3 w1 = gerstnerWave(p, vec2(1.0, 0.6), 0.18, 5.2, time);
+  vec3 w2 = gerstnerWave(p, vec2(-0.7, 1.0), 0.14, 3.1, time);
+  vec3 w3 = gerstnerWave(p, vec2(1.0, -1.3), 0.1, 1.8, time);
+  vec3 w4 = gerstnerWave(p, vec2(-0.4, -0.9), 0.08, 1.1, time);
   return w1 + w2 + w3 + w4;
 }
 void main() {
@@ -88,6 +88,9 @@ float blinnPhongSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float shininess) 
   vec3 halfway = normalize(normalize(lightDir) + normalize(viewDir));
   return pow(max(dot(normalize(normal), halfway), 0.0), shininess);
 }
+float filmGrain(vec2 uv, float time) {
+  return hash21(uv * 997.0 + vec2(fract(time * 13.37) * 100.0, 0.0)) - 0.5;
+}
 void main() {
   vec2 q = vUv * 60.0 + vec2(uTime * 0.6, uTime * 0.35);
   float e = 0.35;
@@ -109,6 +112,7 @@ void main() {
   color = color + moon * (glint * 2.2) + moon * (sheen * 0.12);
   float lift = clamp(vWorldPos.y * 1.3 + 0.15, 0.0, 1.0);
   color = color + vec3(0.05, 0.09, 0.11) * pow(lift, 3.0);
+  color = color + vec3(1.0, 1.0, 1.0) * (filmGrain(vUv, uTime) * 0.04);
   fragColor = vec4(color, 1.0);
 }
 `,
@@ -164,19 +168,22 @@ fn blinnPhongSpec(normal : vec3f, lightDir : vec3f, viewDir : vec3f, shininess :
   let halfway = normalize(normalize(lightDir) + normalize(viewDir));
   return pow(max(dot(normalize(normal), halfway), 0.0), shininess);
 }
-fn gerstner(p : vec2f, dirX : f32, dirY : f32, steepness : f32, wavelength : f32, time : f32) -> vec3f {
+fn gerstnerWave(p : vec2f, dir : vec2f, steepness : f32, wavelength : f32, time : f32) -> vec3f {
   let k = 6.28318 / wavelength;
   let c = sqrt(9.8 / k);
-  let d = normalize(vec2f(dirX, dirY));
+  let d = normalize(dir);
   let f = k * (dot(d, p) - c * time);
   let a = steepness / k;
   return vec3f(d.x * a * cos(f), d.y * a * cos(f), a * sin(f));
 }
+fn filmGrain(uv : vec2f, time : f32) -> f32 {
+  return hash21(uv * 997.0 + vec2f(fract(time * 13.37) * 100.0, 0.0)) - 0.5;
+}
 fn oceanOffset(p : vec2f, time : f32) -> vec3f {
-  let w1 = gerstner(p, 1.0, 0.6, 0.18, 5.2, time);
-  let w2 = gerstner(p, -0.7, 1.0, 0.14, 3.1, time);
-  let w3 = gerstner(p, 1.0, -1.3, 0.1, 1.8, time);
-  let w4 = gerstner(p, -0.4, -0.9, 0.08, 1.1, time);
+  let w1 = gerstnerWave(p, vec2f(1.0, 0.6), 0.18, 5.2, time);
+  let w2 = gerstnerWave(p, vec2f(-0.7, 1.0), 0.14, 3.1, time);
+  let w3 = gerstnerWave(p, vec2f(1.0, -1.3), 0.1, 1.8, time);
+  let w4 = gerstnerWave(p, vec2f(-0.4, -0.9), 0.08, 1.1, time);
   return w1 + w2 + w3 + w4;
 }
 @vertex
@@ -223,6 +230,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   color = color + moon * (glint * 2.2) + moon * (sheen * 0.12);
   let lift = clamp(bm_in.vWorldPos.y * 1.3 + 0.15, 0.0, 1.0);
   color = color + vec3f(0.05, 0.09, 0.11) * pow(lift, 3.0);
+  color = color + vec3f(1.0, 1.0, 1.0) * (filmGrain(bm_in.vUv, bm_u.uTime) * 0.04);
   return vec4f(color, 1.0);
 }
 `,

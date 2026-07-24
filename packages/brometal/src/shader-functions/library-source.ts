@@ -344,6 +344,22 @@ export const SHADER_LIBRARY: Record<string, LibraryEntry> = {
   return mix(mix(va, vb, u.x), mix(vc, vd, u.x), u.y) * 0.7 + 0.5;
 }`,
   },
+  gfbm2: {
+    deps: ['gnoise2'],
+    source: `function gfbm2(p: Vec2, octaves: number): number {
+  let total = 0;
+  let amplitude = 0.5;
+  let frequency = 1;
+  let norm = 0;
+  for (let i = 0; i < octaves; i += 1) {
+    total += amplitude * gnoise2(p.scale(frequency));
+    norm += amplitude;
+    amplitude *= 0.5;
+    frequency *= 2;
+  }
+  return total / norm;
+}`,
+  },
   turbulence2: {
     deps: ['gnoise2'],
     source: `function turbulence2(p: Vec2, octaves: number): number {
@@ -637,6 +653,30 @@ export const SHADER_LIBRARY: Record<string, LibraryEntry> = {
     deps: ['hash21'],
     source: `function filmGrain(uv: Vec2, time: number): number {
   return hash21(uv.scale(997).add(vec2(fract(time * 13.37) * 100, 0))) - 0.5;
+}`,
+  },
+
+  // ── 3D transforms ───────────────────────────────────────────────────────
+  rotate3: {
+    deps: [],
+    source: `function rotate3(p: Vec3, axis: Vec3, angle: number): Vec3 {
+  const a = normalize(axis);
+  const c = cos(angle);
+  const s = sin(angle);
+  return p.scale(c).add(cross(a, p).scale(s)).add(a.scale(dot(a, p) * (1 - c)));
+}`,
+  },
+
+  // ── Waves ───────────────────────────────────────────────────────────────
+  gerstnerWave: {
+    deps: [],
+    source: `function gerstnerWave(p: Vec2, dir: Vec2, steepness: number, wavelength: number, time: number): Vec3 {
+  const k = 6.28318 / wavelength;
+  const c = sqrt(9.8 / k);
+  const d = normalize(dir);
+  const f = k * (dot(d, p) - c * time);
+  const a = steepness / k;
+  return vec3(d.x * a * cos(f), d.y * a * cos(f), a * sin(f));
 }`,
   },
 };

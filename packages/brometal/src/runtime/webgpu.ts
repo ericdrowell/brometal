@@ -12,6 +12,8 @@ export interface WebgpuInternals {
   format: GPUTextureFormat;
   clearColor: readonly [number, number, number, number];
   cull: 'back' | 'none';
+  /** 4 when antialiasing (the default), 1 when the renderer was created with antialias: false. */
+  sampleCount: number;
   /** Live only while a loop callback runs. */
   pass: GPURenderPassEncoder | null;
   /** Increments once per rendered frame — programs use it to reset their uniform slot rings. */
@@ -56,12 +58,15 @@ export async function createWebgpuRenderer(
     format,
     clearColor: options.clearColor ?? [0, 0, 0, 1],
     cull: options.cull === 'back' ? 'back' : 'none',
+    sampleCount: options.antialias === false ? 1 : 4,
     pass: null,
     frame: 0,
   };
 
   let depthTexture: GPUTexture | null = null;
   let depthView: GPUTextureView | null = null;
+  let msaaTexture: GPUTexture | null = null;
+  let msaaView: GPUTextureView | null = null;
   let needsResize = true;
   const observer =
     typeof ResizeObserver !== 'undefined'
@@ -100,22 +105,44 @@ export async function createWebgpuRenderer(
             depthTexture = device.createTexture({
               size: [canvas.width, canvas.height],
               format: 'depth24plus',
+              sampleCount: internals.sampleCount,
               usage: GPUTextureUsage.RENDER_ATTACHMENT,
             });
             depthView = depthTexture.createView();
+            if (internals.sampleCount > 1) {
+              msaaTexture?.destroy();
+              msaaTexture = device.createTexture({
+                size: [canvas.width, canvas.height],
+                format,
+                sampleCount: internals.sampleCount,
+                usage: GPUTextureUsage.RENDER_ATTACHMENT,
+              });
+              msaaView = msaaTexture.createView();
+            }
           }
         }
         internals.frame++;
         const [r, g, b, a] = internals.clearColor;
         const encoder = device.createCommandEncoder();
+        // With MSAA the pass renders into the multisampled texture and
+        // resolves into the swapchain; the samples themselves are discarded.
+        const swapchainView = context.getCurrentTexture().createView();
         internals.pass = encoder.beginRenderPass({
           colorAttachments: [
-            {
-              view: context.getCurrentTexture().createView(),
-              clearValue: { r, g, b, a },
-              loadOp: 'clear',
-              storeOp: 'store',
-            },
+            msaaView !== null
+              ? {
+                  view: msaaView,
+                  resolveTarget: swapchainView,
+                  clearValue: { r, g, b, a },
+                  loadOp: 'clear',
+                  storeOp: 'discard',
+                }
+              : {
+                  view: swapchainView,
+                  clearValue: { r, g, b, a },
+                  loadOp: 'clear',
+                  storeOp: 'store',
+                },
           ],
           depthStencilAttachment: {
             view: depthView!,
@@ -149,6 +176,7 @@ export async function createWebgpuRenderer(
       activeStops.clear();
       observer?.disconnect();
       depthTexture?.destroy();
+      msaaTexture?.destroy();
       device.destroy();
     },
   };
@@ -256,6 +284,7 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       ],
     },
     primitive: { topology: 'triangle-list', frontFace: 'ccw', cullMode: internals.cull },
+    multisample: { count: internals.sampleCount },
     depthStencil: {
       format: 'depth24plus',
       depthWriteEnabled: blend === 'none',

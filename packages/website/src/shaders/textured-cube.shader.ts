@@ -1,4 +1,5 @@
-import { shader, vec3, vec4, texture, normalize, dot, max, pow } from 'brometal';
+import { shader, vec3, vec4, texture } from 'brometal';
+import { lambert, blinnPhongSpec } from 'brometal/shader-functions';
 
 export default shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3', aUv: 'vec2' },
@@ -21,12 +22,10 @@ export default shader({
 
   fragment({ uLightPos, uViewPos, uTex }, { vNormal, vUv, vWorldPos }) {
     const ambient = 0.25;
-    const n = normalize(vNormal);
-    const lightDir = normalize(uLightPos.sub(vWorldPos));
-    const diffuse = max(dot(n, lightDir), 0);
-    const viewDir = normalize(uViewPos.sub(vWorldPos));
-    const halfway = normalize(lightDir.add(viewDir));
-    const specular = pow(max(dot(n, halfway), 0), 32) * 0.4;
+    const lightDir = uLightPos.sub(vWorldPos);
+    const viewDir = uViewPos.sub(vWorldPos);
+    const diffuse = lambert(vNormal, lightDir);
+    const specular = blinnPhongSpec(vNormal, lightDir, viewDir, 32) * 0.4;
     const base = texture(uTex, vUv).xyz;
     const lit = base.mul(ambient + diffuse).add(vec3(1, 1, 1).scale(specular));
     return vec4(lit, 1);

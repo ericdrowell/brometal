@@ -7,6 +7,7 @@ import hash31Example from '@/shaders/fns/fn-hash31.shader.gen';
 import vnoise2Example from '@/shaders/fns/fn-vnoise2.shader.gen';
 import gnoise2Example from '@/shaders/fns/fn-gnoise2.shader.gen';
 import fbm2Example from '@/shaders/fns/fn-fbm2.shader.gen';
+import gfbm2Example from '@/shaders/fns/fn-gfbm2.shader.gen';
 import turbulence2Example from '@/shaders/fns/fn-turbulence2.shader.gen';
 import warp2Example from '@/shaders/fns/fn-warp2.shader.gen';
 import voronoi2Example from '@/shaders/fns/fn-voronoi2.shader.gen';
@@ -28,6 +29,8 @@ import easeOutBounceExample from '@/shaders/fns/fn-easeOutBounce.shader.gen';
 import remapExample from '@/shaders/fns/fn-remap.shader.gen';
 import smootherstepExample from '@/shaders/fns/fn-smootherstep.shader.gen';
 import rotate2Example from '@/shaders/fns/fn-rotate2.shader.gen';
+import rotate3Example from '@/shaders/fns/fn-rotate3.shader.gen';
+import gerstnerWaveExample from '@/shaders/fns/fn-gerstnerWave.shader.gen';
 import luminanceExample from '@/shaders/fns/fn-luminance.shader.gen';
 import hsv2rgbExample from '@/shaders/fns/fn-hsv2rgb.shader.gen';
 import rgb2hsvExample from '@/shaders/fns/fn-rgb2hsv.shader.gen';
@@ -123,6 +126,13 @@ export const FN_EXAMPLES: FnExample[] = [
     signature: "fbm2(p: Vec2, octaves: number): number",
     doc: "Fractal Brownian motion: layered octaves of value noise.",
     shader: fbm2Example,
+  },
+  {
+    key: 'gfbm2',
+    category: 'Hash & Noise',
+    signature: "gfbm2(p: Vec2, octaves: number): number",
+    doc: "FBM over gradient noise — rounder, less grid-aligned than fbm2.",
+    shader: gfbm2Example,
   },
   {
     key: 'turbulence2',
@@ -270,6 +280,20 @@ export const FN_EXAMPLES: FnExample[] = [
     signature: "rotate2(p: Vec2, angle: number): Vec2",
     doc: "Rotates 2D points around the origin \u2014 spinning a checker grid.",
     shader: rotate2Example,
+  },
+  {
+    key: 'rotate3',
+    category: 'Math & Transforms',
+    signature: "rotate3(p: Vec3, axis: Vec3, angle: number): Vec3",
+    doc: "Rotates 3D points around an arbitrary axis \u2014 a checkered ball spinning on a tilt.",
+    shader: rotate3Example,
+  },
+  {
+    key: 'gerstnerWave',
+    category: 'Math & Transforms',
+    signature: "gerstnerWave(p: Vec2, dir: Vec2, steepness, wavelength, time): Vec3",
+    doc: "Gerstner ocean wave displacement \u2014 two crossing wave trains, colored by height.",
+    shader: gerstnerWaveExample,
   },
   {
     key: 'luminance',

@@ -16,6 +16,13 @@ APIs may still shift until 1.0.
 - Concept examples: Blend (mode comparison), Terrain (noise-displaced
   vertices), Ripples (eased elastic rings), and Ocean (Gerstner waves with
   fresnel and specular glint).
+- Three new shader functions: `gfbm2` (fbm over gradient noise), `rotate3`
+  (axis-angle rotation), and `gerstnerWave` (ocean wave displacement).
+- WebGPU backend now renders with 4x MSAA (matching the WebGL2 backend's
+  antialiasing); disable with `createRenderer(canvas, { antialias: false })`.
+- `parseGlb(bytes)` / `loadGlb(url)` — a minimal glTF-Binary model loader
+  returning attribute-ready typed arrays and embedded images; Model example
+  (Quaternius Spitfire, CC0) added to the Basics section.
 
 ### Fixed
 - **WebGPU: multiple draws per frame from one program now keep their own

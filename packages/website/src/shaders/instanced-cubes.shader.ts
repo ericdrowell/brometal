@@ -1,4 +1,5 @@
-import { shader, vec4, sin, cos, cross, dot } from 'brometal';
+import { shader, vec4 } from 'brometal';
+import { rotate3 } from 'brometal/shader-functions';
 
 export default shader({
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
@@ -13,13 +14,7 @@ export default shader({
   varyings: { vColor: 'vec3' },
 
   vertex({ aPosition, aColor, iOffset, iAxis, iSpeed, iScale, iTint }, { uViewProj, uTime }, v) {
-    const angle = uTime * iSpeed;
-    const c = cos(angle);
-    const s = sin(angle);
-    const p = aPosition.scale(iScale);
-    const rotated = p.scale(c)
-      .add(cross(iAxis, p).scale(s))
-      .add(iAxis.scale(dot(iAxis, p) * (1 - c)));
+    const rotated = rotate3(aPosition.scale(iScale), iAxis, uTime * iSpeed);
     v.vColor = aColor.mul(iTint);
     return uViewProj.mul(vec4(rotated.add(iOffset), 1));
   },

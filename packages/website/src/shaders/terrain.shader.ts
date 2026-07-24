@@ -1,5 +1,5 @@
-import { shader, vec2, vec3, vec4, normalize, dot, max, mix } from 'brometal';
-import { fbm2 } from 'brometal/shader-functions';
+import { shader, vec2, vec3, vec4, normalize, mix } from 'brometal';
+import { gfbm2, lambert } from 'brometal/shader-functions';
 
 export default shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
@@ -8,10 +8,10 @@ export default shader({
 
   vertex({ aPosition, aUv }, { uViewProj, uModel, uTime, uAmp }, v) {
     const q = aUv.scale(5).add(vec2(uTime * 0.22, uTime * 0.09));
-    const h = fbm2(q, 4);
+    const h = gfbm2(q, 4);
     const e = 0.04;
-    const hx = fbm2(q.add(vec2(e, 0)), 4);
-    const hy = fbm2(q.add(vec2(0, e)), 4);
+    const hx = gfbm2(q.add(vec2(e, 0)), 4);
+    const hy = gfbm2(q.add(vec2(0, e)), 4);
     const normal = normalize(vec3((h - hx) * uAmp * 20, (h - hy) * uAmp * 20, 1));
     v.vNormal = uModel.mul(vec4(normal, 0)).xyz;
     v.vHeight = h;
@@ -20,7 +20,7 @@ export default shader({
   },
 
   fragment({ uLightDir }, { vNormal, vHeight }) {
-    const diffuse = max(dot(normalize(vNormal), normalize(uLightDir)), 0);
+    const diffuse = lambert(vNormal, uLightDir);
     const low = vec3(0.1, 0.25, 0.35);
     const high = vec3(0.85, 0.8, 0.7);
     return vec4(mix(low, high, vHeight).scale(0.3 + diffuse * 0.8), 1);

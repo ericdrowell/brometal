@@ -1,5 +1,5 @@
-import { shader, vec2, vec3, vec4, normalize, dot, max, mix, length, fract, clamp, type Vec2 } from 'brometal';
-import { easeInOutCubic } from 'brometal/shader-functions';
+import { shader, vec2, vec3, vec4, normalize, mix, length, fract, clamp, type Vec2 } from 'brometal';
+import { easeInOutCubic, lambert } from 'brometal/shader-functions';
 
 function rippleHeight(uv: Vec2, phaseTime: number, spacing: number): number {
   const dist = length(uv.sub(vec2(0.5, 0.5)));
@@ -41,7 +41,7 @@ export default shader({
   fragment({ uLightDir }, { vNormal, vHeight }) {
     // Same material as the terrain example: height-mixed deep blue to sand,
     // lambert-lit.
-    const diffuse = max(dot(normalize(vNormal), normalize(uLightDir)), 0);
+    const diffuse = lambert(vNormal, uLightDir);
     const low = vec3(0.1, 0.25, 0.35);
     const high = vec3(0.85, 0.8, 0.7);
     return vec4(mix(low, high, vHeight).scale(0.3 + diffuse * 0.8), 1);

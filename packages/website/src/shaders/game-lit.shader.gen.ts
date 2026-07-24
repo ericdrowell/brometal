@@ -20,10 +20,16 @@ uniform vec3 uColor;
 uniform vec3 uLightDir;
 in vec3 vNormal;
 out vec4 fragColor;
+float lambert(vec3 normal, vec3 lightDir) {
+  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
+}
+vec3 hemisphereLight(vec3 normal, vec3 skyColor, vec3 groundColor) {
+  float blend = normalize(normal).y * 0.5 + 0.5;
+  return mix(groundColor, skyColor, blend);
+}
 void main() {
-  vec3 n = normalize(vNormal);
-  float diffuse = max(dot(n, normalize(uLightDir)), 0.0);
-  vec3 ambient = mix(vec3(0.3, 0.28, 0.36), vec3(0.5, 0.55, 0.7), n.y * 0.5 + 0.5);
+  float diffuse = lambert(vNormal, uLightDir);
+  vec3 ambient = hemisphereLight(vNormal, vec3(0.5, 0.55, 0.7), vec3(0.3, 0.28, 0.36));
   fragColor = vec4(uColor * (diffuse * 0.75) + uColor * ambient * 0.5, 1.0);
 }
 `,
@@ -42,6 +48,13 @@ struct BmVSOut {
   @builtin(position) bm_position : vec4f,
   @location(0) vNormal : vec3f,
 }
+fn lambert(normal : vec3f, lightDir : vec3f) -> f32 {
+  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
+}
+fn hemisphereLight(normal : vec3f, skyColor : vec3f, groundColor : vec3f) -> vec3f {
+  let blend = normalize(normal).y * 0.5 + 0.5;
+  return mix(groundColor, skyColor, blend);
+}
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
@@ -53,9 +66,8 @@ fn vs_main(bm_in : BmVSIn) -> BmVSOut {
 }
 @fragment
 fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
-  let n = normalize(bm_in.vNormal);
-  let diffuse = max(dot(n, normalize(bm_u.uLightDir)), 0.0);
-  let ambient = mix(vec3f(0.3, 0.28, 0.36), vec3f(0.5, 0.55, 0.7), n.y * 0.5 + 0.5);
+  let diffuse = lambert(bm_in.vNormal, bm_u.uLightDir);
+  let ambient = hemisphereLight(bm_in.vNormal, vec3f(0.5, 0.55, 0.7), vec3f(0.3, 0.28, 0.36));
   return vec4f(bm_u.uColor * (diffuse * 0.75) + bm_u.uColor * ambient * 0.5, 1.0);
 }
 `,

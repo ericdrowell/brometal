@@ -27,14 +27,19 @@ in vec3 vNormal;
 in vec3 vColor;
 in vec3 vWorldPos;
 out vec4 fragColor;
+float lambert(vec3 normal, vec3 lightDir) {
+  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
+}
+float blinnPhongSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float shininess) {
+  vec3 halfway = normalize(normalize(lightDir) + normalize(viewDir));
+  return pow(max(dot(normalize(normal), halfway), 0.0), shininess);
+}
 void main() {
   float ambient = 0.25;
-  vec3 n = normalize(vNormal);
-  vec3 lightDir = normalize(uLightPos - vWorldPos);
-  float diffuse = max(dot(n, lightDir), 0.0);
-  vec3 viewDir = normalize(uViewPos - vWorldPos);
-  vec3 halfway = normalize(lightDir + viewDir);
-  float specular = pow(max(dot(n, halfway), 0.0), 32.0) * 0.4;
+  vec3 lightDir = uLightPos - vWorldPos;
+  vec3 viewDir = uViewPos - vWorldPos;
+  float diffuse = lambert(vNormal, lightDir);
+  float specular = blinnPhongSpec(vNormal, lightDir, viewDir, 32.0) * 0.4;
   vec3 lit = vColor * (ambient + diffuse) + vec3(1.0, 1.0, 1.0) * specular;
   fragColor = vec4(lit, 1.0);
 }
@@ -57,6 +62,13 @@ struct BmVSOut {
   @location(1) vColor : vec3f,
   @location(2) vWorldPos : vec3f,
 }
+fn lambert(normal : vec3f, lightDir : vec3f) -> f32 {
+  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
+}
+fn blinnPhongSpec(normal : vec3f, lightDir : vec3f, viewDir : vec3f, shininess : f32) -> f32 {
+  let halfway = normalize(normalize(lightDir) + normalize(viewDir));
+  return pow(max(dot(normalize(normal), halfway), 0.0), shininess);
+}
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
@@ -71,12 +83,10 @@ fn vs_main(bm_in : BmVSIn) -> BmVSOut {
 @fragment
 fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let ambient = 0.25;
-  let n = normalize(bm_in.vNormal);
-  let lightDir = normalize(bm_u.uLightPos - bm_in.vWorldPos);
-  let diffuse = max(dot(n, lightDir), 0.0);
-  let viewDir = normalize(bm_u.uViewPos - bm_in.vWorldPos);
-  let halfway = normalize(lightDir + viewDir);
-  let specular = pow(max(dot(n, halfway), 0.0), 32.0) * 0.4;
+  let lightDir = bm_u.uLightPos - bm_in.vWorldPos;
+  let viewDir = bm_u.uViewPos - bm_in.vWorldPos;
+  let diffuse = lambert(bm_in.vNormal, lightDir);
+  let specular = blinnPhongSpec(bm_in.vNormal, lightDir, viewDir, 32.0) * 0.4;
   let lit = bm_in.vColor * (ambient + diffuse) + vec3f(1.0, 1.0, 1.0) * specular;
   return vec4f(lit, 1.0);
 }

@@ -216,6 +216,12 @@ export function gnoise2(): number {
   return gpuOnly('gnoise2');
 }
 
+/** Fractal Brownian motion over gradient noise — rounder, less grid-aligned than fbm2. */
+export function gfbm2(p: Vec2, octaves: number): number;
+export function gfbm2(): number {
+  return gpuOnly('gfbm2');
+}
+
 /** Ridged/turbulent FBM built from |gnoise2| octaves. */
 export function turbulence2(p: Vec2, octaves: number): number;
 export function turbulence2(): number {
@@ -383,4 +389,18 @@ export function toonShade(): number {
 export function filmGrain(uv: Vec2, time: number): number;
 export function filmGrain(): number {
   return gpuOnly('filmGrain');
+}
+
+// ── 3D transforms ─────────────────────────────────────────────────────────
+/** Rotates a 3D point around `axis` (normalized internally) by `angle` radians. */
+export function rotate3(p: Vec3, axis: Vec3, angle: number): Vec3;
+export function rotate3(): Vec3 {
+  return gpuOnly('rotate3');
+}
+
+// ── Waves ─────────────────────────────────────────────────────────────────
+/** Gerstner wave displacement for point `p` at `time` — xy shifts the point along `dir`, z is height. */
+export function gerstnerWave(p: Vec2, dir: Vec2, steepness: number, wavelength: number, time: number): Vec3;
+export function gerstnerWave(): Vec3 {
+  return gpuOnly('gerstnerWave');
 }

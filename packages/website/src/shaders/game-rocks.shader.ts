@@ -1,5 +1,5 @@
-import { shader, vec3, vec4, normalize, dot, max, mod } from 'brometal';
-import { rotate2, hash11 } from 'brometal/shader-functions';
+import { shader, vec3, vec4, mod } from 'brometal';
+import { rotate2, hash11, lambert } from 'brometal/shader-functions';
 
 export default shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3' },
@@ -27,8 +27,7 @@ export default shader({
   },
 
   fragment({ uLightDir }, { vNormal, vTint }) {
-    const n = normalize(vNormal);
-    const diffuse = max(dot(n, normalize(uLightDir)), 0);
+    const diffuse = lambert(vNormal, uLightDir);
     const base = vec3(0.6, 0.5, 0.44).scale(vTint);
     return vec4(base.scale(0.25 + diffuse * 0.85), 1);
   },
