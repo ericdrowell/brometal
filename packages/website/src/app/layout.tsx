@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     description: 'Write TypeScript. Lift Shaders. Ship Shredded.',
     siteName: 'BroMetal',
     type: 'website',
-    images: [{ url: '/brometal-og.png', width: 1314, height: 1434 }],
+    images: [{ url: '/brometal-og.png', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
