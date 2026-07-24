@@ -4,6 +4,7 @@ import { BROMETAL_VERSION } from '@/lib/version';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://brometal.dev'),
   title: 'BroMetal',
   description: 'Write TypeScript. Lift Shaders. Ship Shredded.',
   openGraph: {

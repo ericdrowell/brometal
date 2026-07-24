@@ -1,7 +1,7 @@
 {
   "name": "brometal",
   "version": "0.10.0",
-  "description": "Write TypeScript. Lift shaders. Ship shredded.",
+  "description": "Write shaders in TypeScript, compiled at build time to GLSL + WGSL, with a tiny WebGL2 / WebGPU runtime. Write TypeScript. Lift Shaders. Ship Shredded.",
   "license": "MIT",
   "author": "Eric Rowell",
   "repository": {
@@ -9,17 +9,24 @@
     "url": "git+https://github.com/ericdrowell/brometal.git",
     "directory": "packages/brometal"
   },
-  "homepage": "https://github.com/ericdrowell/brometal#readme",
+  "homepage": "https://brometal.dev",
   "bugs": "https://github.com/ericdrowell/brometal/issues",
   "keywords": [
+    "webgpu",
+    "wgsl",
     "webgl",
     "webgl2",
     "glsl",
     "shader",
+    "shaders",
     "compiler",
     "typescript",
     "gpu",
     "graphics",
+    "3d",
+    "renderer",
+    "rendering",
+    "gltf",
     "instancing"
   ],
   "type": "module",
