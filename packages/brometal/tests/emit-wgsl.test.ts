@@ -99,7 +99,7 @@ export default shader({
 `;
     const wgsl = compile(source).wgslSrc!;
     expect(wgsl).toContain('atan2(bm_in.aUv.y, bm_in.aUv.x)');
-    expect(wgsl).toContain('(angle - 6.28318 * floor(angle / 6.28318))');
+    expect(wgsl).toContain('((angle) - (6.28318) * floor((angle) / (6.28318)))');
   });
 
   it('splats scalar bounds for vector clamp (WGSL has no mixed overload)', () => {
@@ -126,5 +126,26 @@ export default shader({
     const webgpuOnly = compileShaderSource('t.shader.ts', CUBE_SHADER, { targets: ['webgpu'] });
     expect(webgpuOnly.wgslSrc).toContain('@vertex');
     expect(webgpuOnly.vertexSrc).toBe('');
+  });
+});
+
+describe('WGSL mod() polyfill', () => {
+  it('parenthesizes compound operands', () => {
+    const compiled = compile(`
+import { shader, vec4, mod } from 'brometal';
+export default shader({
+  attributes: { aPosition: 'vec3' },
+  uniforms: { uOffset: 'float', uScroll: 'float', uWrap: 'float' },
+  vertex({ aPosition }, { uOffset, uScroll, uWrap }) {
+    const z = mod(uOffset + uScroll, uWrap) - 1;
+    return vec4(aPosition.x, aPosition.y, z, 1);
+  },
+  fragment() { return vec4(1, 1, 1, 1); },
+});
+`);
+    const wgsl = compiled.wgslSrc!;
+    // The dividend must be parenthesized inside floor(); without it,
+    // mod(x + y, w) emits floor(x + y / w) and wraps at the wrong values.
+    expect(wgsl).toContain('floor((bm_u.uOffset + bm_u.uScroll) / (bm_u.uWrap))');
   });
 });

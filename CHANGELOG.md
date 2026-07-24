@@ -12,7 +12,8 @@ APIs may still shift until 1.0.
   blend modes on both backends; blended programs depth-test but don't
   depth-write.
 - `mat4.lookAt(eye, target, up?)` and `camera.lookAt(x, y, z)`.
-- Game experience example: Starfighter.
+- Game experience example: Starfighter — fly the Spitfire glb through an
+  instanced asteroid field.
 - Concept examples: Blend (mode comparison), Terrain (noise-displaced
   vertices), Ripples (eased elastic rings), and Ocean (Gerstner waves with
   fresnel and specular glint).
@@ -28,6 +29,10 @@ APIs may still shift until 1.0.
 - **WebGPU: multiple draws per frame from one program now keep their own
   uniform values** (per-draw uniform slots bound via dynamic offsets).
   Previously every draw in a frame saw the last-written uniforms.
+- **WGSL: `mod(a, b)` with compound operands now computes correctly.** The
+  floor-based polyfill interpolated operands without parentheses, so
+  `mod(x + y, w)` emitted `floor(x + y / w)` — wrong values on the WebGPU
+  backend only (GLSL uses native `mod`).
 
 ## 0.7.0 — 2026-07-23
 

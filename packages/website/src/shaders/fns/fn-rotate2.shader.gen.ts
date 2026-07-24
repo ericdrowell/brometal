@@ -58,7 +58,7 @@ fn vs_main(bm_in : BmVSIn) -> BmVSOut {
 @fragment
 fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let q = rotate2(vec2f((bm_in.vUv.x - 0.5) * bm_u.uAspect, bm_in.vUv.y - 0.5), bm_u.uTime * 0.4) * 7.0;
-  let c = (floor(q.x) + floor(q.y) - 2.0 * floor(floor(q.x) + floor(q.y) / 2.0));
+  let c = ((floor(q.x) + floor(q.y)) - (2.0) * floor((floor(q.x) + floor(q.y)) / (2.0)));
   let tone = mix(0.15, 0.9, c);
   return vec4f(tone, tone, tone, 1.0);
 }

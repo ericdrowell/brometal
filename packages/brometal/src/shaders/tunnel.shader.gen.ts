@@ -65,7 +65,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let radius = length(p) + 0.0001;
   let angle = atan2(p.y, p.x) * 0.159155;
   let depth = 0.25 / radius + bm_u.uTime * 0.7;
-  let c = (floor(angle * 12.0) + floor(depth * 6.0) - 2.0 * floor(floor(angle * 12.0) + floor(depth * 6.0) / 2.0));
+  let c = ((floor(angle * 12.0) + floor(depth * 6.0)) - (2.0) * floor((floor(angle * 12.0) + floor(depth * 6.0)) / (2.0)));
   let fog = smoothstep(0.02, 0.4, radius);
   let tone = mix(0.1, 1.0, c) * fog;
   return vec4f(tone, tone * 0.7, tone * 0.4, 1.0);

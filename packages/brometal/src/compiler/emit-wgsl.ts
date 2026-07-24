@@ -247,9 +247,11 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
 
   if (expr.callee === 'mod') {
     // GLSL mod() is floor-based; WGSL % is trunc-based, so spell it out.
+    // Operands must be parenthesized — they can be arbitrary expressions
+    // (e.g. `x + y`) landing next to `*` and `/`.
     const a = emitExpr(args[0]!, ctx, 0);
     const b = emitExpr(args[1]!, ctx, 0);
-    return `(${a} - ${b} * floor(${a} / ${b}))`;
+    return `((${a}) - (${b}) * floor((${a}) / (${b})))`;
   }
 
   const rendered = args.map((arg) => emitExpr(arg, ctx, 0)).join(', ');

@@ -104,13 +104,12 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         description:
           'A moonlit ocean — Gerstner waves in the vertex shader, fbm micro-ripples, fresnel, and specular glint per pixel.',
       },
-      // Temporarily hidden while the demo gets reworked.
-      // {
-      //   slug: 'starfighter',
-      //   name: 'Starfighter',
-      //   description:
-      //     'A playable flight experience — steer through an instanced asteroid field with an additive engine trail and a follow camera.',
-      // },
+      {
+        slug: 'starfighter',
+        name: 'Starfighter',
+        description:
+          'A playable flight experience — fly the Spitfire through an instanced asteroid field with an additive engine trail and a follow camera.',
+      },
     ],
   },
 ];

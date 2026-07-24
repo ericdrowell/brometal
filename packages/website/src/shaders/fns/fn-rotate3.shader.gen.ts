@@ -70,7 +70,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let z = sqrt(max(0.2025 - r * r, 0.0));
   let n = normalize(vec3f(q.x, q.y, z));
   let rn = rotate3(n, normalize(vec3f(0.5, 1.0, 0.3)), bm_u.uTime * 0.8);
-  let c = (floor(rn.x * 3.0 + 3.0) + floor(rn.y * 3.0 + 3.0) + floor(rn.z * 3.0 + 3.0) - 2.0 * floor(floor(rn.x * 3.0 + 3.0) + floor(rn.y * 3.0 + 3.0) + floor(rn.z * 3.0 + 3.0) / 2.0));
+  let c = ((floor(rn.x * 3.0 + 3.0) + floor(rn.y * 3.0 + 3.0) + floor(rn.z * 3.0 + 3.0)) - (2.0) * floor((floor(rn.x * 3.0 + 3.0) + floor(rn.y * 3.0 + 3.0) + floor(rn.z * 3.0 + 3.0)) / (2.0)));
   let shade = mix(0.2, 1.0, c) * (n.z * 0.75 + 0.25);
   let mask = 1.0 - smoothstep(0.44, 0.45, r);
   let tone = shade * mask + 0.08 * (1.0 - mask);
