@@ -5,6 +5,16 @@ import { bindVaoCached, forgetProgram, forgetVao, useProgramCached } from './sta
 import { createUniformSetter, type UniformValue } from './uniforms.js';
 import { createWebgpuProgram } from './webgpu.js';
 
+export type BlendMode = 'none' | 'alpha' | 'additive';
+
+export interface ProgramOptions {
+  /**
+   * 'alpha' = classic transparency, 'additive' = light accumulation (glows,
+   * particles). Blended programs test depth but do not write it.
+   */
+  blend?: BlendMode;
+}
+
 export interface AttributeHandle {
   set(data: Float32Array): void;
 }
@@ -29,9 +39,11 @@ export interface BroMetalProgram<
 export function createProgram<A extends GpuRecord, I extends GpuRecord, U extends GpuRecord>(
   renderer: Renderer,
   compiled: CompiledShader<A, I, U>,
+  options: ProgramOptions = {},
 ): BroMetalProgram<A, I, U> {
+  const blend = options.blend ?? 'none';
   if (renderer.backend === 'webgpu') {
-    return createWebgpuProgram(renderer, compiled);
+    return createWebgpuProgram(renderer, compiled, blend);
   }
   const gl = renderer.gl;
   if (gl === undefined) {
@@ -135,6 +147,14 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
       );
       useProgramCached(gl, program);
       bindVaoCached(gl, vao);
+      if (blend === 'none') {
+        gl.disable(gl.BLEND);
+        gl.depthMask(true);
+      } else {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE);
+        gl.depthMask(false);
+      }
       if (isInstanced) {
         const instanceCount = resolveCount(
           instanceStates,

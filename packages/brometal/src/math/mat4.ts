@@ -105,6 +105,56 @@ function perspective(
   return m;
 }
 
+/**
+ * View matrix for a camera at `eye` looking at `target` (classic gluLookAt).
+ * `up` defaults to +y.
+ */
+function lookAt(
+  eye: readonly [number, number, number],
+  target: readonly [number, number, number],
+  up: readonly [number, number, number] = [0, 1, 0],
+  out?: Mat4Array,
+): Mat4Array {
+  let fx = target[0] - eye[0];
+  let fy = target[1] - eye[1];
+  let fz = target[2] - eye[2];
+  const fl = Math.hypot(fx, fy, fz) || 1;
+  fx /= fl;
+  fy /= fl;
+  fz /= fl;
+
+  let sx = fy * up[2] - fz * up[1];
+  let sy = fz * up[0] - fx * up[2];
+  let sz = fx * up[1] - fy * up[0];
+  const sl = Math.hypot(sx, sy, sz) || 1;
+  sx /= sl;
+  sy /= sl;
+  sz /= sl;
+
+  const ux = sy * fz - sz * fy;
+  const uy = sz * fx - sx * fz;
+  const uz = sx * fy - sy * fx;
+
+  const m = out ?? new Float32Array(16);
+  m[0] = sx;
+  m[1] = ux;
+  m[2] = -fx;
+  m[3] = 0;
+  m[4] = sy;
+  m[5] = uy;
+  m[6] = -fy;
+  m[7] = 0;
+  m[8] = sz;
+  m[9] = uz;
+  m[10] = -fz;
+  m[11] = 0;
+  m[12] = -(sx * eye[0] + sy * eye[1] + sz * eye[2]);
+  m[13] = -(ux * eye[0] + uy * eye[1] + uz * eye[2]);
+  m[14] = fx * eye[0] + fy * eye[1] + fz * eye[2];
+  m[15] = 1;
+  return m;
+}
+
 function scratch(): Mat4Array {
   return new Float32Array(16);
 }
@@ -117,6 +167,7 @@ export const mat4 = {
   rotationY,
   rotationZ,
   perspective,
+  lookAt,
   /** Allocates a matrix intended for reuse as an `out` target in render loops. */
   scratch,
 };

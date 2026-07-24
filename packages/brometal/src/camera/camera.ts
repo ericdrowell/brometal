@@ -16,6 +16,8 @@ export interface Camera {
   setPosition(x: number, y: number, z: number): void;
   /** Radians about each axis, applied yaw (Y) → pitch (X) → roll (Z). */
   setRotation(x: number, y: number, z: number): void;
+  /** Points the camera at a world position (sets yaw/pitch, zeroes roll). */
+  lookAt(x: number, y: number, z: number): void;
   setLens(lens: CameraLens): void;
   /** World→camera matrix. Cached; recomputed only after a setter changed something. */
   view(): Mat4Array;
@@ -69,6 +71,18 @@ export function createCamera(options: CameraOptions = {}): Camera {
       ry = y;
       rz = z;
       viewDirty = true;
+    },
+    lookAt(x: number, y: number, z: number): void {
+      const dx = x - px;
+      const dy = y - py;
+      const dz = z - pz;
+      const length = Math.hypot(dx, dy, dz);
+      if (length < 1e-6) return;
+      // Camera forward is (-sin(ry)cos(rx), sin(rx), -cos(ry)cos(rx)) under
+      // the yaw→pitch rotation order; invert for the direction to the target.
+      const pitch = Math.asin(Math.max(-1, Math.min(1, dy / length)));
+      const yaw = Math.atan2(-dx, -dz);
+      this.setRotation(pitch, yaw, 0);
     },
     setLens(lens: CameraLens): void {
       const nextFovY = lens.fovY ?? fovY;

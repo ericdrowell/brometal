@@ -50,7 +50,13 @@ export {
 export { createRenderer } from './runtime/context.js';
 export type { Renderer, RendererBackend, RendererOptions } from './runtime/context.js';
 export { createProgram } from './runtime/program.js';
-export type { AttributeHandle, BroMetalProgram, UniformHandle } from './runtime/program.js';
+export type {
+  AttributeHandle,
+  BlendMode,
+  BroMetalProgram,
+  ProgramOptions,
+  UniformHandle,
+} from './runtime/program.js';
 export type { UniformValue } from './runtime/uniforms.js';
 export { mat4 } from './math/mat4.js';
 export type { Mat4Array } from './math/mat4.js';

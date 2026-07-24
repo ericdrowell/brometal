@@ -4,6 +4,8 @@ Write TypeScript.  Lift Shaders.  Ship Shredded.
 
 BroMetal is LLVM-inspired compiler infrastructure for GPU programming that transforms TypeScript into highly optimized GPU shaders. It compiles a typed TypeScript DSL to WebGL2 GLSL **and** WGSL from one source, and ships dual WebGL2/WebGPU runtimes — buffers, uniforms, pipelines, program linking, and the render loop are all handled for you. `await createRenderer(canvas)` uses WebGPU when the browser provides it and falls back to WebGL2, behind one typed API.
 
+> **Pre-1.0:** BroMetal is evolving fast. Minor versions may include breaking changes — every one is documented in [CHANGELOG.md](https://github.com/ericdrowell/brometal/blob/main/CHANGELOG.md). The `shader()` DSL and `brometal/shader-functions` surfaces are stable-by-intent; runtime APIs may still shift until 1.0.
+
 ## Install
 
 ```bash
@@ -68,6 +70,7 @@ Everything is typed end-to-end: the records in `shader()` drive the GLSL declara
 const camera = createCamera({ position: [0, 0, 6] });
 camera.setPosition(x, y, z);
 camera.setRotation(rx, ry, rz);   // radians, applied yaw (Y) → pitch (X) → roll (Z)
+camera.lookAt(x, y, z);           // aim at a world position
 
 renderer.loop(() => {
   program.uniforms.uViewProj.set(camera.viewProjection(aspect));

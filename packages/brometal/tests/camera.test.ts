@@ -71,6 +71,23 @@ describe('camera', () => {
     expect([...moved]).not.toEqual(before);
   });
 
+  it('lookAt points the view axis at the target', () => {
+    const camera = createCamera({ position: [3, 2, 5] });
+    camera.lookAt(0, 0, 0);
+    const [x, y, z] = transform(camera.view(), [0, 0, 0, 1]);
+    expect(x).toBeCloseTo(0, 5);
+    expect(y).toBeCloseTo(0, 5);
+    expect(z).toBeCloseTo(-Math.hypot(3, 2, 5), 5);
+  });
+
+  it('lookAt straight down does not produce NaN rotations', () => {
+    const camera = createCamera({ position: [0, 5, 0] });
+    camera.lookAt(0, 0, 0);
+    for (const value of camera.viewProjection(1.5)) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
   it('aspect and lens changes refresh the projection', () => {
     const camera = createCamera({ position: [0, 0, 6] });
     const wide = [...camera.viewProjection(2)];

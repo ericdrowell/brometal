@@ -88,6 +88,19 @@ describe('mat4', () => {
     expectVecClose([...dirty], [...mat4.identity()]);
   });
 
+  it('lookAt centers the target on the view axis', () => {
+    const view = mat4.lookAt([2, 3, 5], [0, 0, 0]);
+    const [x, y, z] = transform(view, [0, 0, 0, 1]);
+    expect(x).toBeCloseTo(0, 5);
+    expect(y).toBeCloseTo(0, 5);
+    expect(z).toBeCloseTo(-Math.hypot(2, 3, 5), 5);
+  });
+
+  it('lookAt matches the translation form for an axis-aligned camera', () => {
+    const view = mat4.lookAt([0, 0, 6], [0, 0, 0]);
+    expectVecClose([...view], [...mat4.translation(0, 0, -6)]);
+  });
+
   it('multiply tolerates aliased out arguments', () => {
     const a = mat4.rotationX(0.5);
     const b = mat4.rotationY(1.1);

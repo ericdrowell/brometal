@@ -14,6 +14,8 @@ export interface WebgpuInternals {
   cull: 'back' | 'none';
   /** Live only while a loop callback runs. */
   pass: GPURenderPassEncoder | null;
+  /** Increments once per rendered frame — programs use it to reset their uniform slot rings. */
+  frame: number;
 }
 
 const INTERNALS = new WeakMap<Renderer, WebgpuInternals>();
@@ -55,6 +57,7 @@ export async function createWebgpuRenderer(
     clearColor: options.clearColor ?? [0, 0, 0, 1],
     cull: options.cull === 'back' ? 'back' : 'none',
     pass: null,
+    frame: 0,
   };
 
   let depthTexture: GPUTexture | null = null;
@@ -102,6 +105,7 @@ export async function createWebgpuRenderer(
             depthView = depthTexture.createView();
           }
         }
+        internals.frame++;
         const [r, g, b, a] = internals.clearColor;
         const encoder = device.createCommandEncoder();
         internals.pass = encoder.beginRenderPass({
@@ -174,6 +178,7 @@ interface GpuTextureBinding {
 export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U extends GpuRecord>(
   renderer: Renderer,
   compiled: CompiledShader<A, I, U>,
+  blend: 'none' | 'alpha' | 'additive' = 'none',
 ): BroMetalProgram<A, I, U> {
   const internals = webgpuInternals(renderer);
   const { device } = internals;
@@ -191,7 +196,9 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
     bglEntries.push({
       binding: 0,
       visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-      buffer: { type: 'uniform' },
+      // Dynamic offset: each draw binds its own 256-aligned slot of a shared
+      // buffer, so multiple draws per frame keep their own uniform values.
+      buffer: { type: 'uniform', hasDynamicOffset: true },
     });
   }
   for (const entry of compiled.layout.uniforms) {
@@ -223,21 +230,55 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
         ],
       })),
     },
-    fragment: { module, entryPoint: 'fs_main', targets: [{ format: internals.format }] },
+    fragment: {
+      module,
+      entryPoint: 'fs_main',
+      targets: [
+        {
+          format: internals.format,
+          ...(blend === 'none'
+            ? {}
+            : {
+                blend: {
+                  color: {
+                    srcFactor: 'src-alpha',
+                    dstFactor: blend === 'alpha' ? 'one-minus-src-alpha' : 'one',
+                    operation: 'add',
+                  },
+                  alpha: {
+                    srcFactor: 'one',
+                    dstFactor: blend === 'alpha' ? 'one-minus-src-alpha' : 'one',
+                    operation: 'add',
+                  },
+                },
+              }),
+        },
+      ],
+    },
     primitive: { topology: 'triangle-list', frontFace: 'ccw', cullMode: internals.cull },
-    depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
+    depthStencil: {
+      format: 'depth24plus',
+      depthWriteEnabled: blend === 'none',
+      depthCompare: 'less',
+    },
   });
 
-  // One CPU-side mirror of the uniform block; flushed to the GPU before draws.
+  // Per-draw uniform slots in one buffer, bound via dynamic offset — this is
+  // what lets one program draw many times per frame with different uniforms.
   const uniformData = new Float32Array(compiled.layout.uniformBlockSize / 4);
-  const uniformBuffer =
+  const slotStride = Math.ceil(compiled.layout.uniformBlockSize / 256) * 256;
+  let slotCapacity = 64;
+  let uniformBuffer =
     compiled.layout.uniformBlockSize > 0
       ? device.createBuffer({
-          size: compiled.layout.uniformBlockSize,
+          size: slotStride * slotCapacity,
           usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         })
       : null;
   let uniformsDirty = true;
+  let slot = -1;
+  let currentOffset = 0;
+  let lastFrame = -1;
 
   // Samplers start bound to a 1px placeholder so draws never see a hole.
   const placeholderTexture = device.createTexture({
@@ -262,7 +303,10 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
   const buildBindGroup = (): GPUBindGroup => {
     const entries: GPUBindGroupEntry[] = [];
     if (uniformBuffer !== null) {
-      entries.push({ binding: 0, resource: { buffer: uniformBuffer } });
+      entries.push({
+        binding: 0,
+        resource: { buffer: uniformBuffer, offset: 0, size: compiled.layout.uniformBlockSize },
+      });
     }
     for (const entry of compiled.layout.uniforms) {
       if (entry.type === 'sampler2D') {
@@ -406,15 +450,36 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
           throw new Error(`BroMetal: attribute '${entry.name}' has no data — call set(...) before draw()`);
         }
       }
+      if (internals.frame !== lastFrame) {
+        // New frame: restart the slot ring. Forcing a write keeps this frame's
+        // ascending slots from ever overwriting an offset already referenced.
+        lastFrame = internals.frame;
+        slot = -1;
+        uniformsDirty = true;
+      }
       if (uniformsDirty && uniformBuffer !== null) {
-        device.queue.writeBuffer(uniformBuffer, 0, uniformData as unknown as BufferSource);
+        slot++;
+        if (slot >= slotCapacity) {
+          // Grow the ring. The old buffer is NOT destroyed here — draws already
+          // recorded this frame still reference it through the previous bind
+          // group; it is released once nothing points at it.
+          slotCapacity *= 2;
+          uniformBuffer = device.createBuffer({
+            size: slotStride * slotCapacity,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+          });
+          bindGroup = null;
+          slot = 0;
+        }
+        currentOffset = slot * slotStride;
+        device.queue.writeBuffer(uniformBuffer, currentOffset, uniformData as unknown as BufferSource);
         uniformsDirty = false;
       }
       if (bindGroup === null) {
         bindGroup = buildBindGroup();
       }
       pass.setPipeline(pipeline);
-      pass.setBindGroup(0, bindGroup);
+      pass.setBindGroup(0, bindGroup, uniformBuffer === null ? [] : [currentOffset]);
       compiled.layout.attributes.forEach((entry, slot) => {
         const states = entry.divisor === 1 ? instanceStates : vertexStates;
         pass.setVertexBuffer(slot, states.get(entry.name)!.buffer);
