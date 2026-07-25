@@ -179,4 +179,6 @@ Anything outside the subset fails compilation with a precise, actionable error.
 
 ## Links
 
-Source, examples (rotating cube, 1,000 instanced cubes), and issues: https://github.com/ericdrowell/brometal
+- Website & live examples: https://brometal.dev
+- Source and issues: https://github.com/ericdrowell/brometal
+- Discord — questions, showcase, and release chat: https://discord.gg/fNbTnAQqyg
