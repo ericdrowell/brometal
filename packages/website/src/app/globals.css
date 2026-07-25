@@ -136,6 +136,28 @@ a:hover {
   color: #ffffff;
 }
 
+.ethos {
+  margin-top: 56px;
+  max-width: 620px;
+  text-align: center;
+}
+
+.ethos h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8f96ad;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ethos p {
+  margin: 0;
+  color: #a6adc4;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
 .example-section-title {
   margin: 40px 0 0;
   font-size: 13px;
