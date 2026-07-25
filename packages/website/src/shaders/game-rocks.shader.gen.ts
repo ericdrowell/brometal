@@ -114,7 +114,7 @@ void main() {
   vec3 lit = base * (0.35 + diffuse * 1.1);
   vec3 haze = vec3(0.0, 0.0, 0.0);
   float dist = 0.0 - vDepth;
-  float fog = clamp((dist - 5.0) / 40.0, 0.0, 1.0);
+  float fog = clamp((dist - 5.0) / 130.0, 0.0, 1.0);
   fragColor = vec4(mix(lit, haze, fog), 1.0);
 }
 `,
@@ -234,7 +234,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let lit = base * (0.35 + diffuse * 1.1);
   let haze = vec3f(0.0, 0.0, 0.0);
   let dist = 0.0 - bm_in.vDepth;
-  let fog = clamp((dist - 5.0) / 40.0, 0.0, 1.0);
+  let fog = clamp((dist - 5.0) / 130.0, 0.0, 1.0);
   return vec4f(mix(lit, haze, fog), 1.0);
 }
 `,

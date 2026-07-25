@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   createCamera,
   createCube,
+  createPlane,
   createProgram,
   createRenderer,
   createSphere,
@@ -18,6 +19,8 @@ import modelShader from '@/shaders/model.shader.gen';
 import rocksShader from '@/shaders/game-rocks.shader.gen';
 import glowShader from '@/shaders/game-glow.shader.gen';
 import starsShader from '@/shaders/game-stars.shader.gen';
+import laserShader from '@/shaders/game-laser.shader.gen';
+import reticleShader from '@/shaders/game-reticle.shader.gen';
 
 const ASTEROIDS = 33;
 const WRAP = 210;
@@ -188,6 +191,31 @@ export default function StarfighterDemo() {
       const trailScales = new Float32Array(PARTICLES);
       const trailAlphas = new Float32Array(PARTICLES);
 
+      // Laser bolts: a small ring buffer of instanced beams; each shot just
+      // stamps start/direction/birth-time and the shader does the rest.
+      const LASERS = 16;
+      const laserProgram = createProgram(renderer, laserShader, { blend: 'additive' });
+      laserProgram.attributes.aPosition.set(blob.positions);
+      laserProgram.setIndices(blob.indices);
+      const laserStarts = new Float32Array(LASERS * 3);
+      const laserDirs = new Float32Array(LASERS * 3);
+      const laserBirths = new Float32Array(LASERS).fill(-100);
+      laserProgram.instanceAttributes.iStart.set(laserStarts);
+      laserProgram.instanceAttributes.iDir.set(laserDirs);
+      laserProgram.instanceAttributes.iBirth.set(laserBirths);
+
+      // Star Fox aiming reticles: two SDF square outlines along the aim ray.
+      const reticleProgram = createProgram(renderer, reticleShader, { blend: 'additive' });
+      const reticleQuad = createPlane({ width: 2, height: 2 });
+      reticleProgram.attributes.aPosition.set(reticleQuad.positions);
+      reticleProgram.attributes.aUv.set(reticleQuad.uvs);
+      reticleProgram.setIndices(reticleQuad.indices);
+      reticleProgram.uniforms.uColor.set([0.5, 0.72, 1]);
+      const reticleCenters = new Float32Array(2 * 3);
+      reticleProgram.instanceAttributes.iSize.set(new Float32Array([0.55, 0.34]));
+      reticleProgram.instanceAttributes.iAlpha.set(new Float32Array([0.4, 0.7]));
+      reticleProgram.instanceAttributes.iCenter.set(reticleCenters);
+
       const camera = createCamera({ position: [0, 1.1, 4.2] });
 
       // The ship chases the cursor: pointer position maps to the playfield.
@@ -197,13 +225,7 @@ export default function StarfighterDemo() {
         targetX = (event.clientX / window.innerWidth - 0.5) * 2 * 6;
         targetY = -(event.clientY / window.innerHeight - 0.5) * 2 * 3;
       };
-      // When the cursor leaves the window, glide back to the home position.
-      const onPointerLeave = (): void => {
-        targetX = 0;
-        targetY = 0;
-      };
       window.addEventListener('pointermove', onPointerMove);
-      document.documentElement.addEventListener('pointerleave', onPointerLeave);
 
       let shipX = 0;
       let shipY = 0;
@@ -211,8 +233,44 @@ export default function StarfighterDemo() {
       let vy = 0;
       let lastT = 0;
       const model = mat4.scratch();
+      const yawM = mat4.scratch();
       const pitchM = mat4.scratch();
       const bankM = mat4.scratch();
+
+      // Star Fox aiming: the crosshair rides WITH the ship, offset purely by
+      // the cursor — so the nose deflection never decays as the ship catches
+      // up. Mouse right = nose stays right, indefinitely.
+      const AIM_DEPTH = 12;
+      const CROSSHAIR = 1.2;
+      let laserSlot = 0;
+      const onPointerDown = (): void => {
+        const dx = targetX * CROSSHAIR;
+        const dy = targetY * CROSSHAIR;
+        const inv = 1 / Math.hypot(dx, dy, AIM_DEPTH);
+        const dirX = dx * inv;
+        const dirY = dy * inv;
+        const dirZ = -AIM_DEPTH * inv;
+        // Star Fox style: one bolt per wing, offset along the ship's right
+        // vector (cross of fire direction and world up).
+        const rl = Math.hypot(dirZ, dirX);
+        const rightX = -dirZ / rl;
+        const rightZ = dirX / rl;
+        for (const side of [-1, 1]) {
+          const i = laserSlot;
+          laserSlot = (laserSlot + 1) % LASERS;
+          laserStarts[i * 3] = shipX + rightX * 0.5 * side + dirX * 0.3;
+          laserStarts[i * 3 + 1] = shipY - 0.05;
+          laserStarts[i * 3 + 2] = rightZ * 0.5 * side + dirZ * 0.3;
+          laserDirs[i * 3] = dirX;
+          laserDirs[i * 3 + 1] = dirY;
+          laserDirs[i * 3 + 2] = dirZ;
+          laserBirths[i] = lastT;
+        }
+        laserProgram.instanceAttributes.iStart.set(laserStarts);
+        laserProgram.instanceAttributes.iDir.set(laserDirs);
+        laserProgram.instanceAttributes.iBirth.set(laserBirths);
+      };
+      window.addEventListener('pointerdown', onPointerDown);
 
       const stop = renderer.loop((t) => {
         const dt = Math.min(t - lastT, 0.05);
@@ -225,10 +283,14 @@ export default function StarfighterDemo() {
         shipX = Math.max(-6, Math.min(6, shipX + vx * dt));
         shipY = Math.max(-3, Math.min(3, shipY + vy * dt));
 
-        // Ship model: translate, bank with steering, pitch with climb.
+        // Ship model: translate, aim the nose at the cursor's corridor spot,
+        // then bank with steering.
+        const aimYaw = -Math.atan2(targetX * CROSSHAIR, AIM_DEPTH);
+        const aimPitch = Math.atan2(targetY * CROSSHAIR, AIM_DEPTH);
         mat4.translation(shipX, shipY, 0, model);
+        mat4.multiply(model, mat4.rotationY(aimYaw, yawM), model);
+        mat4.multiply(model, mat4.rotationX(0.08 + aimPitch + vy * 0.03, pitchM), model);
         mat4.multiply(model, mat4.rotationZ(-vx * 0.09, bankM), model);
-        mat4.multiply(model, mat4.rotationX(0.1 + vy * 0.05, pitchM), model);
 
         // Chase cam: sit low and close behind the ship, just slightly above,
         // with the ship centered in frame.
@@ -277,12 +339,28 @@ export default function StarfighterDemo() {
         glowProgram.instanceAttributes.iAlpha.set(trailAlphas);
         glowProgram.uniforms.uViewProj.set(viewProj);
         glowProgram.draw();
+
+        laserProgram.uniforms.uViewProj.set(viewProj);
+        laserProgram.uniforms.uTime.set(t);
+        laserProgram.uniforms.uViewPos.set([shipX * 0.7, shipY * 0.7 + 0.9, 5.5]);
+        laserProgram.draw();
+
+        // Two reticles on the ship→crosshair line of sight: near at 45%,
+        // far at the crosshair itself.
+        for (const [slot, k] of [[0, 0.45], [1, 1]] as const) {
+          reticleCenters[slot * 3] = shipX + targetX * CROSSHAIR * k;
+          reticleCenters[slot * 3 + 1] = shipY + targetY * CROSSHAIR * k;
+          reticleCenters[slot * 3 + 2] = -AIM_DEPTH * k;
+        }
+        reticleProgram.instanceAttributes.iCenter.set(reticleCenters);
+        reticleProgram.uniforms.uViewProj.set(viewProj);
+        reticleProgram.draw();
       });
 
       cleanup = () => {
         stop();
         window.removeEventListener('pointermove', onPointerMove);
-        document.documentElement.removeEventListener('pointerleave', onPointerLeave);
+        window.removeEventListener('pointerdown', onPointerDown);
         shipTexture.dispose();
         rockTexture.dispose();
         shipProgram.dispose();
@@ -290,6 +368,8 @@ export default function StarfighterDemo() {
         starsProgram.dispose();
         dotsProgram.dispose();
         glowProgram.dispose();
+        laserProgram.dispose();
+        reticleProgram.dispose();
         renderer.destroy();
       };
     })();
@@ -306,7 +386,7 @@ export default function StarfighterDemo() {
       <div className="hud">
         <strong>Starfighter</strong>
         <br />
-        Move the mouse to fly — instanced asteroids, additive engine trail, follow camera
+        Move the mouse to fly, click to fire — instanced asteroids, shader lasers, follow camera
       </div>
       <BackendBadge backend={backend} />
     </>
