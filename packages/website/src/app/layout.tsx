@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Script from 'next/script';
 import { BROMETAL_VERSION } from '@/lib/version';
 import './globals.css';
 
@@ -60,6 +61,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </nav>
         </header>
         {children}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-S4HZSWEX2P"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-S4HZSWEX2P');`}
+        </Script>
       </body>
     </html>
   );
