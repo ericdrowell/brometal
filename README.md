@@ -101,8 +101,9 @@ renderer.loop((t) => {
 
 ## Sizing the canvas
 
-**Size the canvas with CSS. BroMetal owns the drawing buffer.** The
-`width`/`height` attributes are never read — leave them off.
+**Do not set the `width`/`height` attributes.** BroMetal never reads them and
+owns the drawing buffer; you own the CSS. (The npm README has the same guidance
+with a React example.)
 
 ```html
 <div id="stage"><canvas id="gl"></canvas></div>

@@ -64,6 +64,107 @@ renderer.loop((t) => {
 
 Everything is typed end-to-end: the records in `shader()` drive the GLSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors. A typo'd uniform name is a compile error in your app; the shader compiler enforces the varyings contract with `file:line:col` diagnostics.
 
+## The canvas
+
+**Do not set the `width` and `height` attributes.** BroMetal never reads them
+and owns the drawing buffer; you own the CSS. A `ResizeObserver` tracks the CSS
+box, the buffer follows it at the device pixel ratio, and `renderer.aspect`
+stays correct — there is no resize handler to write and no `setSize` to call.
+
+The one rule: **the canvas needs a CSS size, and its container needs a size of
+its own.**
+
+```html
+<div id="stage">
+  <canvas id="scene"></canvas>
+</div>
+```
+
+```css
+#stage {
+  width: 100%;
+  height: 100vh;      /* a definite size — not height: auto */
+}
+
+#stage canvas {
+  display: block;     /* a canvas is inline by default, which leaves a gap below it */
+  width: 100%;
+  height: 100%;
+  min-width: 0;       /* flex and grid items refuse to shrink without these */
+  min-height: 0;
+}
+```
+
+```ts
+const canvas = document.querySelector('canvas');
+const renderer = await createRenderer(canvas);
+```
+
+That is all of it. Resize the window, drop the canvas in a flex or grid cell,
+put it in a resizable pane — the buffer keeps up on its own.
+
+### Why not the attributes
+
+They are a 2D-canvas legacy and they actively cause trouble here:
+
+- A canvas with no CSS size takes its layout box **from** its drawing buffer, so
+  sizing one to the other feeds output back into input. BroMetal detects this,
+  leaves the buffer alone, and warns once naming the fix — but you get a fixed
+  size that never sharpens on a high-DPI display.
+- The attributes set the canvas's *intrinsic* size, which is the automatic
+  minimum size of a flex item. `width="800"` plants an 800px floor in the layout
+  algorithm, and the canvas overflows its flex container instead of fitting it.
+
+### React
+
+`createRenderer` is async — it probes for a WebGPU adapter before falling back
+to WebGL2 — so the component can unmount before it resolves. StrictMode runs
+effects twice in development, which makes that the common case rather than the
+rare one, so the cancellation flag below is not optional.
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { createRenderer, createProgram } from 'brometal';
+import cubeShader from './shaders/cube.shader.gen';
+
+export function Scene() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas === null) return;
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    void (async () => {
+      const renderer = await createRenderer(canvas);
+      if (cancelled) {
+        renderer.destroy();
+        return;
+      }
+      const program = createProgram(renderer, cubeShader);
+      program.attributes.aPosition.set(positions);
+      program.setIndices(indices);
+
+      const stop = renderer.loop(() => program.draw());
+      cleanup = () => {
+        stop();
+        program.dispose();
+        renderer.destroy();
+      };
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []);
+
+  // Sized by CSS, like any other element. The parent needs a definite size.
+  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />;
+}
+```
+
 ## Camera
 
 ```ts
