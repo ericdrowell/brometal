@@ -99,6 +99,48 @@ renderer.loop((t) => {
 });
 ```
 
+## Sizing the canvas
+
+**Size the canvas with CSS. BroMetal owns the drawing buffer.** The
+`width`/`height` attributes are never read — leave them off.
+
+```html
+<div id="stage"><canvas id="gl"></canvas></div>
+```
+
+```css
+#stage  { width: 100%; height: 100vh; }          /* the container has a size */
+#stage canvas {
+  display: block;                                 /* canvas is inline by default */
+  width: 100%; height: 100%;
+  min-width: 0; min-height: 0;                    /* let it shrink inside flex/grid */
+}
+```
+
+That is the whole contract. A `ResizeObserver` tracks the CSS box, the drawing
+buffer follows it at the device pixel ratio, and `renderer.aspect` stays
+correct — no resize handler to write, no `setSize` to call. Flex and grid
+containers work; so does anything else, as long as **the container has a size
+of its own**.
+
+Two footguns the CSS above disarms, both of which come from the canvas being a
+*replaced element*:
+
+- `display: block` — a canvas is `inline`, so it sits on a text baseline and
+  leaves a few stray pixels beneath it.
+- `min-width: 0; min-height: 0` — a flex item will not shrink below its
+  automatic minimum size, which for a canvas is its **intrinsic** size. Setting
+  `width="800"` therefore plants an 800px floor in the layout algorithm and the
+  canvas overflows its flex container instead of fitting it. This is the clearest
+  reason not to use the attributes at all.
+
+If a canvas has no CSS size, its layout box is derived *from* the drawing
+buffer, and matching one to the other would feed output back into input — the
+buffer doubles every frame on a high-DPI screen, or latches to 1×1 after a
+single zero-width read. BroMetal detects that case, leaves the buffer exactly as
+authored, and warns once naming the fix. It renders; it just will not fill its
+container or sharpen on a retina display until you give it CSS.
+
 Everything is typed end-to-end: the attribute/uniform records in `shader()` drive the GLSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors — a typo'd uniform name is a compile error in your app, and the compiler enforces the varyings contract (vertex must write every varying) with `file:line:col` diagnostics.
 
 ## Camera
@@ -219,7 +261,7 @@ npm run dev:website    # → http://localhost:3005 (uses the LOCAL workspace pac
 npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
-Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`.
+Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/star-bro`.
 
 `dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
 

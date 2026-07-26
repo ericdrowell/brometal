@@ -1,7 +1,8 @@
 # Texture licenses
 
 All textures in this directory are the Color maps of materials from
-[ambientCG](https://ambientcg.com), resized to 512px. They are licensed
+[ambientCG](https://ambientcg.com), resized to 512px (the
+`brocraft-*` set is 1024px — its blocks are viewed from arm's length). They are licensed
 under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)
 (public domain) — no attribution required.
 
@@ -16,3 +17,7 @@ under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)
 | bricks104.jpg | https://ambientcg.com/a/Bricks104 |
 | fabric081c.jpg | https://ambientcg.com/a/Fabric081C |
 | marble012.jpg | https://ambientcg.com/a/Marble012 |
+| brocraft-grass.jpg | https://ambientcg.com/a/Grass002 |
+| brocraft-dirt.jpg | https://ambientcg.com/a/Ground048 |
+| brocraft-stone.jpg | https://ambientcg.com/a/Rock032 |
+| brocraft-sand.jpg | https://ambientcg.com/a/Ground092A |

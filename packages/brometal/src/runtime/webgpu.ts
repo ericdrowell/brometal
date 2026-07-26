@@ -532,6 +532,89 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
   };
 }
 
+/**
+ * WGSL for the mip chain: a fullscreen triangle that samples the level above.
+ * WebGPU has no generateMipmap, so the runtime builds the chain itself —
+ * without it every minified texture samples level 0 and shimmers.
+ */
+const MIPMAP_WGSL = `
+@group(0) @binding(0) var bm_src : texture_2d<f32>;
+@group(0) @binding(1) var bm_samp : sampler;
+struct BmMipOut {
+  @builtin(position) pos : vec4f,
+  @location(0) uv : vec2f,
+}
+@vertex
+fn vs_main(@builtin(vertex_index) i : u32) -> BmMipOut {
+  var corners = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+  var out : BmMipOut;
+  let p = corners[i];
+  out.pos = vec4f(p, 0.0, 1.0);
+  out.uv = vec2f((p.x + 1.0) * 0.5, 1.0 - (p.y + 1.0) * 0.5);
+  return out;
+}
+@fragment
+fn fs_main(in : BmMipOut) -> @location(0) vec4f {
+  return textureSample(bm_src, bm_samp, in.uv);
+}
+`;
+
+interface MipmapKit {
+  pipeline: GPURenderPipeline;
+  sampler: GPUSampler;
+}
+
+const MIPMAP_KITS = new WeakMap<GPUDevice, MipmapKit>();
+
+function mipmapKit(device: GPUDevice): MipmapKit {
+  let kit = MIPMAP_KITS.get(device);
+  if (kit === undefined) {
+    const module = device.createShaderModule({ code: MIPMAP_WGSL });
+    kit = {
+      pipeline: device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module, entryPoint: 'vs_main' },
+        fragment: { module, entryPoint: 'fs_main', targets: [{ format: 'rgba8unorm' }] },
+        primitive: { topology: 'triangle-list' },
+      }),
+      sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear' }),
+    };
+    MIPMAP_KITS.set(device, kit);
+  }
+  return kit;
+}
+
+/** Renders each mip level from the one above it, in a single command buffer. */
+function generateWebgpuMipmaps(device: GPUDevice, texture: GPUTexture, levels: number): void {
+  const kit = mipmapKit(device);
+  const encoder = device.createCommandEncoder();
+  for (let level = 1; level < levels; level++) {
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: texture.createView({ baseMipLevel: level, mipLevelCount: 1 }),
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    pass.setPipeline(kit.pipeline);
+    pass.setBindGroup(
+      0,
+      device.createBindGroup({
+        layout: kit.pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: texture.createView({ baseMipLevel: level - 1, mipLevelCount: 1 }) },
+          { binding: 1, resource: kit.sampler },
+        ],
+      }),
+    );
+    pass.draw(3);
+    pass.end();
+  }
+  device.queue.submit([encoder.finish()]);
+}
+
 export function createWebgpuTexture(
   renderer: Renderer,
   source: TexImageSource,
@@ -540,8 +623,11 @@ export function createWebgpuTexture(
   const { device } = webgpuInternals(renderer);
   const width = 'width' in source ? (source.width as number) : 1;
   const height = 'height' in source ? (source.height as number) : 1;
+  const smooth = options.filter !== 'nearest';
+  const mipLevels = smooth ? Math.floor(Math.log2(Math.max(width, height))) + 1 : 1;
   const gpuTexture = device.createTexture({
     size: [width, height],
+    mipLevelCount: mipLevels,
     format: 'rgba8unorm',
     usage:
       GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
@@ -551,13 +637,20 @@ export function createWebgpuTexture(
     { texture: gpuTexture },
     [width, height],
   );
-  const filter: GPUFilterMode = options.filter === 'nearest' ? 'nearest' : 'linear';
+  if (mipLevels > 1) {
+    generateWebgpuMipmaps(device, gpuTexture, mipLevels);
+  }
+  const filter: GPUFilterMode = smooth ? 'linear' : 'nearest';
   const address: GPUAddressMode = options.wrap === 'clamp' ? 'clamp-to-edge' : 'repeat';
   const sampler = device.createSampler({
     magFilter: filter,
     minFilter: filter,
+    mipmapFilter: filter,
     addressModeU: address,
     addressModeV: address,
+    // Anisotropy needs linear filtering on every axis; the spec clamps the
+    // request to whatever the adapter supports.
+    maxAnisotropy: smooth ? Math.max(1, Math.floor(options.anisotropy ?? 1)) : 1,
   });
 
   const binding: GpuTextureBinding = { view: gpuTexture.createView(), sampler };

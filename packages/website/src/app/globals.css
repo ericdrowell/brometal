@@ -507,3 +507,62 @@ a:hover {
   border-color: #4a4a6a;
   color: #c9cede;
 }
+
+.brocraft-tiles button {
+  aspect-ratio: auto;
+  padding: 7px 0;
+  color: #8f96ad;
+  font: inherit;
+  font-size: 11px;
+}
+
+.brocraft-tiles button.selected {
+  color: #eef0f8;
+}
+
+.brocraft-tiles button:hover:not(.selected) {
+  color: #c9cede;
+}
+
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 10;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  pointer-events: none;
+  opacity: 0.75;
+  background:
+    linear-gradient(#fff, #fff) center / 2px 100% no-repeat,
+    linear-gradient(#fff, #fff) center / 100% 2px no-repeat;
+  mix-blend-mode: difference;
+}
+
+.play-prompt {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 26px;
+  transform: translate(-50%, -50%);
+  border: 1px solid #2a2a3c;
+  border-radius: 10px;
+  background: rgba(16, 16, 26, 0.78);
+  backdrop-filter: blur(6px);
+  color: #8f96ad;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.play-prompt strong {
+  color: #e8eaf2;
+  font-size: 15px;
+}

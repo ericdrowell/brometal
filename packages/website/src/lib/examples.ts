@@ -105,8 +105,14 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
           'A moonlit ocean — Gerstner waves in the vertex shader, fbm micro-ripples, fresnel, and specular glint per pixel.',
       },
       {
-        slug: 'starfighter',
-        name: 'Starfighter',
+        slug: 'brocraft',
+        name: 'Brocraft',
+        description:
+          'A blocky voxel world you can fly through — the terrain, every block material, and all the culling are computed in the vertex shader.',
+      },
+      {
+        slug: 'star-bro',
+        name: 'Star Bro',
         description:
           'A playable flight experience — fly the Spitfire through an instanced asteroid field with an additive engine trail and a follow camera.',
       },

@@ -33,11 +33,11 @@ export default function HomePage() {
       <section className="ethos">
         <h2>Ethos</h2>
         <p>
-          Built for the era of AI coding: everything is typed TypeScript, and everything compiles
-          into shaders at build time &mdash; GLSL and WGSL from one source, with no scene graph and
-          no compiler in the browser. The entire minified runtime is 18KB &mdash; Three.js&apos;s
-          is 336KB &mdash; because material systems and runtime shader generation simply never
-          ship. Less to download, nothing to generate at startup: the first frame hits instantly.
+          Built for the AI coding era.  Everything is TypeScript and compiles
+          into shaders at build time.  GLSL and WGSL from one source, with no scene graph and
+          no compiler in the browser. The entire minified runtime is 18KB compared to Three.js&apos;s
+          336KB runtime (20x reduction)because material systems and runtime shader generation are simply never
+          shipped. Less to download, nothing to generate at startup.  The first frame hits instantly.
         </p>
       </section>
     </main>

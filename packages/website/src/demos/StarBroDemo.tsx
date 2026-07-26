@@ -28,9 +28,10 @@ const PARTICLES = 70;
 const STARS = 400;
 const STAR_WRAP = 210;
 
-export default function StarfighterDemo() {
+export default function StarBroDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const [started, setStarted] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -218,14 +219,35 @@ export default function StarfighterDemo() {
 
       const camera = createCamera({ position: [0, 1.1, 4.2] });
 
-      // The ship chases the cursor: pointer position maps to the playfield.
+      // Clicking the canvas takes the mouse (pointer lock) and Escape gives it
+      // back, exactly as Brocraft does. Locked, there is no cursor position to
+      // read — only deltas — so the aim point accumulates movement and clamps
+      // to the playfield instead of mapping absolute screen coordinates.
+      const REACH_X = 6;
+      const REACH_Y = 3;
+      const AIM_SENS = 0.009;
       let targetX = 0;
       let targetY = 0;
+      let playing = false;
       const onPointerMove = (event: PointerEvent): void => {
-        targetX = (event.clientX / window.innerWidth - 0.5) * 2 * 6;
-        targetY = -(event.clientY / window.innerHeight - 0.5) * 2 * 3;
+        if (!playing) return;
+        targetX = Math.max(-REACH_X, Math.min(REACH_X, targetX + event.movementX * AIM_SENS));
+        targetY = Math.max(-REACH_Y, Math.min(REACH_Y, targetY - event.movementY * AIM_SENS));
+      };
+      const onClick = (): void => void canvas.requestPointerLock();
+      const onLockChange = (): void => {
+        playing = document.pointerLockElement === canvas;
+        setStarted(playing);
+        if (!playing) {
+          // Let the ship glide home rather than parking off to one side under
+          // the prompt; re-locking then starts centred.
+          targetX = 0;
+          targetY = 0;
+        }
       };
       window.addEventListener('pointermove', onPointerMove);
+      canvas.addEventListener('click', onClick);
+      document.addEventListener('pointerlockchange', onLockChange);
 
       let shipX = 0;
       let shipY = 0;
@@ -244,6 +266,7 @@ export default function StarfighterDemo() {
       const CROSSHAIR = 1.2;
       let laserSlot = 0;
       const onPointerDown = (): void => {
+        if (!playing) return;
         const dx = targetX * CROSSHAIR;
         const dy = targetY * CROSSHAIR;
         const inv = 1 / Math.hypot(dx, dy, AIM_DEPTH);
@@ -270,7 +293,7 @@ export default function StarfighterDemo() {
         laserProgram.instanceAttributes.iDir.set(laserDirs);
         laserProgram.instanceAttributes.iBirth.set(laserBirths);
       };
-      window.addEventListener('pointerdown', onPointerDown);
+      canvas.addEventListener('pointerdown', onPointerDown);
 
       const stop = renderer.loop((t) => {
         const dt = Math.min(t - lastT, 0.05);
@@ -360,7 +383,9 @@ export default function StarfighterDemo() {
       cleanup = () => {
         stop();
         window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('pointerdown', onPointerDown);
+        canvas.removeEventListener('click', onClick);
+        document.removeEventListener('pointerlockchange', onLockChange);
+        canvas.removeEventListener('pointerdown', onPointerDown);
         shipTexture.dispose();
         rockTexture.dispose();
         shipProgram.dispose();
@@ -383,10 +408,16 @@ export default function StarfighterDemo() {
   return (
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
+      {!started ? (
+        <div className="play-prompt">
+          <strong>Click to play</strong>
+          <span>Move the mouse to fly · click to fire · Esc release</span>
+        </div>
+      ) : null}
       <div className="hud">
-        <strong>Starfighter</strong>
+        <strong>Star Bro</strong>
         <br />
-        Move the mouse to fly, click to fire — instanced asteroids, shader lasers, follow camera
+        Instanced asteroids, shader lasers, follow camera
       </div>
       <BackendBadge backend={backend} />
     </>

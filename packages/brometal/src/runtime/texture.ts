@@ -7,6 +7,14 @@ export interface TextureOptions {
   wrap?: 'repeat' | 'clamp';
   /** 'smooth' = trilinear with mipmaps (default); 'nearest' = pixelated. */
   filter?: 'smooth' | 'nearest';
+  /**
+   * Anisotropic filtering samples, 1–16. Ground planes and walls seen at a
+   * grazing angle are what this fixes: trilinear picks one mip for the whole
+   * pixel footprint, so a surface stretching to the horizon is simultaneously
+   * over-blurred across and aliased along. Clamped to what the GPU supports;
+   * ignored with `filter: 'nearest'`. Default 1 (off).
+   */
+  anisotropy?: number;
 }
 
 export interface BroMetalTexture {
@@ -55,6 +63,14 @@ function createWebgl2Texture(
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    const requested = Math.floor(options.anisotropy ?? 1);
+    if (requested > 1) {
+      const ext = gl.getExtension('EXT_texture_filter_anisotropic');
+      if (ext !== null) {
+        const limit = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number;
+        gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(requested, limit));
+      }
+    }
   }
   gl.bindTexture(gl.TEXTURE_2D, null);
 

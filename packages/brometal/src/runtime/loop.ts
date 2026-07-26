@@ -31,6 +31,10 @@ export function startLoop(
       resizeToDisplaySize(canvas, window.devicePixelRatio || 1);
       gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     }
+    // glClear honours the depth write mask, and a blended program leaves it
+    // off — without this the depth buffer would silently survive the clear and
+    // every frame after the first would test against stale depths.
+    gl.depthMask(true);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     callback((now - startedAt) / 1000);
     frameId = requestAnimationFrame(frame);
