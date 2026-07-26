@@ -1,3 +1,5 @@
+import { resizeToDisplaySize } from './canvas.js';
+
 export interface LoopHandle {
   stop(): void;
 }
@@ -26,7 +28,7 @@ export function startLoop(
     if (!running) return;
     if (needsResize || observer === null) {
       needsResize = false;
-      resizeToDisplaySize(canvas);
+      resizeToDisplaySize(canvas, window.devicePixelRatio || 1);
       gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     }
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -42,14 +44,4 @@ export function startLoop(
       cancelAnimationFrame(frameId);
     },
   };
-}
-
-function resizeToDisplaySize(canvas: HTMLCanvasElement): void {
-  const dpr = window.devicePixelRatio || 1;
-  const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
-  const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
 }
