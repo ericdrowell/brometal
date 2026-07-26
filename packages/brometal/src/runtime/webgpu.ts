@@ -4,6 +4,7 @@ import type { AttributeHandle, BroMetalProgram, UniformHandle } from './program.
 import type { Renderer, RendererOptions } from './context.js';
 import type { BroMetalTexture, TextureOptions } from './texture.js';
 import type { UniformValue } from './uniforms.js';
+import { resizeToDisplaySize } from './canvas.js';
 
 /** Internal fields carried by WebGPU-backed renderers (not part of the public API). */
 export interface WebgpuInternals {
@@ -93,13 +94,7 @@ export async function createWebgpuRenderer(
         if (!running) return;
         if (needsResize || observer === null) {
           needsResize = false;
-          const dpr = window.devicePixelRatio || 1;
-          const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
-          const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
-          if (canvas.width !== width || canvas.height !== height) {
-            canvas.width = width;
-            canvas.height = height;
-          }
+          resizeToDisplaySize(canvas, window.devicePixelRatio || 1);
           if (depthTexture === null || depthTexture.width !== canvas.width || depthTexture.height !== canvas.height) {
             depthTexture?.destroy();
             depthTexture = device.createTexture({
