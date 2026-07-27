@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPlane, createProgram, createRenderer, type RendererBackend } from 'brometal';
 import customShader from '@/shaders/custom.shader.gen';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 const FRAGMENT_SOURCE = `function palette(t: number): Vec3 {
   return vec3(
@@ -32,6 +33,7 @@ fragment({ uTime }, { vUv }) {
 export default function CustomShaderDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,6 +58,7 @@ export default function CustomShaderDemo() {
       program.setIndices(quad.indices);
 
       const stop = renderer.loop((t) => {
+        tick(t);
         program.uniforms.uTime.set(t);
         program.draw();
       });
@@ -85,6 +88,7 @@ export default function CustomShaderDemo() {
         </p>
         <pre>{FRAGMENT_SOURCE}</pre>
       </div>
+      <DemoStats stats={stats}>Compiled in the browser to GLSL and WGSL</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

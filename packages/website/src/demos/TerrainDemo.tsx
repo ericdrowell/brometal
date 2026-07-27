@@ -10,11 +10,13 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import terrainShader from '@/shaders/terrain.shader.gen';
 
 export default function TerrainDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const ampRef = useRef(0.9);
   const [amp, setAmp] = useState(0.9);
 
@@ -47,6 +49,7 @@ export default function TerrainDemo() {
       camera.lookAt(0, -0.4, -2);
 
       const stop = renderer.loop((t) => {
+        tick(t);
         program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
         program.uniforms.uModel.set(model);
         program.uniforms.uTime.set(t);
@@ -97,6 +100,7 @@ export default function TerrainDemo() {
           </div>
         </div>
       </div>
+      <DemoStats stats={stats}>Noise-displaced vertices, normals derived in the shader</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

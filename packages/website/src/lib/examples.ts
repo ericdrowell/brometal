@@ -47,6 +47,12 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
           'Every built-in geometry — cube, sphere, torus knot, and friends — with a live selector.',
       },
       {
+        slug: 'shadow',
+        name: 'Shadow',
+        description:
+          'Shadow mapping in two passes — the scene rendered from the light into a depth-tested render target, then sampled back with 9-tap PCF.',
+      },
+      {
         slug: 'blend',
         name: 'Blend',
         description:
@@ -109,6 +115,12 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         name: 'Brocraft',
         description:
           'A blocky voxel world you can fly through — the terrain, every block material, and all the culling are computed in the vertex shader.',
+      },
+      {
+        slug: 'ball-physics',
+        name: 'Ball Physics',
+        description:
+          'Balls colliding in a glass tank, simulated entirely on the GPU — state lives in a float render target and never touches the CPU.',
       },
       {
         slug: 'star-bro',

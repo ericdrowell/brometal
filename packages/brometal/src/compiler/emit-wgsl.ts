@@ -245,6 +245,16 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
     return `clamp(${x}, ${ctor}(${lo}), ${ctor}(${hi}))`;
   }
 
+  if (expr.callee === 'targetUv') {
+    // WebGPU puts NDC +y at the target's *first* row while texture v still runs
+    // top-down, so v is inverted relative to WebGL2. Getting this wrong flips
+    // every shadow in the scene about the light's horizontal axis, which reads
+    // as shadows detaching and sliding the wrong way — not as an upside-down
+    // image. Hence an intrinsic rather than a note in the docs.
+    const clip = emitExpr(args[0]!, ctx, 0);
+    return `((${clip}).xy / (${clip}).w * vec2f(0.5, -0.5) + vec2f(0.5))`;
+  }
+
   if (expr.callee === 'mod') {
     // GLSL mod() is floor-based; WGSL % is trunc-based, so spell it out.
     // Operands must be parenthesized — they can be arbitrary expressions

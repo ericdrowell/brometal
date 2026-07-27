@@ -1,10 +1,27 @@
 /// <reference types="@webgpu/types" />
 import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
 import type { AttributeHandle, BroMetalProgram, UniformHandle } from './program.js';
-import type { Renderer, RendererOptions } from './context.js';
+import type { DrawToOptions, Renderer, RendererOptions } from './context.js';
 import type { BroMetalTexture, TextureOptions } from './texture.js';
 import type { UniformValue } from './uniforms.js';
+import type { RenderTarget } from './render-target.js';
 import { resizeToDisplaySize } from './canvas.js';
+
+/**
+ * Render targets hold numbers, not pictures. rgba16float rather than 32: full
+ * float is `unfilterable-float` in WebGPU unless the device opts into the
+ * float32-filterable feature, so it cannot bind to the same sampler layout
+ * every other texture uses. Half float is filterable everywhere, and its ~1e-3
+ * resolution is finer than a simulation step moves anything in one frame.
+ */
+const TARGET_FORMAT: GPUTextureFormat = 'rgba16float';
+
+/** WebGPU-backed render target internals (not part of the public API). */
+export interface WebgpuTargetInternals {
+  texture: GPUTexture;
+  view: GPUTextureView;
+  depthView: GPUTextureView | null;
+}
 
 /** Internal fields carried by WebGPU-backed renderers (not part of the public API). */
 export interface WebgpuInternals {
@@ -17,6 +34,15 @@ export interface WebgpuInternals {
   sampleCount: number;
   /** Live only while a loop callback runs. */
   pass: GPURenderPassEncoder | null;
+  /**
+   * Attachment shape of the open pass. A pipeline bakes in its colour format,
+   * sample count and whether a depth attachment exists, so a program drawing
+   * into a render target needs a different pipeline than the same program
+   * drawing to the screen.
+   */
+  passFormat: GPUTextureFormat;
+  passSamples: number;
+  passDepth: boolean;
   /** Increments once per rendered frame — programs use it to reset their uniform slot rings. */
   frame: number;
 }
@@ -61,6 +87,9 @@ export async function createWebgpuRenderer(
     cull: options.cull === 'back' ? 'back' : 'none',
     sampleCount: options.antialias === false ? 1 : 4,
     pass: null,
+    passFormat: format,
+    passSamples: options.antialias === false ? 1 : 4,
+    passDepth: true,
     frame: 0,
   };
 
@@ -146,6 +175,9 @@ export async function createWebgpuRenderer(
             depthStoreOp: 'store',
           },
         });
+        internals.passFormat = format;
+        internals.passSamples = internals.sampleCount;
+        internals.passDepth = true;
         callback((now - startedAt) / 1000);
         internals.pass.end();
         internals.pass = null;
@@ -163,6 +195,56 @@ export async function createWebgpuRenderer(
         stop();
         activeStops.delete(stop);
       };
+    },
+    drawTo(target: RenderTarget, draw: () => void, options: DrawToOptions = {}): void {
+      const binding = (target as RenderTarget & { __wgpu?: WebgpuTargetInternals }).__wgpu;
+      if (binding === undefined) {
+        throw new Error('BroMetal: this render target was not created by the WebGPU renderer');
+      }
+      const [cr, cg, cb, ca] = options.clear ?? [0, 0, 0, 0];
+      // A separate encoder, finished and submitted here: the frame's swapchain
+      // pass may be open and must not be interrupted, and queue order puts this
+      // work ahead of it — which is what a physics pass wants.
+      const encoder = device.createCommandEncoder();
+      const outerPass = internals.pass;
+      const outerFormat = internals.passFormat;
+      const outerSamples = internals.passSamples;
+      const outerDepth = internals.passDepth;
+      internals.pass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: binding.view,
+            clearValue: { r: cr, g: cg, b: cb, a: ca },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+        // The pass and the pipeline must agree on whether depth exists, which
+        // is why passDepth below tracks this rather than being hardcoded.
+        ...(binding.depthView === null
+          ? {}
+          : {
+              depthStencilAttachment: {
+                view: binding.depthView,
+                depthClearValue: 1,
+                depthLoadOp: 'clear' as const,
+                depthStoreOp: 'store' as const,
+              },
+            }),
+      });
+      internals.passFormat = TARGET_FORMAT;
+      internals.passSamples = 1;
+      internals.passDepth = binding.depthView !== null;
+      try {
+        draw();
+      } finally {
+        internals.pass.end();
+        internals.pass = outerPass;
+        internals.passFormat = outerFormat;
+        internals.passSamples = outerSamples;
+        internals.passDepth = outerDepth;
+        device.queue.submit([encoder.finish()]);
+      }
     },
     destroy(): void {
       for (const stop of activeStops) {
@@ -240,7 +322,18 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
   }
   const bindGroupLayout = device.createBindGroupLayout({ entries: bglEntries });
 
-  const pipeline = device.createRenderPipeline({
+  const pipelines = new Map<string, GPURenderPipeline>();
+  const pipelineFor = (
+    targetFormat: GPUTextureFormat,
+    sampleCount: number,
+    withDepth: boolean,
+  ): GPURenderPipeline => {
+    const key = `${targetFormat}|${sampleCount}|${withDepth ? 'd' : ''}`;
+    const cached = pipelines.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const built = device.createRenderPipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
     vertex: {
       module,
@@ -258,7 +351,7 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       entryPoint: 'fs_main',
       targets: [
         {
-          format: internals.format,
+          format: targetFormat,
           ...(blend === 'none'
             ? {}
             : {
@@ -279,13 +372,22 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       ],
     },
     primitive: { topology: 'triangle-list', frontFace: 'ccw', cullMode: internals.cull },
-    multisample: { count: internals.sampleCount },
-    depthStencil: {
-      format: 'depth24plus',
-      depthWriteEnabled: blend === 'none',
-      depthCompare: 'less',
-    },
-  });
+      multisample: { count: sampleCount },
+      // A target pass carries no depth attachment, so the pipeline must not
+      // declare one either — the two have to agree exactly.
+      ...(withDepth
+        ? {
+            depthStencil: {
+              format: 'depth24plus' as const,
+              depthWriteEnabled: blend === 'none',
+              depthCompare: 'less' as const,
+            },
+          }
+        : {}),
+    });
+    pipelines.set(key, built);
+    return built;
+  };
 
   // Per-draw uniform slots in one buffer, bound via dynamic offset — this is
   // what lets one program draw many times per frame with different uniforms.
@@ -502,7 +604,7 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       if (bindGroup === null) {
         bindGroup = buildBindGroup();
       }
-      pass.setPipeline(pipeline);
+      pass.setPipeline(pipelineFor(internals.passFormat, internals.passSamples, internals.passDepth));
       pass.setBindGroup(0, bindGroup, uniformBuffer === null ? [] : [currentOffset]);
       compiled.layout.attributes.forEach((entry, slot) => {
         const states = entry.divisor === 1 ? instanceStates : vertexStates;
@@ -613,6 +715,53 @@ function generateWebgpuMipmaps(device: GPUDevice, texture: GPUTexture, levels: n
     pass.end();
   }
   device.queue.submit([encoder.finish()]);
+}
+
+export function createWebgpuRenderTarget(
+  renderer: Renderer,
+  width: number,
+  height: number,
+  depth = false,
+): RenderTarget {
+  const { device } = webgpuInternals(renderer);
+  const texture = device.createTexture({
+    size: [width, height],
+    format: TARGET_FORMAT,
+    // COPY_SRC so the contents can be read back — a target holds simulation
+    // state, and being unable to inspect it makes any bug in a physics pass
+    // guesswork.
+    usage:
+      GPUTextureUsage.RENDER_ATTACHMENT |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_SRC,
+  });
+  const view = texture.createView();
+  // rgba32float is not filterable without an opt-in feature, and averaging two
+  // particles' positions would be meaningless anyway — nearest, always.
+  const sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+  const binding: GpuTextureBinding = { view, sampler };
+
+  // Never sampled — it exists only so the pass can sort its own triangles.
+  const depthTexture = depth
+    ? device.createTexture({
+        size: [width, height],
+        format: 'depth24plus',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      })
+    : null;
+
+  const target: RenderTarget & { __wgpu?: WebgpuTargetInternals } = {
+    width,
+    height,
+    depth,
+    texture: { __wgpu: binding, dispose(): void {} } as unknown as BroMetalTexture,
+    dispose(): void {
+      texture.destroy();
+      depthTexture?.destroy();
+    },
+  };
+  target.__wgpu = { texture, view, depthView: depthTexture?.createView() ?? null };
+  return target;
 }
 
 export function createWebgpuTexture(

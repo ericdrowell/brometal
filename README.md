@@ -251,6 +251,22 @@ export default shader({
 
 When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The lots-of-cubes example renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
 
+## Render targets, physics and shadows
+
+`createRenderTarget(renderer, { width, height, depth })` is an off-screen surface a program draws into and any shader can sample — a second pass reading what the first one wrote, with nothing round-tripping through the CPU. `renderer.drawTo(target, fn, { clear })` points drawing at it.
+
+```ts
+const shadowMap = createRenderTarget(renderer, { width: 1024, height: 1024, depth: true });
+renderer.drawTo(shadowMap, () => depthProgram.draw(), { clear: [1, 1, 1, 1] });
+sceneProgram.uniforms.uShadowMap.set(shadowMap.texture);
+```
+
+`depth: true` attaches a depth buffer so the off-screen pass is depth-tested — a shadow map must record the *nearest* surface to the light, not the last triangle drawn. `clear` matters wherever zero is a meaningful value rather than an empty one; a distance map cleared to black claims an occluder at the light in every texel the geometry missed.
+
+To sample a target projectively, use the `targetUv(clipPosition)` intrinsic rather than `clip.xy / clip.w * 0.5 + 0.5`. The backends disagree about which row of a target NDC +y lands on, so the hand-rolled version is vertically mirrored on one of them — and a mirrored shadow still looks like a shadow, just attached to the wrong side of the object.
+
+The same machinery is what runs simulation on the GPU: state lives in a target, a fragment pass advances it, and the render pass reads positions straight out of it in the vertex shader. See the Ball Physics and Shadow examples.
+
 ## Website & examples
 
 The examples live as pages of the BroMetal website (`packages/website`, Next.js):
@@ -262,7 +278,7 @@ npm run dev:website    # → http://localhost:3005 (uses the LOCAL workspace pac
 npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
-Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/star-bro`.
+Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/ball-physics`, `/examples/star-bro`.
 
 `dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
 

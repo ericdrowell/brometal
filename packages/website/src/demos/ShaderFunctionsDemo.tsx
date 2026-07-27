@@ -11,6 +11,7 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import { FN_CATEGORY_ORDER, FN_EXAMPLES, type FnExample } from '@/lib/fn-catalog';
 
 type QuadProgram = BroMetalProgram<
@@ -22,6 +23,7 @@ type QuadProgram = BroMetalProgram<
 export default function ShaderFunctionsDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const rendererRef = useRef<Renderer | null>(null);
   const quadRef = useRef<ReturnType<typeof createPlane> | null>(null);
   // Programs are created lazily on first selection — 63 upfront pipelines
@@ -61,6 +63,7 @@ export default function ShaderFunctionsDemo() {
       ensureProgram(activeRef.current);
 
       const stop = renderer.loop((t) => {
+        tick(t);
         const program = programsRef.current.get(activeRef.current);
         if (program === undefined) return;
         program.uniforms.uTime.set(t);
@@ -133,6 +136,7 @@ export default function ShaderFunctionsDemo() {
           )}
         </div>
       </div>
+      <DemoStats stats={stats}>brometal/shader-functions — inlined at build time</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

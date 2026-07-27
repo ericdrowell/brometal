@@ -16,6 +16,7 @@ import {
 import litShader from '@/shaders/textured-cube.shader.gen';
 import { indices, normals, positions, uvs } from '@/lib/cube-geometry';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 const TEXTURES = [
   'wood095',
@@ -38,6 +39,7 @@ type LitProgram = BroMetalProgram<
 export default function TexturesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const rendererRef = useRef<Renderer | null>(null);
   const programRef = useRef<LitProgram | null>(null);
   const textureCacheRef = useRef(new Map<string, Promise<BroMetalTexture>>());
@@ -81,6 +83,7 @@ export default function TexturesDemo() {
       const tilt = mat4.scratch();
 
       const stop = renderer.loop((t) => {
+        tick(t);
         mat4.multiply(mat4.rotationY(t * 0.5, model), mat4.rotationX(t * 0.3, tilt), model);
 
         program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
@@ -184,6 +187,7 @@ export default function TexturesDemo() {
           </div>
         </div>
       </div>
+      <DemoStats stats={stats}>Mipmapped CC0 texture, lit per fragment</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

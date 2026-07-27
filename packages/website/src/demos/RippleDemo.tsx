@@ -10,6 +10,7 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import rippleShader from '@/shaders/ripple.shader.gen';
 
 interface RippleParams {
@@ -23,6 +24,7 @@ const DEFAULTS: RippleParams = { speed: 0.7, spacing: 3.2, height: 0.55 };
 export default function RippleDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const paramsRef = useRef<RippleParams>({ ...DEFAULTS });
   const [params, setParams] = useState<RippleParams>({ ...DEFAULTS });
 
@@ -58,6 +60,7 @@ export default function RippleDemo() {
       let lastT = 0;
 
       const stop = renderer.loop((t) => {
+        tick(t);
         const dt = Math.min(t - lastT, 0.05);
         lastT = t;
         phase += dt * paramsRef.current.speed;
@@ -125,6 +128,7 @@ export default function RippleDemo() {
           {slider('height', 'Amplitude', 0, 1.2, 0.05)}
         </div>
       </div>
+      <DemoStats stats={stats}>Eased elastic rings, evaluated per vertex</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

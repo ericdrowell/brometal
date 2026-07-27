@@ -12,6 +12,7 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import litShader from '@/shaders/game-lit.shader.gen';
 import glowShader from '@/shaders/game-glow.shader.gen';
 
@@ -26,6 +27,7 @@ const MODES: { mode: BlendMode; label: string; note: string }[] = [
 export default function BlendDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const activeRef = useRef<BlendMode>('alpha');
   const [active, setActive] = useState<BlendMode>('alpha');
 
@@ -73,6 +75,7 @@ export default function BlendDemo() {
       const tilt = mat4.scratch();
 
       const stop = renderer.loop((t) => {
+        tick(t);
         const viewProj = camera.viewProjection(renderer.aspect);
 
         mat4.multiply(mat4.rotationY(t * 0.4, model), mat4.rotationX(0.4, tilt), model);
@@ -143,6 +146,7 @@ export default function BlendDemo() {
           <p className="panel-note uses-note">{MODES.find((m) => m.mode === active)?.note}</p>
         </div>
       </div>
+      <DemoStats stats={stats}>Three blend modes from one shader</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

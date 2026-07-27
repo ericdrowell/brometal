@@ -166,8 +166,16 @@ function emitExpr(expr: IrExpr, parentPrecedence: number): string {
       return expr.name;
     case 'swizzle':
       return `${emitExpr(expr.obj, PRIMARY_PRECEDENCE)}.${expr.components}`;
-    case 'call':
+    case 'call': {
+      if (expr.callee === 'targetUv') {
+        // WebGL2's NDC +y is the target's last row and texture v runs bottom-up,
+        // so the two cancel and the mapping is the plain one. See emit-wgsl for
+        // the other half of this.
+        const clip = emitExpr(expr.args[0]!, 0);
+        return `((${clip}).xy / (${clip}).w * 0.5 + 0.5)`;
+      }
       return `${expr.callee}(${expr.args.map((arg) => emitExpr(arg, 0)).join(', ')})`;
+    }
     case 'unary': {
       const rendered = `${expr.op}${emitExpr(expr.operand, UNARY_PRECEDENCE)}`;
       return parentPrecedence > UNARY_PRECEDENCE ? `(${rendered})` : rendered;

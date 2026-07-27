@@ -69,8 +69,8 @@ export default shader({
     for (let i = 0; i < 4; i += 1) {
       total += sin(i + uTime);
     }
-    const fixed = total * 0.25;
-    return vec4(tint(fixed), 1);
+    const scaled = total * 0.25;
+    return vec4(tint(scaled), 1);
   },
   fragment() { return vec4(1, 1, 1, 1); },
 });
@@ -81,7 +81,7 @@ export default shader({
     expect(wgsl).toContain('var total = 0.0;');
     expect(wgsl).toContain('for (var i = 0.0; i < 4.0; i = i + 1.0) {');
     expect(wgsl).toContain('total = total + sin(i + bm_u.uTime);');
-    expect(wgsl).toContain('let fixed = total * 0.25;');
+    expect(wgsl).toContain('let scaled = total * 0.25;');
   });
 
   it('maps atan(y, x) to atan2 and mod to floor-based remainder', () => {
@@ -147,5 +147,53 @@ export default shader({
     // The dividend must be parenthesized inside floor(); without it,
     // mod(x + y, w) emits floor(x + y / w) and wraps at the wrong values.
     expect(wgsl).toContain('floor((bm_u.uOffset + bm_u.uScroll) / (bm_u.uWrap))');
+  });
+});
+
+describe('targetUv', () => {
+  const SHADER = `
+import { shader, vec4, texture, targetUv } from 'brometal';
+
+export default shader({
+  attributes: { aPosition: 'vec3' },
+  uniforms: { uLightViewProj: 'mat4', uMap: 'sampler2D' },
+  varyings: { vClip: 'vec4' },
+
+  vertex({ aPosition }, { uLightViewProj }, v) {
+    v.vClip = uLightViewProj.mul(vec4(aPosition, 1));
+    return vec4(aPosition, 1);
+  },
+
+  fragment({ uMap }, { vClip }) {
+    return texture(uMap, targetUv(vClip));
+  },
+});
+`;
+
+  it('inverts v on WebGPU, where NDC +y is the target’s first row', () => {
+    const wgsl = compileShaderSource('t.shader.ts', SHADER).wgslSrc!;
+    expect(wgsl).toContain('(bm_in.vClip).xy / (bm_in.vClip).w * vec2f(0.5, -0.5) + vec2f(0.5)');
+  });
+
+  it('leaves v alone on WebGL2, where the two conventions cancel', () => {
+    const glsl = compileShaderSource('t.shader.ts', SHADER).fragmentSrc;
+    expect(glsl).toContain('(vClip).xy / (vClip).w * 0.5 + 0.5');
+  });
+
+  it('is the one place the row-order difference lives', () => {
+    // Whatever else changes, the two backends must not agree here — if they
+    // ever do, every shadow in a scene is mirrored on one of them.
+    const compiled = compileShaderSource('t.shader.ts', SHADER);
+    expect(compiled.wgslSrc).toContain('vec2f(0.5, -0.5)');
+    expect(compiled.fragmentSrc).not.toContain('-0.5');
+  });
+
+  it('rejects anything that is not a clip-space vec4', () => {
+    expect(() =>
+      compileShaderSource(
+        't.shader.ts',
+        SHADER.replace('targetUv(vClip)', 'targetUv(vClip.xy)'),
+      ),
+    ).toThrow(/targetUv/);
   });
 });

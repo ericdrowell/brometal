@@ -24,6 +24,7 @@ import {
 } from 'brometal';
 import litShader from '@/shaders/textured-cube.shader.gen';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 const DEFAULT_TEXTURE = 'wood095';
 
@@ -119,6 +120,7 @@ function applyGeometry(program: LitProgram, geometry: Geometry): void {
 export default function GeometriesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const rendererRef = useRef<Renderer | null>(null);
   const programRef = useRef<LitProgram | null>(null);
   const geometryCacheRef = useRef(new Map<string, Geometry>());
@@ -171,6 +173,7 @@ export default function GeometriesDemo() {
     const tilt = mat4.scratch();
 
     const stop = renderer.loop((t) => {
+      tick(t);
       mat4.multiply(mat4.rotationY(t * 0.5, model), mat4.rotationX(t * 0.3, tilt), model);
 
       program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
@@ -225,6 +228,7 @@ export default function GeometriesDemo() {
           </div>
         </div>
       </div>
+      <DemoStats stats={stats}>Built-in geometry generators</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

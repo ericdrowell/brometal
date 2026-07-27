@@ -39,6 +39,21 @@ export function reflect(): never {
   return gpuOnly('reflect');
 }
 
+/**
+ * Where a clip-space position lands in a render target, as a uv you can sample.
+ *
+ * Divides by w and maps to [0,1], accounting for the backends disagreeing about
+ * which row of a target NDC +y refers to. Doing this by hand works on whichever
+ * backend you tested and silently mirrors the lookup on the other.
+ *
+ * Shadow mapping is the usual reason to want it: transform the world position by
+ * the light's view-projection, and this is where to read the map.
+ */
+export function targetUv(clipPosition: Vec4): Vec2;
+export function targetUv(): never {
+  return gpuOnly('targetUv');
+}
+
 export function normalize<T extends Vec2 | Vec3 | Vec4>(v: T): T;
 export function normalize(): never {
   return gpuOnly('normalize');

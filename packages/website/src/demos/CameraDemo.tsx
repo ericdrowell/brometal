@@ -5,6 +5,7 @@ import { createCamera, createProgram, createRenderer, mat4, type Camera, type Re
 import cubeShader from '@/shaders/camera-cube.shader.gen';
 import { colors, indices, positions } from '@/lib/cube-geometry';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 interface CameraState {
   posX: number;
@@ -22,6 +23,7 @@ const TO_RADIANS = Math.PI / 180;
 export default function CameraDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const cameraRef = useRef<Camera | null>(null);
   const [state, setState] = useState<CameraState>(DEFAULTS);
 
@@ -51,6 +53,7 @@ export default function CameraDemo() {
     const tilt = mat4.scratch();
 
     const stop = renderer.loop((t) => {
+      tick(t);
       mat4.multiply(mat4.rotationY(t * 0.9, model), mat4.rotationX(t * 0.6, tilt), model);
 
       program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
@@ -125,6 +128,7 @@ export default function CameraDemo() {
           </button>
         </div>
       </div>
+      <DemoStats stats={stats}>Cached view-projection — an unmoved camera costs no matrix math</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

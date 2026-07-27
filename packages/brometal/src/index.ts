@@ -36,6 +36,7 @@ export {
   normalize,
   pow,
   reflect,
+  targetUv,
   sign,
   sin,
   smoothstep,
@@ -48,7 +49,7 @@ export {
   vec4,
 } from './dsl/builtins.js';
 export { createRenderer } from './runtime/context.js';
-export type { Renderer, RendererBackend, RendererOptions } from './runtime/context.js';
+export type { DrawToOptions, Renderer, RendererBackend, RendererOptions } from './runtime/context.js';
 export { createProgram } from './runtime/program.js';
 export type {
   AttributeHandle,
@@ -63,6 +64,8 @@ export type { Mat4Array } from './math/mat4.js';
 export { createCamera } from './camera/camera.js';
 export type { Camera, CameraLens, CameraOptions } from './camera/camera.js';
 export { createTexture, loadTexture } from './runtime/texture.js';
+export { createRenderTarget } from './runtime/render-target.js';
+export type { RenderTarget, RenderTargetOptions } from './runtime/render-target.js';
 export type { BroMetalTexture, TextureOptions } from './runtime/texture.js';
 export { parseGlb, loadGlb } from './models/glb.js';
 export type { Model, ModelMesh, ModelImage } from './models/glb.js';

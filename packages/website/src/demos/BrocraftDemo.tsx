@@ -11,6 +11,7 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import blocksShader from '@/shaders/brocraft-blocks.shader.gen';
 import waterShader from '@/shaders/brocraft-water.shader.gen';
 import skyShader from '@/shaders/brocraft-sky.shader.gen';
@@ -105,11 +106,12 @@ function palette(elevation: number) {
 export default function BrocraftDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const [locked, setLocked] = useState(false);
   const [distance, setDistance] = useState(1);
   const [layers, setLayers] = useState(6);
   const [timeOfDay, setTimeOfDay] = useState(0.27);
-  const [stats, setStats] = useState({ x: 0, y: 0, z: 0, fps: 0, blocks: 0 });
+  const [world, setWorld] = useState({ x: 0, y: 0, z: 0, blocks: 0 });
 
   const distanceRef = useRef(distance);
   const layersRef = useRef(layers);
@@ -229,20 +231,14 @@ export default function BrocraftDemo() {
       document.addEventListener('pointerlockchange', onLockChange);
 
       let last = 0;
-      let frames = 0;
-      let fpsClock = 0;
-      let fps = 0;
+      // The position readout is React state, so it is throttled rather than set
+      // every frame — the numbers are unreadable faster than this anyway.
+      let hudClock = 0;
 
       const stop = renderer.loop((t) => {
+        tick(t);
         const dt = Math.min(t - last, 0.05);
         last = t;
-        frames++;
-        fpsClock += dt;
-        if (fpsClock > 0.5) {
-          fps = Math.round(frames / fpsClock);
-          frames = 0;
-          fpsClock = 0;
-        }
         if (rebuiltAt !== rebuildRef.current) {
           rebuiltAt = rebuildRef.current;
           rebuild();
@@ -339,8 +335,10 @@ export default function BrocraftDemo() {
         water.uniforms.uTime.set(t);
         water.draw();
 
-        if (frames === 0) {
-          setStats({ x: Math.round(px), y: Math.round(py), z: Math.round(pz), fps, blocks: blockCount });
+        hudClock += dt;
+        if (hudClock >= 0.5) {
+          hudClock = 0;
+          setWorld({ x: Math.round(px), y: Math.round(py), z: Math.round(pz), blocks: blockCount });
         }
       });
 
@@ -441,12 +439,10 @@ export default function BrocraftDemo() {
           </div>
         </div>
       </div>
-      <div className="hud">
-        <strong>Brocraft</strong> — {stats.blocks.toLocaleString()} block instances in one draw call
-        · {stats.fps} fps
-        <br />
-        x {stats.x} · y {stats.y} · z {stats.z}
-      </div>
+      <DemoStats stats={stats}>
+        {world.blocks.toLocaleString()} block instances in one draw call · x {world.x} · y{' '}
+        {world.y} · z {world.z}
+      </DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

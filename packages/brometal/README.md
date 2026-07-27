@@ -250,6 +250,60 @@ program.uniforms.uTex.set(createTexture(renderer, bitmap, { flipY: false }));
 
 Scope: triangle primitives with embedded (GLB-chunk) buffers and images. Draco compression, skinning, node transforms, and external URIs are not supported; `parseGlb(bytes)` is the fetch-free variant.
 
+## Render targets and shadows
+
+`createRenderTarget` gives you an off-screen surface to draw into and a texture
+any shader can sample. It is how the GPU keeps state between frames, and how a
+second pass sees what a first one drew.
+
+```ts
+const shadowMap = createRenderTarget(renderer, { width: 1024, height: 1024, depth: true });
+
+renderer.loop(() => {
+  // Pass 1: the scene from the light, each fragment writing its distance.
+  renderer.drawTo(shadowMap, () => depthProgram.draw(), { clear: [1, 1, 1, 1] });
+
+  // Pass 2: the scene from the camera, reading that map back.
+  sceneProgram.uniforms.uShadowMap.set(shadowMap.texture);
+  sceneProgram.draw();
+});
+```
+
+Two options carry the weight:
+
+- **`depth: true`** attaches a depth buffer, so drawing into the target is
+  depth-tested like drawing to the screen. Off by default, because a state or
+  post-process pass writes one value per texel from a single quad and has
+  nothing to sort. A shadow map does — it has to record the *nearest* surface
+  to the light, and without the test that is whichever triangle went last.
+- **`clear`** sets what the target starts as. Worth setting whenever zero is a
+  meaningful value rather than an empty one: clear a distance map to black and
+  every texel the geometry missed claims an occluder sitting at the light,
+  putting the whole scene in shadow.
+
+### Reading a target back with `targetUv`
+
+To sample a target projectively — a shadow map, a projected texture, a planar
+reflection — you need the uv a clip-space position lands on. Use `targetUv`
+rather than working it out by hand:
+
+```ts
+const uv = targetUv(uLightViewProj.mul(vec4(worldPosition, 1)));
+const nearest = texture(uShadowMap, uv).x;
+```
+
+WebGL2 and WebGPU disagree about which row of a render target NDC +y refers to,
+so the obvious `clip.xy / clip.w * 0.5 + 0.5` is right on one backend and
+vertically mirrored on the other. `targetUv` compiles to the correct form for
+each. This is worth reaching for even if you only ever test one backend: a
+mirrored lookup still produces a shadow, just attached to the wrong side of the
+object, which does not look like a coordinate bug.
+
+Targets are RGBA16F and sampled unfiltered — they hold numbers, not pictures.
+Store what you actually want to compare; the Shadow example writes linear
+distance to the light rather than a depth value, so one bias constant holds
+across the whole scene instead of needing to scale with depth.
+
 ## Instancing
 
 Declare per-instance inputs with `instanceAttributes` — they upload once and advance per instance, not per vertex. When a shader declares them, `program.draw()` automatically renders instanced:

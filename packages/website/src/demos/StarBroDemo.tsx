@@ -15,6 +15,7 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import modelShader from '@/shaders/model.shader.gen';
 import rocksShader from '@/shaders/game-rocks.shader.gen';
 import glowShader from '@/shaders/game-glow.shader.gen';
@@ -31,6 +32,7 @@ const STAR_WRAP = 210;
 export default function StarBroDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
@@ -296,6 +298,7 @@ export default function StarBroDemo() {
       canvas.addEventListener('pointerdown', onPointerDown);
 
       const stop = renderer.loop((t) => {
+        tick(t);
         const dt = Math.min(t - lastT, 0.05);
         lastT = t;
 
@@ -414,11 +417,7 @@ export default function StarBroDemo() {
           <span>Move the mouse to fly · click to fire · Esc release</span>
         </div>
       ) : null}
-      <div className="hud">
-        <strong>Star Bro</strong>
-        <br />
-        Instanced asteroids, shader lasers, follow camera
-      </div>
+      <DemoStats stats={stats}>Instanced asteroids, shader lasers, follow camera</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

@@ -404,3 +404,132 @@ export function gerstnerWave(p: Vec2, dir: Vec2, steepness: number, wavelength: 
 export function gerstnerWave(): Vec3 {
   return gpuOnly('gerstnerWave');
 }
+
+// ── Physics ───────────────────────────────────────────────────────────────
+/** Semi-implicit Euler velocity step: `vel + accel * dt`. Integrate this before position. */
+export function integrateVelocity(vel: Vec3, accel: Vec3, dt: number): Vec3;
+export function integrateVelocity(): Vec3 {
+  return gpuOnly('integrateVelocity');
+}
+
+/** Position step: `pos + vel * dt`. Pair with the already-updated velocity for semi-implicit Euler. */
+export function integratePosition(pos: Vec3, vel: Vec3, dt: number): Vec3;
+export function integratePosition(): Vec3 {
+  return gpuOnly('integratePosition');
+}
+
+/**
+ * Position Verlet: the new position from the current and previous ones, with
+ * velocity implied by their difference. State is two positions and the step
+ * returns one, which is what makes it the integrator of choice when a shader
+ * can only return a single value. `damping` of 1 conserves energy.
+ */
+export function verletStep(
+  pos: Vec3,
+  prevPos: Vec3,
+  accel: Vec3,
+  dt: number,
+  damping: number,
+): Vec3;
+export function verletStep(): Vec3 {
+  return gpuOnly('verletStep');
+}
+
+/** Exponential drag — frame-rate independent, unlike multiplying by a constant per frame. */
+export function applyDrag(vel: Vec3, drag: number, dt: number): Vec3;
+export function applyDrag(): Vec3 {
+  return gpuOnly('applyDrag');
+}
+
+/**
+ * Reflects the velocity component along `normal` and scales it by `restitution`
+ * (0 dead, 1 perfectly elastic). Velocity already moving away from the surface
+ * is returned untouched, so a resting contact cannot bounce itself apart.
+ */
+export function bounceVelocity(vel: Vec3, normal: Vec3, restitution: number): Vec3;
+export function bounceVelocity(): Vec3 {
+  return gpuOnly('bounceVelocity');
+}
+
+/** Scales the velocity tangential to `normal` by `1 - friction`, leaving the normal component. */
+/**
+ * Coulomb friction at a contact, bounded by the normal impulse.
+ *
+ * `normalImpulse` is how much speed the collision response just removed along
+ * the normal (per unit mass) — take it as the length of the velocity change
+ * `bounceVelocity` produced. Bounding by it is what makes friction physical
+ * rather than a blanket tangential damp: a ball pressed onto the floor by
+ * gravity feels friction every step, while one merely brushing a vertical wall
+ * feels none and falls freely past it.
+ */
+export function applyFriction(vel: Vec3, normal: Vec3, normalImpulse: number, friction: number): Vec3;
+export function applyFriction(): Vec3 {
+  return gpuOnly('applyFriction');
+}
+
+/** Zeroes velocity below `threshold` — the deadband that lets contacts settle instead of jittering. */
+export function restingDamp(vel: Vec3, threshold: number): Vec3;
+export function restingDamp(): Vec3 {
+  return gpuOnly('restingDamp');
+}
+
+/**
+ * Inward normal of the box wall a sphere is touching; zero while it is free.
+ * Not normalized at corners.
+ *
+ * `tolerance` is a contact skin, and it is not optional in practice: a resting
+ * sphere is clamped to exactly the wall, and storing that position — in a
+ * half-float target, or simply rounding through any pipeline — can leave it a
+ * hair inside. An exact test then reports no contact, so the sphere is treated
+ * as airborne, never damped, and gravity winds its velocity up forever while it
+ * appears to sit still. Pick a skin larger than the storage can lose.
+ */
+export function boxContactNormal(
+  pos: Vec3,
+  radius: number,
+  halfExtent: Vec3,
+  tolerance: number,
+): Vec3;
+export function boxContactNormal(): Vec3 {
+  return gpuOnly('boxContactNormal');
+}
+
+/** Clamps a sphere's centre so it stays wholly inside an axis-aligned box. */
+export function clampInsideBox(pos: Vec3, radius: number, halfExtent: Vec3): Vec3;
+export function clampInsideBox(): Vec3 {
+  return gpuOnly('clampInsideBox');
+}
+
+/** Overlap depth of two spheres — 0 when they are apart. */
+export function spherePenetration(a: Vec3, b: Vec3, radiusA: number, radiusB: number): number;
+export function spherePenetration(): number {
+  return gpuOnly('spherePenetration');
+}
+
+/** Pushes sphere `a` out of `b` by `share` of the overlap — 0.5 each splits it evenly. */
+export function separateSpheres(
+  a: Vec3,
+  b: Vec3,
+  radiusA: number,
+  radiusB: number,
+  share: number,
+): Vec3;
+export function separateSpheres(): Vec3 {
+  return gpuOnly('separateSpheres');
+}
+
+/**
+ * Impulse magnitude along `normal` for a pair in contact, from their relative
+ * velocity and inverse masses (0 for immovable). Zero when they are already
+ * separating. Apply as `vel + normal * j * invMass`.
+ */
+export function collisionImpulse(
+  relativeVelocity: Vec3,
+  normal: Vec3,
+  invMassA: number,
+  invMassB: number,
+  restitution: number,
+): number;
+export function collisionImpulse(): number {
+  return gpuOnly('collisionImpulse');
+}

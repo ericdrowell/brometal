@@ -5,6 +5,7 @@ import { createProgram, createRenderer, mat4, type RendererBackend } from 'brome
 import cubesShader from '@/shaders/instanced-cubes.shader.gen';
 import { indices, pastelColors, positions } from '@/lib/cube-geometry';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 const GRID = 50; // 50 × 50 × 50 = 125,000 cubes
 const SPACING = 2.4;
@@ -13,6 +14,7 @@ const COUNT = GRID * GRID * GRID;
 export default function LotsOfCubesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -80,6 +82,7 @@ export default function LotsOfCubesDemo() {
     const viewProj = mat4.scratch();
 
     const stop = renderer.loop((t) => {
+      tick(t);
       mat4.perspective(Math.PI / 4, renderer.aspect, 1, 500, projection);
       mat4.multiply(tilt, mat4.rotationY(t * 0.12, orbit), orbit);
       mat4.multiply(eye, orbit, viewProj);
@@ -106,11 +109,7 @@ export default function LotsOfCubesDemo() {
   return (
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
-      <div className="hud">
-        <strong>125,000 cubes · 1 draw call</strong>
-        <br />
-        rotation computed on the GPU — per-frame upload: one mat4 + one float
-      </div>
+      <DemoStats stats={stats}>125,000 cubes · 1 draw call · rotation computed on the GPU</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

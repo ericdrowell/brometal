@@ -12,6 +12,7 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 import {
   valueNoiseShader,
@@ -130,6 +131,7 @@ type QuadProgram = BroMetalProgram<
 export default function ShaderLibraryDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
   const activeRef = useRef(ALL_ENTRIES[0]!.key);
   const [selected, setSelected] = useState(ALL_ENTRIES[0]!.key);
 
@@ -168,6 +170,7 @@ export default function ShaderLibraryDemo() {
       }
 
       const stop = renderer.loop((t) => {
+        tick(t);
         const program = programs.get(activeRef.current);
         if (program === undefined) return;
         program.uniforms.uTime.set(t);
@@ -227,6 +230,7 @@ export default function ShaderLibraryDemo() {
           <p className="panel-note uses-note">{selectedEntry?.uses}</p>
         </div>
       </div>
+      <DemoStats stats={stats}>brometal/shaders — precompiled, nothing compiled at runtime</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

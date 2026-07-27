@@ -11,11 +11,13 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import modelShader from '@/shaders/model.shader.gen';
 
 export default function ModelDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -55,6 +57,7 @@ export default function ModelDemo() {
       camera.lookAt(0, 0, 0);
 
       const stop = renderer.loop((t) => {
+        tick(t);
         const model = mat4.multiply(
           mat4.rotationY(t * 0.45),
           mat4.translation(0, Math.sin(t * 0.8) * 0.25, 0),
@@ -90,6 +93,7 @@ export default function ModelDemo() {
           </p>
         </div>
       </div>
+      <DemoStats stats={stats}>glTF-Binary model loaded with loadGlb</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

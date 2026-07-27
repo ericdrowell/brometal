@@ -98,6 +98,10 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
     check: (args) =>
       args.length === 2 && args[0]!.type === 'sampler2D' && args[1]!.type === 'vec2' ? 'vec4' : null,
   },
+  targetUv: {
+    signature: 'targetUv(clipPosition) expects a vec4',
+    check: (args) => (args.length === 1 && args[0]!.type === 'vec4' ? 'vec2' : null),
+  },
   reflect: {
     signature: 'reflect(incident, normal) expects two vectors of the same type',
     check: (args) =>

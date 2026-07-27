@@ -20,6 +20,8 @@ export interface RendererOptions {
   backend?: 'auto' | RendererBackend;
 }
 
+import type { RenderTarget, Webgl2TargetInternals } from './render-target.js';
+
 export interface Renderer {
   readonly backend: RendererBackend;
   readonly canvas: HTMLCanvasElement;
@@ -28,7 +30,25 @@ export interface Renderer {
   /** The underlying context — WebGL2 backend only. */
   readonly gl?: WebGL2RenderingContext;
   loop(callback: (elapsedSeconds: number) => void): () => void;
+  /**
+   * Runs `draw` with every `program.draw()` writing into `target` instead of
+   * the screen. This is how state stays on the GPU across frames: a pass writes
+   * into a target, and the next frame samples it.
+   */
+  drawTo(target: RenderTarget, draw: () => void, options?: DrawToOptions): void;
   destroy(): void;
+}
+
+export interface DrawToOptions {
+  /**
+   * What to clear the target to. Defaults to transparent black.
+   *
+   * Worth setting whenever zero is a meaningful value in the target rather than
+   * an empty one. A shadow map holding distance-to-light is the example: clear
+   * it to black and every texel the geometry misses claims an occluder sitting
+   * at the light itself, putting the whole scene in shadow.
+   */
+  clear?: readonly [number, number, number, number];
 }
 
 export async function createRenderer(
@@ -85,6 +105,36 @@ function createWebgl2Renderer(canvas: HTMLCanvasElement, options: RendererOption
         handle.stop();
         activeLoops.delete(handle);
       };
+    },
+    drawTo(target: RenderTarget, draw: () => void, options: DrawToOptions = {}): void {
+      const internals = (target as RenderTarget & { __gl?: Webgl2TargetInternals }).__gl;
+      if (internals === undefined) {
+        throw new Error('BroMetal: this render target was not created by the WebGL2 renderer');
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, internals.framebuffer);
+      gl.viewport(0, 0, target.width, target.height);
+      // Without a depth attachment a depth test would pass regardless, so it is
+      // turned off rather than left to read as meaningful.
+      if (target.depth) {
+        gl.enable(gl.DEPTH_TEST);
+      } else {
+        gl.disable(gl.DEPTH_TEST);
+      }
+      const [cr, cg, cb, ca] = options.clear ?? [0, 0, 0, 0];
+      gl.clearColor(cr, cg, cb, ca);
+      // glClear honours the depth write mask, which a blended program leaves
+      // off — see the same guard in the frame loop.
+      gl.depthMask(true);
+      gl.clear(target.depth ? gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT : gl.COLOR_BUFFER_BIT);
+      try {
+        draw();
+      } finally {
+        gl.enable(gl.DEPTH_TEST);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        const [r, g, b, a] = clearColor;
+        gl.clearColor(r, g, b, a);
+      }
     },
     destroy(): void {
       for (const handle of activeLoops) {

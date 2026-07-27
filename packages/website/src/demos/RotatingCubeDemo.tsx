@@ -5,10 +5,12 @@ import { createProgram, createRenderer, mat4, type RendererBackend } from 'brome
 import cubeShader from '@/shaders/color-cube.shader.gen';
 import { colors, indices, positions } from '@/lib/cube-geometry';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 export default function RotatingCubeDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -35,6 +37,7 @@ export default function RotatingCubeDemo() {
       const mvp = mat4.scratch();
 
       const stop = renderer.loop((t) => {
+        tick(t);
         mat4.perspective(Math.PI / 4, renderer.aspect, 0.1, 100, projection);
         mat4.multiply(mat4.rotationY(t * 0.9, model), mat4.rotationX(t * 0.6, tilt), model);
         mat4.multiply(view, model, mvp);
@@ -59,6 +62,7 @@ export default function RotatingCubeDemo() {
   return (
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
+      <DemoStats stats={stats}>One cube, one shader compiled to GLSL and WGSL</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

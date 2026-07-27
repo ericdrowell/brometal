@@ -10,11 +10,13 @@ import {
   type RendererBackend,
 } from 'brometal';
 import BackendBadge from '@/components/BackendBadge';
+import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import oceanShader from '@/shaders/ocean.shader.gen';
 
 export default function OceanDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
+  const { stats, tick } = useFrameStats();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -49,6 +51,7 @@ export default function OceanDemo() {
       camera.lookAt(0, 0.1, -12);
 
       const stop = renderer.loop((t) => {
+        tick(t);
         program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
         program.uniforms.uModel.set(model);
         program.uniforms.uTime.set(t);
@@ -81,6 +84,7 @@ export default function OceanDemo() {
           </p>
         </div>
       </div>
+      <DemoStats stats={stats}>Gerstner waves with fresnel and specular glint</DemoStats>
       <BackendBadge backend={backend} />
     </>
   );

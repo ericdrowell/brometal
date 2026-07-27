@@ -667,6 +667,117 @@ export const SHADER_LIBRARY: Record<string, LibraryEntry> = {
 }`,
   },
 
+  // ── Physics ─────────────────────────────────────────────────────────────
+  integrateVelocity: {
+    deps: [],
+    source: `function integrateVelocity(vel: Vec3, accel: Vec3, dt: number): Vec3 {
+  return vel.add(accel.scale(dt));
+}`,
+  },
+  integratePosition: {
+    deps: [],
+    source: `function integratePosition(pos: Vec3, vel: Vec3, dt: number): Vec3 {
+  return pos.add(vel.scale(dt));
+}`,
+  },
+  verletStep: {
+    deps: [],
+    source: `function verletStep(pos: Vec3, prevPos: Vec3, accel: Vec3, dt: number, damping: number): Vec3 {
+  const drift = pos.sub(prevPos).scale(damping);
+  return pos.add(drift).add(accel.scale(dt * dt));
+}`,
+  },
+  applyDrag: {
+    deps: [],
+    source: `function applyDrag(vel: Vec3, drag: number, dt: number): Vec3 {
+  return vel.scale(exp(-drag * dt));
+}`,
+  },
+  bounceVelocity: {
+    deps: [],
+    source: `function bounceVelocity(vel: Vec3, normal: Vec3, restitution: number): Vec3 {
+  let result = vel;
+  const len = length(normal);
+  if (len > 0.0001) {
+    const n = normal.scale(1 / len);
+    const approach = dot(vel, n);
+    if (approach < 0) {
+      result = vel.sub(n.scale(approach * (1 + restitution)));
+    }
+  }
+  return result;
+}`,
+  },
+  applyFriction: {
+    deps: [],
+    source: `function applyFriction(vel: Vec3, normal: Vec3, normalImpulse: number, friction: number): Vec3 {
+  let result = vel;
+  const len = length(normal);
+  if (len > 0.0001) {
+    const n = normal.scale(1 / len);
+    const along = n.scale(dot(vel, n));
+    const across = vel.sub(along);
+    const speed = length(across);
+    const drop = min(friction * normalImpulse, speed);
+    result = along.add(across.scale(1 - drop / max(speed, 0.0001)));
+  }
+  return result;
+}`,
+  },
+  restingDamp: {
+    deps: [],
+    source: `function restingDamp(vel: Vec3, threshold: number): Vec3 {
+  return vel.scale(step(threshold, length(vel)));
+}`,
+  },
+  boxContactNormal: {
+    deps: [],
+    source: `function boxContactNormal(pos: Vec3, radius: number, halfExtent: Vec3, tolerance: number): Vec3 {
+  const limit = vec3(halfExtent.x - radius - tolerance, halfExtent.y - radius - tolerance, halfExtent.z - radius - tolerance);
+  const nx = step(pos.x, -limit.x) - step(limit.x, pos.x);
+  const ny = step(pos.y, -limit.y) - step(limit.y, pos.y);
+  const nz = step(pos.z, -limit.z) - step(limit.z, pos.z);
+  return vec3(nx, ny, nz);
+}`,
+  },
+  clampInsideBox: {
+    deps: [],
+    source: `function clampInsideBox(pos: Vec3, radius: number, halfExtent: Vec3): Vec3 {
+  const limit = vec3(halfExtent.x - radius, halfExtent.y - radius, halfExtent.z - radius);
+  return vec3(clamp(pos.x, -limit.x, limit.x), clamp(pos.y, -limit.y, limit.y), clamp(pos.z, -limit.z, limit.z));
+}`,
+  },
+  spherePenetration: {
+    deps: [],
+    source: `function spherePenetration(a: Vec3, b: Vec3, radiusA: number, radiusB: number): number {
+  return max(radiusA + radiusB - distance(a, b), 0);
+}`,
+  },
+  separateSpheres: {
+    deps: [],
+    source: `function separateSpheres(a: Vec3, b: Vec3, radiusA: number, radiusB: number, share: number): Vec3 {
+  const delta = a.sub(b);
+  const dist = max(length(delta), 0.0001);
+  const overlap = max(radiusA + radiusB - dist, 0);
+  return a.add(delta.scale(overlap * share / dist));
+}`,
+  },
+  collisionImpulse: {
+    deps: [],
+    source: `function collisionImpulse(relativeVelocity: Vec3, normal: Vec3, invMassA: number, invMassB: number, restitution: number): number {
+  let j = 0;
+  const len = length(normal);
+  if (len > 0.0001) {
+    const n = normal.scale(1 / len);
+    const approach = dot(relativeVelocity, n);
+    if (approach < 0) {
+      j = 0 - (1 + restitution) * approach / max(invMassA + invMassB, 0.0001);
+    }
+  }
+  return j;
+}`,
+  },
+
   // ── Waves ───────────────────────────────────────────────────────────────
   gerstnerWave: {
     deps: [],
