@@ -1,6 +1,6 @@
 {
   "name": "brometal",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "Write shaders in TypeScript, compiled at build time to GLSL + WGSL, with a tiny WebGL2 / WebGPU runtime. Write TypeScript. Lift Shaders. Ship Shredded.",
   "license": "MIT",
   "author": "Eric Rowell",
