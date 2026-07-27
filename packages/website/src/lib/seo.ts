@@ -1,7 +1,14 @@
 import type { Metadata } from 'next';
 import { EXAMPLE_SECTIONS } from './examples';
 
-export const SITE_URL = 'https://brometal.dev';
+/**
+ * The host that actually serves the site. The apex redirects here with a 308,
+ * so canonicals, sitemap entries and OG urls all have to name the `www` form —
+ * a sitemap full of redirecting URLs is reported as "Page with redirect" and
+ * indexed at the target rather than as submitted, and a canonical that points
+ * at a redirect contradicts itself.
+ */
+export const SITE_URL = 'https://www.brometal.dev';
 export const SITE_NAME = 'BroMetal';
 
 /**
