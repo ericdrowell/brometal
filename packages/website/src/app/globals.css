@@ -158,6 +158,67 @@ a:hover {
   line-height: 1.7;
 }
 
+/* The FAQ carries most of the home page's indexable text, so it is styled to
+   be read rather than skimmed: wider measure, clear question/answer split. */
+.faq {
+  margin-top: 56px;
+  max-width: 720px;
+  text-align: left;
+}
+
+.faq h2 {
+  margin: 0 0 18px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8f96ad;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.faq dl {
+  margin: 0;
+}
+
+.faq-item + .faq-item {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid #1c2030;
+}
+
+.faq dt {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8eaf2;
+}
+
+.faq dd {
+  margin: 0;
+  color: #a6adc4;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.faq-more {
+  margin: 28px 0 0;
+  text-align: center;
+  color: #a6adc4;
+  font-size: 15px;
+}
+
+.faq-more a {
+  color: #8b9cff;
+}
+
+.page-intro {
+  margin: 8px 0 0;
+  max-width: 680px;
+  color: #a6adc4;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
 .example-section-title {
   margin: 40px 0 0;
   font-size: 13px;
@@ -233,11 +294,15 @@ a:hover {
   pointer-events: none;
 }
 
-.example-nav > :first-child {
+/* Targeted by class, not by position. These used to be :first-child and
+   :last-child, which silently reassigned themselves the moment anything else
+   was added to the nav — including an invisible <script> for structured data,
+   which stretched the prev link across its whole column. */
+.example-nav-prev {
   justify-self: start;
 }
 
-.example-nav > :last-child {
+.example-nav-next {
   justify-self: end;
 }
 

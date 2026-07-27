@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import { exampleMetadata } from '@/lib/seo';
 import BlendDemo from '@/demos/BlendDemo';
 import ExampleNav from '@/components/ExampleNav';
 
-export const metadata: Metadata = { title: 'BroMetal — Blend' };
+export const metadata: Metadata = exampleMetadata('blend');
 
 export default function BlendPage() {
   return (

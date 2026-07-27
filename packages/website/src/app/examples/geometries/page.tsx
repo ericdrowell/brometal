@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import { exampleMetadata } from '@/lib/seo';
 import GeometriesDemo from '@/demos/GeometriesDemo';
 import ExampleNav from '@/components/ExampleNav';
 
-export const metadata: Metadata = { title: 'BroMetal — Geometry' };
+export const metadata: Metadata = exampleMetadata('geometries');
 
 export default function GeometriesPage() {
   return (

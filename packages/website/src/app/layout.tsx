@@ -2,31 +2,98 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Script from 'next/script';
 import { BROMETAL_VERSION } from '@/lib/version';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL, jsonLd } from '@/lib/seo';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://brometal.dev'),
-  title: 'BroMetal',
-  description: 'Write TypeScript. Lift Shaders. Ship Shredded.',
+  metadataBase: new URL(SITE_URL),
+  // `%s` is filled by each page's own title; the home page overrides the
+  // template with `absolute` so it does not read "BroMetal — BroMetal".
+  title: {
+    default: `${SITE_NAME} — TypeScript shaders for WebGL2 and WebGPU`,
+    template: `%s — ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: 'Eric Rowell', url: 'https://github.com/ericdrowell' }],
+  creator: 'Eric Rowell',
+  category: 'technology',
+  alternates: { canonical: SITE_URL },
   openGraph: {
-    title: 'BroMetal',
-    description: 'Write TypeScript. Lift Shaders. Ship Shredded.',
-    siteName: 'BroMetal',
+    title: `${SITE_NAME} — TypeScript shaders for WebGL2 and WebGPU`,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
+    url: SITE_URL,
     type: 'website',
-    images: [{ url: '/brometal-og.png', width: 1200, height: 630 }],
+    locale: 'en_US',
+    images: [{ url: '/brometal-og.png', width: 1200, height: 630, alt: 'BroMetal' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'BroMetal',
-    description: 'Write TypeScript. Lift Shaders. Ship Shredded.',
+    title: `${SITE_NAME} — TypeScript shaders for WebGL2 and WebGPU`,
+    description: SITE_DESCRIPTION,
     images: ['/brometal-og.png'],
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
+  },
+};
+
+/**
+ * What the site is, in a form a machine can read without parsing prose. Search
+ * engines use it for rich results; answer engines use it to establish what the
+ * project *is* before quoting anything from the page.
+ */
+const SITE_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: SITE_NAME,
+      description: SITE_DESCRIPTION,
+      inLanguage: 'en',
+      publisher: { '@id': `${SITE_URL}/#author` },
+    },
+    {
+      '@type': 'Person',
+      '@id': `${SITE_URL}/#author`,
+      name: 'Eric Rowell',
+      url: 'https://github.com/ericdrowell',
+    },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': `${SITE_URL}/#software`,
+      name: SITE_NAME,
+      applicationCategory: 'DeveloperApplication',
+      applicationSubCategory: 'Graphics library',
+      operatingSystem: 'Any browser supporting WebGL2 or WebGPU',
+      description: SITE_DESCRIPTION,
+      url: SITE_URL,
+      softwareVersion: BROMETAL_VERSION,
+      programmingLanguage: ['TypeScript', 'GLSL', 'WGSL'],
+      license: 'https://opensource.org/licenses/MIT',
+      author: { '@id': `${SITE_URL}/#author` },
+      downloadUrl: 'https://www.npmjs.com/package/brometal',
+      codeRepository: 'https://github.com/ericdrowell/brometal',
+      // A free library still needs an offer for the price to be stated at all.
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <script
+          type="application/ld+json"
+          // React escapes text children of <script>, so the JSON has to go in raw.
+          dangerouslySetInnerHTML={{ __html: jsonLd(SITE_SCHEMA) }}
+        />
         <header className="site-header">
           <Link href="/" className="brand">
             BroMetal

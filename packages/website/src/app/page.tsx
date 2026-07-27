@@ -1,15 +1,81 @@
+import type { Metadata } from 'next';
 import Image from 'next/image';
+import Link from 'next/link';
 import localFont from 'next/font/local';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL, jsonLd } from '@/lib/seo';
 
 const delogs = localFont({ src: '../../public/fonts/Delogs Goes Hi-Tech.otf' });
+
+export const metadata: Metadata = {
+  // Absolute, or the root layout's template would render "BroMetal — BroMetal".
+  title: { absolute: `${SITE_NAME} — TypeScript shaders for WebGL2 and WebGPU` },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: SITE_URL },
+};
+
+/**
+ * Questions people actually ask before adopting a graphics library, answered in
+ * full sentences that stand on their own.
+ *
+ * This is the part answer engines quote. An answer only survives being lifted
+ * out of the page if it repeats its own subject — "BroMetal compiles..." rather
+ * than "It compiles..." — so each one does, at the cost of reading a little
+ * stiffly in sequence.
+ */
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: 'What is BroMetal?',
+    a: 'BroMetal is a graphics library that compiles shaders written in a typed TypeScript DSL into GLSL and WGSL ahead of time, and ships dual WebGL2 and WebGPU runtimes behind a single API. You write shaders as TypeScript functions, a build step turns each one into both shader languages, and your app imports the generated module. The compiler never reaches the browser.',
+  },
+  {
+    q: 'How is BroMetal different from Three.js?',
+    a: 'Three.js is a scene graph with a material system that generates shader code in the browser at runtime. BroMetal has neither: shaders are compiled on your machine at build time, and there is no scene graph, no material system and no runtime shader generation. That makes BroMetal much smaller and removes first-frame shader compilation, at the cost of doing the work Three.js does for you — you write the shader yourself.',
+  },
+  {
+    q: 'How large is the BroMetal runtime?',
+    a: 'A typical BroMetal app — renderer, program, camera, a geometry generator and the matrix helpers — bundles to about 23 KB minified and 8.5 KB gzipped. The compiler and CLI are build-time only and are never included, and unused shader functions are tree-shaken away because they inline into shader text rather than shipping as runtime code.',
+  },
+  {
+    q: 'Does BroMetal support WebGPU?',
+    a: 'Yes. Every shader is compiled to both GLSL ES 3.00 and WGSL from one source, and `await createRenderer(canvas)` selects WebGPU when the browser exposes an adapter and falls back to WebGL2 otherwise. Both backends sit behind the same typed API, so application code does not branch on which one was chosen.',
+  },
+  {
+    q: 'Do I need to know GLSL or WGSL to use BroMetal?',
+    a: 'No. Shaders are written in TypeScript using a typed subset of the language — vectors, matrices, swizzles, loops and helper functions — and the compiler emits GLSL and WGSL for you. Knowing how shaders work still helps, since you are writing one, but you never write shader-language syntax and never maintain two versions of it.',
+  },
+  {
+    q: 'Does BroMetal compile shaders in the browser?',
+    a: 'No. Each `name.shader.ts` file compiles to a `name.shader.gen.ts` module during your build, containing finished shader text plus typed interface metadata. The browser receives that generated module. Nothing is parsed, type-checked or code-generated at runtime, so there is no compilation cost on the first frame.',
+  },
+  {
+    q: 'Which browsers does BroMetal support?',
+    a: 'Any browser with WebGL2, which covers current versions of Chrome, Edge, Firefox and Safari on desktop and mobile. Where WebGPU is available, BroMetal uses it automatically for the lower driver overhead; where it is not, the WebGL2 path renders the same scene from the same source.',
+  },
+  {
+    q: 'Is BroMetal free and open source?',
+    a: 'Yes. BroMetal is MIT licensed, published on npm as `brometal`, and developed in the open at github.com/ericdrowell/brometal.',
+  },
+];
+
+const FAQ_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  '@id': `${SITE_URL}/#faq`,
+  mainEntity: FAQ.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: { '@type': 'Answer', text: item.a },
+  })),
+};
 
 export default function HomePage() {
   return (
     <main className="page hero">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(FAQ_SCHEMA) }} />
       <h1 className={`hero-title ${delogs.className}`}>BroMetal</h1>
       <Image
         src="/bro-metal-head-blue.png"
-        alt="A bro's head wearing sunglasses"
+        alt="The BroMetal logo: a bro's head wearing sunglasses"
         width={1254}
         height={1254}
         priority
@@ -17,7 +83,8 @@ export default function HomePage() {
       />
       <p className="tagline">&ldquo;Write TypeScript.&nbsp;&nbsp;Lift Shaders.&nbsp;&nbsp;Ship Shredded.&rdquo;</p>
       <p className="subhead">
-        Typed shaders compiled at build time &mdash; WebGL2 + WebGPU from one source, ~10KB runtime.
+        Typed shaders compiled at build time &mdash; WebGL2 + WebGPU from one source, 8.5&nbsp;KB
+        gzipped.
       </p>
       <a
         className="cta"
@@ -33,11 +100,25 @@ export default function HomePage() {
       <section className="ethos">
         <h2>Ethos</h2>
         <p>
-          Built for the AI coding era.  Everything is TypeScript and compiles
-          into shaders at build time.  GLSL and WGSL from one source, with no scene graph and
-          no compiler in the browser. The entire minified runtime is 18KB compared to Three.js&apos;s
-          336KB runtime (20x reduction)because material systems and runtime shader generation are simply never
-          shipped. Less to download, nothing to generate at startup.  The first frame hits instantly.
+          Built for the AI coding era. Everything is TypeScript and compiles into shaders at build
+          time &mdash; GLSL and WGSL from one source, with no scene graph and no compiler in the
+          browser. A typical app bundles to about 23&nbsp;KB minified and 8.5&nbsp;KB gzipped,
+          because material systems and runtime shader generation are simply never shipped. Less to
+          download, nothing to generate at startup. The first frame hits instantly.
+        </p>
+      </section>
+      <section className="faq">
+        <h2>Frequently asked questions</h2>
+        <dl>
+          {FAQ.map((item) => (
+            <div key={item.q} className="faq-item">
+              <dt>{item.q}</dt>
+              <dd>{item.a}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="faq-more">
+          See it running: <Link href="/examples">live WebGL2 and WebGPU examples</Link>.
         </p>
       </section>
     </main>
