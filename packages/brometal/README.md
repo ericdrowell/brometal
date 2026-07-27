@@ -334,6 +334,6 @@ Anything outside the subset fails compilation with a precise, actionable error.
 
 ## Links
 
-- Website & live examples: https://www.brometal.dev
+- Website & live examples: https://brometal.dev
 - Source and issues: https://github.com/ericdrowell/brometal
 - Discord — questions, showcase, and release chat: https://discord.gg/fNbTnAQqyg

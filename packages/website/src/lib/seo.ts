@@ -2,13 +2,14 @@ import type { Metadata } from 'next';
 import { EXAMPLE_SECTIONS } from './examples';
 
 /**
- * The host that actually serves the site. The apex redirects here with a 308,
- * so canonicals, sitemap entries and OG urls all have to name the `www` form —
- * a sitemap full of redirecting URLs is reported as "Page with redirect" and
- * indexed at the target rather than as submitted, and a canonical that points
- * at a redirect contradicts itself.
+ * The host that actually serves the site. `www` redirects here, so canonicals,
+ * sitemap entries and OG urls all name the bare form — a sitemap full of
+ * redirecting URLs is reported as "Page with redirect" and indexed at the
+ * target rather than as submitted, and a canonical pointing at a redirect
+ * contradicts itself. If the primary domain is ever changed in the host's
+ * dashboard, this constant has to move with it.
  */
-export const SITE_URL = 'https://www.brometal.dev';
+export const SITE_URL = 'https://brometal.dev';
 export const SITE_NAME = 'BroMetal';
 
 /**
