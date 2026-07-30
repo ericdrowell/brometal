@@ -67,6 +67,41 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
     ],
   },
   {
+    title: 'Sprites',
+    examples: [
+      {
+        slug: 'sprites-blended',
+        name: 'Sprites: Blended',
+        description:
+          'A billboard forest drawn with alpha blending — no depth writes, so correctness depends on sorting every sprite on the CPU every frame.',
+      },
+      {
+        slug: 'sprites-cutout',
+        name: 'Sprites: Cut-out',
+        description:
+          'The same forest with discard() and depthWrite — the depth buffer orders the sprites per pixel, with no CPU sort and no per-frame uploads.',
+      },
+      {
+        slug: 'sprite-topdown',
+        name: '2D Top-down',
+        description:
+          'A top-down dungeon crawl on an orthographic camera — tilemap, animated hero, and torchlight, all instanced sprites in three draw calls.',
+      },
+      {
+        slug: 'sprite-sidescroll',
+        name: '2D Side-scroller',
+        description:
+          'A playable pixel-art platformer: run, jump, collect coins. Parallax layers, a walk cycle, and a scrolling orthographic camera.',
+      },
+      {
+        slug: 'sprite-2-5d',
+        name: '2.5D World',
+        description:
+          'Walk a 2D sprite hero through a 3D world — upright billboards on a ground plane, depth-sorted by the GPU, with a follow camera.',
+      },
+    ],
+  },
+  {
     title: 'Shaders',
     examples: [
       {

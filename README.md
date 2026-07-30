@@ -236,6 +236,48 @@ export default shader({
 
 Texture units are assigned by the compiler and baked into the layout, so the runtime sets each sampler uniform exactly once at link time — `program.uniforms.uTex.set(texture)` only binds. Load textures with `loadTexture(renderer, url)` (mipmaps and sensible filtering by default) or wrap any `TexImageSource` with `createTexture`.
 
+## Cut-out sprites
+
+Alpha blending can't write depth — a half-transparent fragment has no single
+depth to record — so blended sprites have to be sorted back-to-front on the CPU
+every frame, and two quads that intersect resolve per *sprite* instead of per
+pixel. `discard()` removes the problem instead of managing it:
+
+```ts
+import { shader, discard, texture, vec4 } from 'brometal';
+
+export default shader({
+  // ...
+  fragment({ uAtlas, uCutoff }, { vUv, vTint }) {
+    const texel = texture(uAtlas, vUv);
+    if (texel.w * vTint.w < uCutoff) {
+      discard();
+    }
+    return vec4(texel.xyz.mul(vTint.xyz), 1);
+  },
+});
+```
+
+```ts
+createProgram(renderer, spriteShader, { blend: 'alpha', depthWrite: true });
+```
+
+Every surviving fragment is opaque, so the program can write depth: the GPU
+orders the sprites per pixel, nothing is sorted, and static instance data is
+uploaded once instead of every frame. A character standing between two trees is
+occluded by exactly the pixels in front of him — which sorting whole sprites can
+never get right.
+
+`discard()` is fragment-only and must be a statement inside an `if`; the
+compiler rejects it in `vertex()`, in helpers (which `vertex()` can call), and
+as a value. `depthWrite` defaults to `blend === 'none'`, so existing blended
+programs are unaffected; `depthTest: false` is also available for passes that sit
+outside the scene's depth, like a screen-space HUD.
+
+`mat4.orthographic(left, right, bottom, top, near, far)` is the projection to
+pair with this for 2D and 2.5D — same GL clip conventions as `mat4.perspective`,
+so one matrix drives both backends.
+
 ## Instancing
 
 Declare per-instance inputs with `instanceAttributes` — they upload to the GPU once and advance per instance, not per vertex:
@@ -248,6 +290,13 @@ export default shader({
   // vertex() receives attributes and instance attributes together
 });
 ```
+
+`program.draw({ instanceCount })` draws only part of what was uploaded, so one
+over-allocated buffer can back a pool that grows and shrinks without
+reallocating — upload capacity once, then draw the live prefix each frame.
+`vertexCount` and `first` narrow the vertex/index range the same way. A count
+larger than the uploaded data throws a named error rather than reading past the
+buffer.
 
 When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The lots-of-cubes example renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
 
@@ -278,7 +327,9 @@ npm run dev:website    # → http://localhost:3005 (uses the LOCAL workspace pac
 npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
-Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/ball-physics`, `/examples/star-bro`.
+Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/ball-physics`, `/examples/star-bro`, `/examples/sprites-blended`,
+`/examples/sprites-cutout`, `/examples/sprite-topdown`,
+`/examples/sprite-sidescroll`, `/examples/sprite-2-5d`.
 
 `dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
 
@@ -294,8 +345,9 @@ Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/
 - Per-vertex `attributes` and per-instance `instanceAttributes`
 - `const` and mutable `let` locals, float arithmetic (`+ - * /`), compound assignment (`+= -= *= /=`, `x++`), comparisons, `if`/`else`
 - `for` loops with float counters — `for (let i = 0; i < n; i += 1)`
+- `discard()` in `fragment()` — inside an `if`, to cut out sub-threshold alpha
 - Module-level **helper functions** with typed signatures (`function palette(t: number): Vec3`), compiled to GLSL functions; helpers can call earlier helpers
-- Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, swizzles (`.x`, `.xyz`, …)
+- Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, and every swizzle of `x/y/z/w` (`.x`, `.xyz`, `.zw`, `.wzyx`, …)
 - Constructors `vec2/vec3/vec4` (composite forms like `vec4(v3, 1)` included)
 - Intrinsics: `texture reflect normalize dot cross mix clamp length distance sin cos tan asin acos atan abs sign fract floor sqrt pow exp exp2 log mod step smoothstep min max`
 
