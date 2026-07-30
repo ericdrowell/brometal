@@ -35,7 +35,9 @@ export type IrStmt =
       update: IrStmt;
       body: IrStmt[];
     }
-  | { kind: 'return'; expr: IrExpr };
+  | { kind: 'return'; expr: IrExpr }
+  /** Fragment-only: abandon this fragment, writing neither colour nor depth. */
+  | { kind: 'discard' };
 
 export interface HelperParam {
   name: string;

@@ -1,5 +1,11 @@
 import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
-import { uploadAttribute, uploadIndices, type AttributeState, type IndexState } from './buffers.js';
+import {
+  clampDrawCount,
+  uploadAttribute,
+  uploadIndices,
+  type AttributeState,
+  type IndexState,
+} from './buffers.js';
 import type { Renderer } from './context.js';
 import { bindVaoCached, forgetProgram, forgetVao, useProgramCached } from './state.js';
 import { createUniformSetter, type UniformValue } from './uniforms.js';
@@ -10,13 +16,46 @@ export type BlendMode = 'none' | 'alpha' | 'additive';
 export interface ProgramOptions {
   /**
    * 'alpha' = classic transparency, 'additive' = light accumulation (glows,
-   * particles). Blended programs test depth but do not write it.
+   * particles). Blended programs test depth but do not write it by default.
    */
   blend?: BlendMode;
+  /**
+   * Whether the program writes to the depth buffer. Defaults to
+   * `blend === 'none'`, which is what sorted transparency wants.
+   *
+   * Set `true` alongside a cut-out `discard()` in the fragment stage to get
+   * order-independent sprites: every surviving fragment is opaque, so depth
+   * sorts them correctly and the CPU never has to. Set `false` on an opaque
+   * program to make it a depth-test-only second pass.
+   */
+  depthWrite?: boolean;
+  /**
+   * Whether the program tests against the depth buffer. Default `true`.
+   *
+   * `false` is for passes that sit deliberately outside the scene's depth —
+   * a screen-space HUD or a fullscreen backdrop drawn behind everything.
+   */
+  depthTest?: boolean;
 }
 
 export interface AttributeHandle {
   set(data: Float32Array): void;
+}
+
+export interface DrawOptions {
+  /**
+   * How many instances to draw. Defaults to the number uploaded. Lets one
+   * over-allocated buffer back a growing/shrinking pool without resizing:
+   * upload capacity once, then draw only the live prefix each frame.
+   */
+  instanceCount?: number;
+  /**
+   * How many vertices (or indices, when `setIndices` was called) to draw.
+   * Defaults to everything uploaded.
+   */
+  vertexCount?: number;
+  /** First vertex/index to draw. Default 0. */
+  first?: number;
 }
 
 export interface UniformHandle<T extends GpuType> {
@@ -32,7 +71,7 @@ export interface BroMetalProgram<
   readonly instanceAttributes: { [K in keyof I]: AttributeHandle };
   readonly uniforms: { [K in keyof U]: UniformHandle<U[K]> };
   setIndices(data: Uint16Array | Uint32Array): void;
-  draw(): void;
+  draw(options?: DrawOptions): void;
   dispose(): void;
 }
 
@@ -42,8 +81,11 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
   options: ProgramOptions = {},
 ): BroMetalProgram<A, I, U> {
   const blend = options.blend ?? 'none';
+  // Sorted transparency wants writes off; a cut-out program turns them back on.
+  const depthWrite = options.depthWrite ?? blend === 'none';
+  const depthTest = options.depthTest ?? true;
   if (renderer.backend === 'webgpu') {
-    return createWebgpuProgram(renderer, compiled, blend);
+    return createWebgpuProgram(renderer, compiled, { blend, depthWrite, depthTest });
   }
   const gl = renderer.gl;
   if (gl === undefined) {
@@ -139,8 +181,8 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
       bindVaoCached(gl, vao);
       uploadIndices(gl, indexState, data);
     },
-    draw(): void {
-      const vertexCount = resolveCount(
+    draw(drawOptions: DrawOptions = {}): void {
+      const uploadedVertices = resolveCount(
         vertexStates,
         'no vertex data — call program.attributes.<name>.set(...) before draw()',
         'vertices',
@@ -149,27 +191,61 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
       bindVaoCached(gl, vao);
       if (blend === 'none') {
         gl.disable(gl.BLEND);
-        gl.depthMask(true);
       } else {
         gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE);
-        gl.depthMask(false);
+        // Separate alpha factors so the destination alpha matches the WebGPU
+        // backend: with SRC_ALPHA on the alpha channel too, a blended pass
+        // writes aSrc² and the two backends disagree wherever that alpha is
+        // read back (a composited canvas, or a sampled render target).
+        gl.blendFuncSeparate(
+          gl.SRC_ALPHA,
+          blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE,
+          gl.ONE,
+          blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE,
+        );
       }
+      gl.depthMask(depthWrite);
+      if (depthTest) {
+        gl.enable(gl.DEPTH_TEST);
+      } else {
+        gl.disable(gl.DEPTH_TEST);
+      }
+
+      const first = drawOptions.first ?? 0;
+      const available = indexState !== null ? indexState.count : uploadedVertices;
+      const vertexCount = clampDrawCount(
+        drawOptions.vertexCount,
+        available - first,
+        indexState !== null ? 'vertexCount (indices)' : 'vertexCount',
+      );
+
       if (isInstanced) {
-        const instanceCount = resolveCount(
+        const uploadedInstances = resolveCount(
           instanceStates,
           'no instance data — call program.instanceAttributes.<name>.set(...) before draw()',
           'instances',
         );
+        const instanceCount = clampDrawCount(
+          drawOptions.instanceCount,
+          uploadedInstances,
+          'instanceCount',
+        );
+        if (instanceCount === 0) return;
         if (indexState !== null) {
-          gl.drawElementsInstanced(gl.TRIANGLES, indexState.count, indexState.type, 0, instanceCount);
+          gl.drawElementsInstanced(
+            gl.TRIANGLES,
+            vertexCount,
+            indexState.type,
+            first * indexByteSize(indexState.type),
+            instanceCount,
+          );
         } else {
-          gl.drawArraysInstanced(gl.TRIANGLES, 0, vertexCount, instanceCount);
+          gl.drawArraysInstanced(gl.TRIANGLES, first, vertexCount, instanceCount);
         }
       } else if (indexState !== null) {
-        gl.drawElements(gl.TRIANGLES, indexState.count, indexState.type, 0);
+        gl.drawElements(gl.TRIANGLES, vertexCount, indexState.type, first * indexByteSize(indexState.type));
       } else {
-        gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+        gl.drawArrays(gl.TRIANGLES, first, vertexCount);
       }
     },
     dispose(): void {
@@ -214,6 +290,11 @@ function buildAttributeHandle(
       uploadAttribute(gl, state, entry.location, data, entry.divisor);
     },
   };
+}
+
+/** UNSIGNED_SHORT is 0x1403; UNSIGNED_INT is 0x1405. */
+function indexByteSize(type: number): number {
+  return type === 0x1403 ? 2 : 4;
 }
 
 function resolveCount(states: Map<string, AttributeState>, emptyMessage: string, unit: string): number {

@@ -151,6 +151,9 @@ function emitStatements(lines: string[], statements: IrStmt[], ctx: EmitContext,
           lines.push(`${indent}return ${emitExpr(statement.expr, ctx, 0)};`);
         }
         break;
+      case 'discard':
+        lines.push(`${indent}discard;`);
+        break;
       case 'if': {
         lines.push(`${indent}if (${emitExpr(statement.condition, ctx, 0)}) {`);
         emitStatements(lines, statement.then, ctx, depth + 1);

@@ -635,6 +635,10 @@ function lowerMutation(
   expr: ts.Expression,
   options: { topLevel: boolean },
 ): IrStmt {
+  if (ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) && expr.expression.text === 'discard') {
+    return lowerDiscard(ctx, expr);
+  }
+
   if (ts.isPostfixUnaryExpression(expr) && ts.isIdentifier(expr.operand)) {
     const op = expr.operator === ts.SyntaxKind.PlusPlusToken ? '+' : '-';
     const binding = requireMutableFloat(ctx, scope, expr.operand, `${op}${op}`);
@@ -696,6 +700,27 @@ function lowerMutation(
     expr,
     `expression statements must be assignments (v.name = ..., x = ..., x += ..., x++) — other side effects are not supported`,
   );
+}
+
+/**
+ * `discard()` is a statement, not a value — it is the only call allowed to stand
+ * alone as an expression statement. Restricted to fragment(): a helper can be
+ * reached from vertex(), where discarding is meaningless.
+ */
+function lowerDiscard(ctx: StageContext, expr: ts.CallExpression): IrStmt {
+  if (ctx.stage !== 'fragment') {
+    throw errorAt(
+      ctx.sourceFile,
+      expr,
+      ctx.stage === 'vertex'
+        ? `discard() is only valid in fragment() — there is no fragment to throw away in the vertex stage`
+        : `discard() is only valid in fragment(), not in ${ctx.ownerLabel} — a helper may be called from vertex(), where discarding is meaningless`,
+    );
+  }
+  if (expr.arguments.length > 0) {
+    throw errorAt(ctx.sourceFile, expr, `discard() takes no arguments`);
+  }
+  return { kind: 'discard' };
 }
 
 function requireMutableFloat(
@@ -972,6 +997,14 @@ function lowerCall(ctx: StageContext, scope: Scope, node: ts.CallExpression): Ir
   const callee = node.expression.text;
   if (scope.lookup(callee) !== undefined) {
     throw errorAt(ctx.sourceFile, node, `'${callee}' is not callable in shader code`);
+  }
+
+  if (callee === 'discard') {
+    throw errorAt(
+      ctx.sourceFile,
+      node,
+      `discard() produces no value — call it as its own statement, e.g. \`if (alpha < 0.5) { discard(); }\``,
+    );
   }
 
   const args = node.arguments.map((arg) => lowerExpr(ctx, scope, arg));

@@ -4,7 +4,24 @@ export type GpuType = (typeof GPU_TYPES)[number];
 
 export type GpuRecord = Record<string, GpuType>;
 
-export interface Vec2 {
+/**
+ * Every multi-component swizzle available on a vector with components `C`,
+ * generated rather than listed: `.zw`, `.xxy`, `.wzyx` and the rest are all
+ * legal GLSL and all accepted by the compiler, so the types have to agree or
+ * valid shader code fails to typecheck in the editor.
+ *
+ * Single-component reads (`.x`) return `number` and are declared on each
+ * interface directly — they are the only ones whose type is not a vector.
+ */
+export type Swizzles<C extends string> = {
+  readonly [K in `${C}${C}`]: Vec2;
+} & {
+  readonly [K in `${C}${C}${C}`]: Vec3;
+} & {
+  readonly [K in `${C}${C}${C}${C}`]: Vec4;
+};
+
+export interface Vec2 extends Swizzles<'x' | 'y'> {
   readonly x: number;
   readonly y: number;
   add(other: Vec2): Vec2;
@@ -14,13 +31,10 @@ export interface Vec2 {
   scale(factor: number): Vec2;
 }
 
-export interface Vec3 {
+export interface Vec3 extends Swizzles<'x' | 'y' | 'z'> {
   readonly x: number;
   readonly y: number;
   readonly z: number;
-  readonly xy: Vec2;
-  readonly xz: Vec2;
-  readonly yz: Vec2;
   add(other: Vec3): Vec3;
   sub(other: Vec3): Vec3;
   mul(other: Vec3 | number): Vec3;
@@ -28,13 +42,11 @@ export interface Vec3 {
   scale(factor: number): Vec3;
 }
 
-export interface Vec4 {
+export interface Vec4 extends Swizzles<'x' | 'y' | 'z' | 'w'> {
   readonly x: number;
   readonly y: number;
   readonly z: number;
   readonly w: number;
-  readonly xy: Vec2;
-  readonly xyz: Vec3;
   add(other: Vec4): Vec4;
   sub(other: Vec4): Vec4;
   mul(other: Vec4 | number): Vec4;

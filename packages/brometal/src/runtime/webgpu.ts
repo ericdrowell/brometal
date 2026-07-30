@@ -1,11 +1,12 @@
 /// <reference types="@webgpu/types" />
 import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
-import type { AttributeHandle, BroMetalProgram, UniformHandle } from './program.js';
+import type { AttributeHandle, BroMetalProgram, DrawOptions, UniformHandle } from './program.js';
 import type { DrawToOptions, Renderer, RendererOptions } from './context.js';
 import type { BroMetalTexture, TextureOptions } from './texture.js';
 import type { UniformValue } from './uniforms.js';
 import type { RenderTarget } from './render-target.js';
 import { resizeToDisplaySize } from './canvas.js';
+import { clampDrawCount } from './buffers.js';
 
 /**
  * Render targets hold numbers, not pictures. rgba16float rather than 32: full
@@ -283,8 +284,13 @@ interface GpuTextureBinding {
 export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U extends GpuRecord>(
   renderer: Renderer,
   compiled: CompiledShader<A, I, U>,
-  blend: 'none' | 'alpha' | 'additive' = 'none',
+  state: { blend: 'none' | 'alpha' | 'additive'; depthWrite: boolean; depthTest: boolean } = {
+    blend: 'none',
+    depthWrite: true,
+    depthTest: true,
+  },
 ): BroMetalProgram<A, I, U> {
+  const { blend, depthWrite, depthTest } = state;
   const internals = webgpuInternals(renderer);
   const { device } = internals;
   if (compiled.wgslSrc === undefined || compiled.wgslSrc === '') {
@@ -379,8 +385,8 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
         ? {
             depthStencil: {
               format: 'depth24plus' as const,
-              depthWriteEnabled: blend === 'none',
-              depthCompare: 'less' as const,
+              depthWriteEnabled: depthWrite,
+              depthCompare: depthTest ? ('less' as const) : ('always' as const),
             },
           }
         : {}),
@@ -563,13 +569,23 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       indexCount = data.length;
       indexFormat = data instanceof Uint16Array ? 'uint16' : 'uint32';
     },
-    draw(): void {
+    draw(drawOptions: DrawOptions = {}): void {
       const pass = internals.pass;
       if (pass === null) {
         throw new Error('BroMetal: draw() must be called inside renderer.loop()');
       }
-      const vertexCount = resolveCount(vertexStates, 'vertex');
-      const instanceCount = isInstanced ? resolveCount(instanceStates, 'instance') : 1;
+      const uploadedVertices = resolveCount(vertexStates, 'vertex');
+      const first = drawOptions.first ?? 0;
+      const available = indexBuffer !== null ? indexCount : uploadedVertices;
+      const vertexCount = clampDrawCount(
+        drawOptions.vertexCount,
+        available - first,
+        indexBuffer !== null ? 'vertexCount (indices)' : 'vertexCount',
+      );
+      const instanceCount = isInstanced
+        ? clampDrawCount(drawOptions.instanceCount, resolveCount(instanceStates, 'instance'), 'instanceCount')
+        : 1;
+      if (instanceCount === 0 || vertexCount === 0) return;
       for (const entry of compiled.layout.attributes) {
         const states = entry.divisor === 1 ? instanceStates : vertexStates;
         if (!states.has(entry.name)) {
@@ -612,9 +628,9 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       });
       if (indexBuffer !== null) {
         pass.setIndexBuffer(indexBuffer, indexFormat);
-        pass.drawIndexed(indexCount, instanceCount);
+        pass.drawIndexed(vertexCount, instanceCount, first);
       } else {
-        pass.draw(vertexCount, instanceCount);
+        pass.draw(vertexCount, instanceCount, first);
       }
     },
     dispose(): void {

@@ -1,3 +1,25 @@
+/**
+ * Resolves an optional draw-range request against what was actually uploaded.
+ * A request larger than the buffer is a bug worth naming rather than silently
+ * clamping — the GPU would otherwise read past the end of the data.
+ *
+ * Lives here rather than in program.ts so both backends can share it without
+ * program.ts and webgpu.ts importing each other's values.
+ */
+export function clampDrawCount(requested: number | undefined, available: number, label: string): number {
+  if (requested === undefined) return Math.max(available, 0);
+  if (!Number.isFinite(requested) || requested < 0) {
+    throw new Error(`BroMetal: draw({ ${label}: ${requested} }) must be a non-negative number`);
+  }
+  const count = Math.floor(requested);
+  if (count > available) {
+    throw new Error(
+      `BroMetal: draw({ ${label}: ${count} }) exceeds the ${available} uploaded — upload more data or lower the count`,
+    );
+  }
+  return count;
+}
+
 export interface AttributeState {
   buffer: WebGLBuffer;
   componentCount: number;

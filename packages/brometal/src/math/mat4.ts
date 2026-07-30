@@ -106,6 +106,46 @@ function perspective(
 }
 
 /**
+ * Orthographic projection — the 2D projection. No perspective divide, so world
+ * units map linearly to the screen: a sprite two units wide is always two units
+ * wide, whatever its depth.
+ *
+ * Emits GL clip-space conventions (z in [-1, 1]) like `perspective` does; the
+ * compiler's WGSL output remaps z for WebGPU, so one matrix drives both
+ * backends.
+ *
+ * A 2D camera showing `w` × `h` world units centred on (cx, cy) is
+ * `orthographic(cx - w/2, cx + w/2, cy - h/2, cy + h/2, -1, 1)`.
+ */
+function orthographic(
+  left: number,
+  right: number,
+  bottom: number,
+  top: number,
+  near: number,
+  far: number,
+  out?: Mat4Array,
+): Mat4Array {
+  const width = right - left;
+  const height = top - bottom;
+  const depth = far - near;
+  if (width === 0 || height === 0 || depth === 0) {
+    throw new Error(
+      `BroMetal: orthographic() needs a non-empty volume — got width ${width}, height ${height}, depth ${depth}`,
+    );
+  }
+  const m = target(out);
+  m[0] = 2 / width;
+  m[5] = 2 / height;
+  m[10] = -2 / depth;
+  m[12] = -(right + left) / width;
+  m[13] = -(top + bottom) / height;
+  m[14] = -(far + near) / depth;
+  m[15] = 1;
+  return m;
+}
+
+/**
  * View matrix for a camera at `eye` looking at `target` (classic gluLookAt).
  * `up` defaults to +y.
  */
@@ -167,6 +207,7 @@ export const mat4 = {
   rotationY,
   rotationZ,
   perspective,
+  orthographic,
   lookAt,
   /** Allocates a matrix intended for reuse as an `out` target in render loops. */
   scratch,

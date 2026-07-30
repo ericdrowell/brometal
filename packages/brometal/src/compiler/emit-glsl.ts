@@ -125,6 +125,9 @@ function emitStatements(
           lines.push(`${indent}${returnTarget} = ${emitExpr(statement.expr, 0)};`);
         }
         break;
+      case 'discard':
+        lines.push(`${indent}discard;`);
+        break;
       case 'if': {
         lines.push(`${indent}if (${emitExpr(statement.condition, 0)}) {`);
         emitStatements(lines, statement.then, returnTarget, depth + 1);

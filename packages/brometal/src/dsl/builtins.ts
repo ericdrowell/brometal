@@ -34,6 +34,26 @@ export function texture(): Vec4 {
   return gpuOnly('texture');
 }
 
+/**
+ * Throws the current fragment away — nothing is written to the colour or depth
+ * buffer. Fragment stage only, and only as a statement inside an `if`:
+ *
+ * ```ts
+ * fragment({ uAtlas, uCutoff }, { vUv }) {
+ *   const texel = texture(uAtlas, vUv);
+ *   if (texel.w < uCutoff) { discard(); }
+ *   return texel;
+ * }
+ * ```
+ *
+ * This is what makes cut-out sprites work: the surviving fragments are fully
+ * opaque, so the program can write depth (`depthWrite: true`) and draw in any
+ * order instead of being sorted back-to-front on the CPU every frame.
+ */
+export function discard(): void {
+  gpuOnly('discard');
+}
+
 export function reflect<T extends Vec2 | Vec3 | Vec4>(incident: T, normal: T): T;
 export function reflect(): never {
   return gpuOnly('reflect');
