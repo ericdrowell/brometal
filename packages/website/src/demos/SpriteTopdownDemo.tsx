@@ -321,13 +321,20 @@ function carveLine(
   from: readonly [number, number],
   to: readonly [number, number],
 ): void {
-  const steps = Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]));
+  const spanX = Math.abs(to[0] - from[0]);
+  const spanY = Math.abs(to[1] - from[1]);
+  const steps = Math.max(spanX, spanY);
+  // Widen across the segment, not along it. Offsetting Y on a vertical segment
+  // only repeats a cell the loop already reaches, which left every vertical
+  // corridor one cell wide while the horizontal ones were two.
+  const horizontal = spanX >= spanY;
   for (let i = 0; i <= steps; i++) {
     const x = Math.round(from[0] + ((to[0] - from[0]) * i) / Math.max(steps, 1));
     const y = Math.round(from[1] + ((to[1] - from[1]) * i) / Math.max(steps, 1));
     // Two cells wide so corridors read as corridors, not scratches.
     floor[at(x, y)] = true;
-    floor[at(x, Math.min(y + 1, HEIGHT - 1))] = true;
+    if (horizontal) floor[at(x, Math.min(y + 1, HEIGHT - 1))] = true;
+    else floor[at(Math.min(x + 1, WIDTH - 1), y)] = true;
   }
 }
 
@@ -396,8 +403,14 @@ export default function SpriteTopdownDemo() {
     const onKeyUp = (event: KeyboardEvent): void => {
       keysRef.current.delete(event.key.toLowerCase());
     };
+    // A key held while the window loses the focus never sends its keyup, so the
+    // hero would keep walking. Drop every held key instead.
+    const onBlur = (): void => {
+      keysRef.current.clear();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
 
     void (async () => {
       const renderer = await createRenderer(canvas, { clearColor: [0.05, 0.04, 0.07, 1] });
@@ -593,6 +606,7 @@ export default function SpriteTopdownDemo() {
       cleanup?.();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, [tick]);
 

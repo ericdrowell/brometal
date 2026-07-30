@@ -63,7 +63,7 @@ void main() {
   vec3 sky = vec3(0.62, 0.79, 0.9);
   vec3 color = mix(body, sky, fresnel * 0.6);
   color = color + vec3(1.0, 0.98, 0.9) * (spec * 0.55);
-  float shoreFoam = smoothstep(0.34, 0.02, vBed);
+  float shoreFoam = 1.0 - smoothstep(0.02, 0.34, vBed);
   float crestFoam = smoothstep(0.72, 0.98, vWave) * 0.35;
   color = mix(color, vec3(0.93, 0.97, 0.98), max(shoreFoam, crestFoam));
   fragColor = vec4(color, vDepth);
@@ -132,7 +132,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let sky = vec3f(0.62, 0.79, 0.9);
   var color = mix(body, sky, fresnel * 0.6);
   color = color + vec3f(1.0, 0.98, 0.9) * (spec * 0.55);
-  let shoreFoam = smoothstep(0.34, 0.02, bm_in.vBed);
+  let shoreFoam = 1.0 - smoothstep(0.02, 0.34, bm_in.vBed);
   let crestFoam = smoothstep(0.72, 0.98, bm_in.vWave) * 0.35;
   color = mix(color, vec3f(0.93, 0.97, 0.98), max(shoreFoam, crestFoam));
   return vec4f(color, bm_in.vDepth);

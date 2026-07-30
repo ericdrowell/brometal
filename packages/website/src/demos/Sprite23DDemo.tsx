@@ -248,13 +248,14 @@ function mergeFlat(parts: readonly MeshPart[]): FlatMesh {
       let nx = uy * vz - uz * vy;
       let ny = uz * vx - ux * vz;
       let nz = ux * vy - uy * vx;
-      const length = Math.hypot(nx, ny, nz) || 1;
+      // A degenerate triangle (a scaled-to-zero cone cap, say) has a zero cross
+      // product. Test the raw length, before any division: an `|| 1` fallback
+      // here would make this test unreachable and emit a zero normal instead.
+      const length = Math.hypot(nx, ny, nz);
+      if (length < 1e-9) continue;
       nx /= length;
       ny /= length;
       nz /= length;
-      // A degenerate triangle (a scaled-to-zero cone cap, say) would contribute
-      // a zero normal; skip it rather than shade with garbage.
-      if (length < 1e-9) continue;
       for (const vertex of tri) {
         positions.push(vertex[0]!, vertex[1]!, vertex[2]!);
         normals.push(nx, ny, nz);
@@ -692,14 +693,24 @@ export default function Sprite23DDemo() {
     let cleanup: (() => void) | null = null;
 
     const onKeyDown = (event: KeyboardEvent): void => {
+      // The sliders on this page are range inputs, which use the arrow keys
+      // themselves. Leave the event alone while one of them has the focus, or
+      // the movement keys make the sliders impossible to adjust by keyboard.
+      if (isTypingTarget(event.target)) return;
       keysRef.current.add(event.key.toLowerCase());
       if (MOVEMENT_KEYS.has(event.key.toLowerCase())) event.preventDefault();
     };
     const onKeyUp = (event: KeyboardEvent): void => {
       keysRef.current.delete(event.key.toLowerCase());
     };
+    // A key held while the window loses the focus never sends its keyup, so the
+    // hero would keep walking. Drop every held key instead.
+    const onBlur = (): void => {
+      keysRef.current.clear();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
 
     void (async () => {
       const renderer = await createRenderer(canvas, { clearColor: [...SKY, 1] });
@@ -1022,6 +1033,7 @@ export default function Sprite23DDemo() {
       cleanup?.();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, [tick]);
 
@@ -1168,3 +1180,16 @@ const MOVEMENT_KEYS = new Set([
   'arrowleft',
   'arrowright',
 ]);
+
+/**
+ * True if the event went to a control that reads the keyboard itself. The three
+ * sliders on this page are range inputs, and they move on the arrow keys.
+ */
+function isTypingTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement
+    ? target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+    : false;
+}

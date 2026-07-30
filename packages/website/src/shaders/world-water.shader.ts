@@ -142,7 +142,9 @@ export default shader({
     color = color.add(vec3(1, 0.98, 0.9).scale(spec * 0.55));
 
     // Foam where the bed nearly reaches the surface, plus a little on the crests.
-    const shoreFoam = smoothstep(0.34, 0.02, vBed);
+    // Inverted ascending edges, for the reason world-ground.shader.ts gives at
+    // its own shore mask: descending edges are undefined in GLSL.
+    const shoreFoam = 1 - smoothstep(0.02, 0.34, vBed);
     const crestFoam = smoothstep(0.72, 0.98, vWave) * 0.35;
     color = mix(color, vec3(0.93, 0.97, 0.98), max(shoreFoam, crestFoam));
 

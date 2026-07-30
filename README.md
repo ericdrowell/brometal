@@ -268,9 +268,9 @@ uploaded once instead of every frame. A character standing between two trees is
 occluded by exactly the pixels in front of him — which sorting whole sprites can
 never get right.
 
-`discard()` is fragment-only and must be a statement inside an `if`; the
-compiler rejects it in `vertex()`, in helpers (which `vertex()` can call), and
-as a value.
+`discard()` is fragment-only and is a statement, not a value; the compiler
+rejects it in `vertex()`, in helpers (which `vertex()` can call), and anywhere a
+value is expected. An `if` is the useful way to reach it, but not a requirement.
 
 Note what this does *not* need. The fragment stage above returns alpha 1 on every
 pixel that survives, so the program is opaque, and an opaque program already writes
@@ -330,9 +330,8 @@ npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
 Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/ball-physics`, `/examples/star-bro`. The **Sprite Games** section adds
-`/examples/sprites-blended`, `/examples/sprites-cutout`,
-`/examples/sprite-topdown`, `/examples/sprite-sidescroll`, and
-`/examples/sprite-2-5d`.
+`/examples/sprites-compare`, `/examples/sprite-topdown`,
+`/examples/sprite-sidescroll`, and `/examples/sprite-2-3d`.
 
 `dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
 
@@ -348,7 +347,7 @@ Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/
 - Per-vertex `attributes` and per-instance `instanceAttributes`
 - `const` and mutable `let` locals, float arithmetic (`+ - * /`), compound assignment (`+= -= *= /=`, `x++`), comparisons, `if`/`else`
 - `for` loops with float counters — `for (let i = 0; i < n; i += 1)`
-- `discard()` in `fragment()` — inside an `if`, to cut out sub-threshold alpha
+- `discard()` in `fragment()` — as a statement, normally inside an `if`, to cut out sub-threshold alpha
 - Module-level **helper functions** with typed signatures (`function palette(t: number): Vec3`), compiled to GLSL functions; helpers can call earlier helpers
 - Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, and every swizzle of `x/y/z/w` (`.x`, `.xyz`, `.zw`, `.wzyx`, …)
 - Constructors `vec2/vec3/vec4` (composite forms like `vec4(v3, 1)` included)

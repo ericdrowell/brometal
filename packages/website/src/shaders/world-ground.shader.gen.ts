@@ -50,7 +50,7 @@ void main() {
   vec3 grass = vec3(0.29, 0.5, 0.24);
   vec3 grassDry = vec3(0.44, 0.55, 0.26);
   vec3 rock = vec3(0.44, 0.42, 0.42);
-  float shore = smoothstep(uWaterLevel + 0.55, uWaterLevel - 0.1, vHeight);
+  float shore = 1.0 - smoothstep(uWaterLevel - 0.1, uWaterLevel + 0.55, vHeight);
   float dry = smoothstep(0.1, 1.3, vHeight);
   vec3 albedo = mix(grass, grassDry, dry);
   albedo = mix(albedo, rock, smoothstep(0.22, 0.29, vSlope));
@@ -110,7 +110,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let grass = vec3f(0.29, 0.5, 0.24);
   let grassDry = vec3f(0.44, 0.55, 0.26);
   let rock = vec3f(0.44, 0.42, 0.42);
-  let shore = smoothstep(bm_u.uWaterLevel + 0.55, bm_u.uWaterLevel - 0.1, bm_in.vHeight);
+  let shore = 1.0 - smoothstep(bm_u.uWaterLevel - 0.1, bm_u.uWaterLevel + 0.55, bm_in.vHeight);
   let dry = smoothstep(0.1, 1.3, bm_in.vHeight);
   var albedo = mix(grass, grassDry, dry);
   albedo = mix(albedo, rock, smoothstep(0.22, 0.29, bm_in.vSlope));

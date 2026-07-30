@@ -41,7 +41,7 @@ export default shader({
     if (texel.w * vTint.w < uCutoff) {
       discard();
     }
-    const lit = vec3(texel.x, texel.y, texel.z).mul(vec3(vTint.x, vTint.y, vTint.z));
+    const lit = texel.xyz.mul(vTint.xyz);
     return vec4(lit, vDepth);
   },
 });

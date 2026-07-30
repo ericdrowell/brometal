@@ -393,8 +393,9 @@ const PARALLAX_FACTOR = 0.72;
 /**
  * Strip slots per tier. Slots past the right edge draw off-screen and are
  * clipped, which is why an over-allocated fixed count is safer than an
- * aspect-derived `instanceCount`: `draw()` throws if the count exceeds what was
- * uploaded, and an exception out of the frame callback stops the loop for good.
+ * aspect-derived `instanceCount`: a count that is too small truncates the
+ * backdrop where the viewer can see it, and a count that is too large makes
+ * `draw()` reduce it to what was uploaded and write a warning.
  *
  * The shader places slot 0 up to two strips left of the view, so the covered
  * width is a little under (SLOTS - 2) * BAND_SIZE. Swept against every camera
@@ -457,8 +458,14 @@ export default function SpriteSidescrollDemo() {
     const onKeyUp = (event: KeyboardEvent): void => {
       keysRef.current.delete(event.key.toLowerCase());
     };
+    // A key held while the window loses the focus never sends its keyup, so the
+    // player would keep running, and a held jump would stay held. Drop every key.
+    const onBlur = (): void => {
+      keysRef.current.clear();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
 
     void (async () => {
       // The clear colour is tile 0 of the background atlas, so the sky and the
@@ -663,7 +670,11 @@ export default function SpriteSidescrollDemo() {
         const halfW = 0.34;
         const halfH = 0.48;
         const stepX = body.vx * dt;
-        if (!level.solidAt(body.x + stepX + Math.sign(stepX) * halfW, body.y, halfW, halfH)) {
+        // `solidAt` takes a centre and half-extents, so the prospective centre is
+        // the whole argument. Adding a half-width here as well moved the test box
+        // a full 0.34 tiles ahead of the body, which held the player that far off
+        // every wall. The vertical test below never had the extra term.
+        if (!level.solidAt(body.x + stepX, body.y, halfW, halfH)) {
           body.x += stepX;
         }
         const stepY = body.vy * dt;
@@ -758,6 +769,7 @@ export default function SpriteSidescrollDemo() {
       cleanup?.();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, [tick]);
 

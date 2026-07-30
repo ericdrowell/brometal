@@ -103,7 +103,10 @@ export default shader({
     // saturates at 1.3, and even a 1.5–1.7 band would only fully cover 0.18% of
     // the land, a dozen square units of specks on ridge tops. A band needs a
     // range to live in; height does not have one left, where slope does.
-    const shore = smoothstep(uWaterLevel + 0.55, uWaterLevel - 0.1, vHeight);
+    // Ascending edges, then inverted. GLSL leaves smoothstep undefined when
+    // edge0 >= edge1, so a descending pair is not portable. The two forms are
+    // exactly equal: 1 - S(t) == S(1 - t) for S(t) = t * t * (3 - 2 * t).
+    const shore = 1 - smoothstep(uWaterLevel - 0.1, uWaterLevel + 0.55, vHeight);
     const dry = smoothstep(0.1, 1.3, vHeight);
     let albedo = mix(grass, grassDry, dry);
     // Steep faces show rock whatever their height — that is what reads as a

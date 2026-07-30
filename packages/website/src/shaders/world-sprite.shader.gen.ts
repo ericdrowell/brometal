@@ -37,7 +37,7 @@ void main() {
   if (texel.w * vTint.w < uCutoff) {
     discard;
   }
-  vec3 lit = vec3(texel.x, texel.y, texel.z) * vec3(vTint.x, vTint.y, vTint.z);
+  vec3 lit = texel.xyz * vTint.xyz;
   fragColor = vec4(lit, vDepth);
 }
 `,
@@ -82,7 +82,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   if (texel.w * bm_in.vTint.w < bm_u.uCutoff) {
     discard;
   }
-  let lit = vec3f(texel.x, texel.y, texel.z) * vec3f(bm_in.vTint.x, bm_in.vTint.y, bm_in.vTint.z);
+  let lit = texel.xyz * bm_in.vTint.xyz;
   return vec4f(lit, bm_in.vDepth);
 }
 `,
