@@ -4,6 +4,17 @@
  * Deliberately plain: rectangles joined by L-shaped corridors, walls stamped
  * wherever a floor cell borders solid rock. The interesting part of the demo is
  * how the sprites are *drawn*, not the generator.
+ *
+ * The output is shaped for a GPU that reads the level itself. Instead of a list
+ * of cell objects the demo has to walk every frame, the grid is two parallel
+ * byte arrays that go straight into an RGBA8 data texture, and everything else
+ * (props, torches, patrols) is a grid coordinate — so the whole level uploads
+ * once and the vertex shader looks up its own cell from then on.
+ *
+ * The generator stays on the CPU. It is a global, sequential algorithm — each
+ * room tested against all previous, each corridor joining consecutive centres —
+ * so it is not a function of position, and `walkable()` is gameplay: with no
+ * GPU-to-CPU readback, the answer has to exist here regardless.
  */
 
 /** Tile indices in public/sprites/tiny-dungeon.png (12 x 11 grid of 16px tiles). */
@@ -25,26 +36,45 @@ export const DUNGEON_TILES = {
   imp: 110,
 } as const;
 
-export interface DungeonCell {
-  x: number;
-  y: number;
-  tile: number;
-  wall: boolean;
-}
+/** What stands in a grid slot. Matches the `kind` byte the shader decodes. */
+export const CELL = { empty: 0, floor: 1, wall: 2 } as const;
 
+/** A prop's grid column and row, not its world centre — the shader adds the half. */
 export interface DungeonProp {
   x: number;
   y: number;
   tile: number;
 }
 
+/**
+ * A monster's patrol loop as a rectangle. The CPU used to walk four waypoints
+ * and integrate toward the next one; the shader evaluates the perimeter as a
+ * closed form of time, which needs no state and so needs no upload.
+ */
+export interface PatrolRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
 export interface Dungeon {
   width: number;
   height: number;
-  cells: DungeonCell[];
+  /** One byte per grid slot, row-major: a `CELL` value. */
+  kinds: Uint8Array;
+  /** Atlas tile index per grid slot, row-major. Zero where `kinds` is empty. */
+  tiles: Uint8Array;
+  /**
+   * Slots that actually contain something. The demo compacts to exactly this
+   * many terrain instances at load, so nothing degenerate is ever submitted.
+   */
+  filled: number;
   props: DungeonProp[];
+  /** Torch grid cells. Both coordinates fit a byte on a 46 x 34 map. */
   torches: [number, number][];
-  patrols: [number, number][][];
+  patrols: PatrolRect[];
+  /** Hero start, in world units. */
   spawn: [number, number];
   /** True where an actor may stand. Takes world coordinates. */
   walkable(x: number, y: number): boolean;
@@ -113,18 +143,20 @@ export function buildDungeon(): Dungeon {
   }
 
   // Walls wherever a solid cell touches floor — one ring around everything.
-  const cells: DungeonCell[] = [];
+  // The result is two byte arrays rather than a cell list, because its only
+  // consumer is an RGBA8 texture the shader reads per instance.
+  const kinds = new Uint8Array(WIDTH * HEIGHT);
+  const tiles = new Uint8Array(WIDTH * HEIGHT);
+  let filled = 0;
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < WIDTH; x++) {
-      if (floor[at(x, y)] === true) {
+      const slot = at(x, y);
+      if (floor[slot] === true) {
         const worn = random() > 0.86;
         const pool = worn ? DUNGEON_TILES.floorWorn : DUNGEON_TILES.floor;
-        cells.push({
-          x: x + 0.5,
-          y: y + 0.5,
-          tile: pool[Math.floor(random() * pool.length)]!,
-          wall: false,
-        });
+        kinds[slot] = CELL.floor;
+        tiles[slot] = pool[Math.floor(random() * pool.length)]!;
+        filled++;
         continue;
       }
       let touchesFloor = false;
@@ -137,12 +169,9 @@ export function buildDungeon(): Dungeon {
         }
       }
       if (touchesFloor) {
-        cells.push({
-          x: x + 0.5,
-          y: y + 0.5,
-          tile: DUNGEON_TILES.wall[Math.floor(random() * DUNGEON_TILES.wall.length)]!,
-          wall: true,
-        });
+        kinds[slot] = CELL.wall;
+        tiles[slot] = DUNGEON_TILES.wall[Math.floor(random() * DUNGEON_TILES.wall.length)]!;
+        filled++;
       }
     }
   }
@@ -161,22 +190,22 @@ export function buildDungeon(): Dungeon {
     const count = 1 + Math.floor(random() * 3);
     for (let i = 0; i < count; i++) {
       props.push({
-        x: room.x + 1 + Math.floor(random() * Math.max(room.w - 2, 1)) + 0.5,
-        y: room.y + 1 + Math.floor(random() * Math.max(room.h - 2, 1)) + 0.5,
+        x: room.x + 1 + Math.floor(random() * Math.max(room.w - 2, 1)),
+        y: room.y + 1 + Math.floor(random() * Math.max(room.h - 2, 1)),
         tile: propTiles[Math.floor(random() * propTiles.length)]!,
       });
     }
     // Torch on the room's top wall, which is the ring just outside the floor.
-    torches.push([room.x + Math.floor(room.w / 2) + 0.5, room.y + room.h + 0.5]);
+    torches.push([room.x + Math.floor(room.w / 2), room.y + room.h]);
   }
 
   // Patrols: a loop around the inside of each room after the first.
-  const patrols: [number, number][][] = rooms.slice(1).map((room) => [
-    [room.x + 1.5, room.y + 1.5],
-    [room.x + room.w - 1.5, room.y + 1.5],
-    [room.x + room.w - 1.5, room.y + room.h - 1.5],
-    [room.x + 1.5, room.y + room.h - 1.5],
-  ]);
+  const patrols: PatrolRect[] = rooms.slice(1).map((room) => ({
+    x0: room.x + 1.5,
+    y0: room.y + 1.5,
+    x1: room.x + room.w - 1.5,
+    y1: room.y + room.h - 1.5,
+  }));
 
   const first = rooms[0] ?? { x: 2, y: 2, w: 4, h: 4 };
   const spawn: [number, number] = [first.x + first.w / 2, first.y + first.h / 2];
@@ -184,7 +213,9 @@ export function buildDungeon(): Dungeon {
   return {
     width: WIDTH,
     height: HEIGHT,
-    cells,
+    kinds,
+    tiles,
+    filled,
     props,
     torches,
     patrols,

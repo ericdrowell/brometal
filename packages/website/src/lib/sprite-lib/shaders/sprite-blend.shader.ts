@@ -10,7 +10,14 @@ import { shader, texture, vec4 } from 'brometal';
  * caller has to sort them back-to-front on the CPU every frame, and sprites
  * that intersect still resolve per-sprite instead of per-pixel.
  *
- * Kept alongside the cut-out shader so the two demos differ only in technique.
+ * Kept alongside the cut-out shader so the two demos differ only in technique,
+ * and the pair is meant to be read as a diff. The vertex stages of the two
+ * files are identical text, down to the comments; everything that differs is
+ * the fragment stage — the `discard()` test and the alpha channel of the return
+ * — plus the `uCutoff` uniform that test needs and the `discard` import. Keep
+ * it that way. SpriteCompareDemo's header records which otherwise-good
+ * optimisations that invariant rules out, and the arithmetic behind refusing
+ * them; it lives there so this file stays short enough to diff by eye.
  */
 export default shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
@@ -32,6 +39,8 @@ export default shader({
     const world = iCenter
       .add(uRight.scale(aPosition.x * iSize.x))
       .add(uUp.scale(aPosition.y * iSize.y));
+    // xy = atlas origin, zw = atlas extent. A negative iSize.x mirrors the quad
+    // without touching the UVs, which is how flipX costs nothing.
     v.vUv = iUvRect.xy.add(aUv.mul(iUvRect.zw));
     v.vTint = iTint;
     return uViewProj.mul(vec4(world, 1));

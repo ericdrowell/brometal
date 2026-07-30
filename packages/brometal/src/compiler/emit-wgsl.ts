@@ -238,9 +238,10 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
       : `textureSampleLevel(${sampler.name}, ${sampler.name}_sampler, ${uv}, 0.0)`;
   }
 
-  if (expr.callee === 'clamp' && args[0]!.type !== 'float') {
+  if (expr.callee === 'clamp' && args[0]!.type !== 'float' && args[1]!.type === 'float') {
     // GLSL allows clamp(vec, float, float); WGSL requires matching types —
-    // splat the scalar bounds into vectors.
+    // splat the scalar bounds into vectors. Bounds that are already vectors need
+    // no splat, and wrapping them would emit vec3f(vec3f(...)).
     const ctor = WGSL_TYPES[args[0]!.type];
     const x = emitExpr(args[0]!, ctx, 0);
     const lo = emitExpr(args[1]!, ctx, 0);

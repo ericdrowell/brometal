@@ -9,43 +9,39 @@ import {
   type BroMetalProgram,
   type RendererBackend,
 } from 'brometal';
-import cutoutShader from '@/lib/sprite-lib/shaders/sprite-cutout.shader.gen';
-import {
-  AXIS_RIGHT,
-  AXIS_UP,
-  LAYER,
-  QUAD_INDICES,
-  QUAD_POSITIONS,
-  QUAD_UVS,
-  SpriteBatch,
-  ortho2d,
-  spriteAtlas,
-} from '@/lib/sprite-lib/sprites';
-import { buildDungeon, DUNGEON_TILES, type Dungeon } from '@/lib/sprite-lib/dungeon';
+import dungeonShader from '@/lib/sprite-lib/shaders/topdown-dungeon.shader.gen';
+import { LAYER, QUAD_INDICES, QUAD_POSITIONS, QUAD_UVS, ortho2d } from '@/lib/sprite-lib/sprites';
+import { createDataTexture, quantizeDistance } from '@/lib/sprite-lib/data-texture';
+import { buildDungeon, CELL, DUNGEON_TILES, type Dungeon } from '@/lib/sprite-lib/dungeon';
 import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import DemoCredit from '@/lib/sprite-lib/DemoCredit';
 
-type CutoutProgram = BroMetalProgram<
-  (typeof cutoutShader)['attributes'],
-  (typeof cutoutShader)['instanceAttributes'],
-  (typeof cutoutShader)['uniforms']
+type DungeonProgram = BroMetalProgram<
+  (typeof dungeonShader)['attributes'],
+  (typeof dungeonShader)['instanceAttributes'],
+  (typeof dungeonShader)['uniforms']
 >;
 
 /** World units of map height on screen. */
 const VIEW_HEIGHT = 17;
 const HERO_SPEED = 4.6;
+/** Where a torch's pool of light reaches zero, in world units. */
+const LIGHT_RANGE = 4.25;
 
-interface Actor {
-  x: number;
-  y: number;
-  tile: number;
-  /** Patrol waypoints, walked in a loop. */
-  path: readonly [number, number][];
-  leg: number;
-  speed: number;
-  flip: boolean;
-}
+/**
+ * Which arm of the vertex shader's weight vector an instance belongs to. The
+ * lane meanings behind each role are documented in topdown-dungeon.shader.ts.
+ */
+const ROLE = { terrain: 0, prop: 1, flame: 2, monster: 3, hero: 4 } as const;
+
+/**
+ * Atlas geometry. The shader derives every UV rect itself now, so this is the
+ * only atlas data the CPU still owns — `spriteAtlas()` in sprites.ts holds the
+ * canonical version of the same arithmetic, including why the inset is half a
+ * texel and not half a tile, and `atlasRect()` in the shader is its GPU twin.
+ */
+const ATLAS = { cols: 12, rows: 11, tileWidth: 16, tileHeight: 16 } as const;
 
 /**
  * Top-down 2D on an orthographic camera.
@@ -55,12 +51,21 @@ interface Actor {
  * depth: layering is a Z value per sprite rather than a submission order, and
  * the actors get classic y-sorting (things lower on screen overlap things above)
  * from `LAYER.actor` plus a tiny depth nudge derived from their Y. No CPU sort.
+ * `LAYER` is handed to the shader as `uLayers` so the table has only one home.
+ *
+ * The instance buffer is built once and never uploaded again. A tilemap is
+ * static data, so it belongs in a texture the vertex shader reads, not in
+ * attributes the CPU rebuilds sixty times a second: the level is a 46 x 34 byte
+ * image, the torchlight over it is a second 46 x 34 byte image baked at load,
+ * monster patrols are a closed form of time, and the hero — the one thing the app
+ * genuinely has to know, because it drives the camera and collides with walls —
+ * is four floats of uniform.
  */
 export default function SpriteTopdownDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
-  const [sprites, setSprites] = useState(0);
+  const [scene, setScene] = useState({ cells: 0, sprites: 0, bytes: 0 });
   const keysRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -96,31 +101,123 @@ export default function SpriteTopdownDemo() {
         renderer.destroy();
         return;
       }
-      const atlas = spriteAtlas(atlasTexture, { cols: 12, rows: 11, tileWidth: 16, tileHeight: 16 });
 
-      const program: CutoutProgram = createProgram(renderer, cutoutShader, {
+      const program: DungeonProgram = createProgram(renderer, dungeonShader, {
         blend: 'alpha',
         depthWrite: true,
       });
       program.attributes.aPosition.set(QUAD_POSITIONS);
       program.attributes.aUv.set(QUAD_UVS);
       program.setIndices(QUAD_INDICES);
-      program.uniforms.uCutoff.set(0.5);
 
       const dungeon: Dungeon = buildDungeon();
-      const batch = new SpriteBatch(atlas, 4096);
+
+      // --- the level, as two textures uploaded once ---
+
+      // R = kind (1 floor, 2 wall), G = the atlas tile: two bytes per cell, and
+      // the whole tilemap. The vertex shader looks up its own cell, so a terrain
+      // instance never has to be told what it is.
+      const map = createDataTexture(renderer, dungeon.width, dungeon.height, (x, y) => {
+        const slot = y * dungeon.width + x;
+        return { r: dungeon.kinds[slot], g: dungeon.tiles[slot], a: 255 };
+      });
+
+      // Torchlight, baked. The field is a function of position and nothing else —
+      // the flicker is the only part that moves — so summing it per vertex per
+      // frame was paying forever for an answer that never changes. Nine torches
+      // in nine separate rooms barely overlap (measured: 757 of 767 occupied
+      // cells see exactly one pool, and the widest overlap is worth 0.25 of a
+      // falloff), so one byte of distance to the NEAREST torch plus one byte
+      // naming it is the whole field.
+      const light = createDataTexture(renderer, dungeon.width, dungeon.height, (x, y) => {
+        let nearest = 0;
+        let best = Infinity;
+        for (let i = 0; i < dungeon.torches.length; i++) {
+          const torch = dungeon.torches[i]!;
+          // Cell centres on both sides, so the two halves cancel.
+          const distance = Math.hypot(x - torch[0], y - torch[1]);
+          if (distance < best) {
+            best = distance;
+            nearest = i;
+          }
+        }
+        // Normalised to LIGHT_RANGE, so the shader needs neither the torch
+        // positions nor the radius — just a 0..1 distance to square.
+        return { r: quantizeDistance(best, LIGHT_RANGE), g: nearest, a: 255 };
+      });
+
+      // --- the instance buffer, built once ---
+
+      // Only cells that hold something get an instance. Compacting a list that
+      // never changes costs one pass over a byte array at load; the alternative
+      // — uploading all 1,564 grid slots and letting the 797 empty ones push
+      // themselves out of the clip volume — would have run the whole vertex stage
+      // for those 797 every frame, because clipping happens *after* the vertex
+      // shader. Self-culling is for visibility that changes; this level's never
+      // does.
+      const sprites =
+        dungeon.filled + dungeon.props.length + dungeon.torches.length + dungeon.patrols.length + 1;
+      const slotData = new Float32Array(sprites * 4);
+      const rectData = new Float32Array(sprites * 4);
+      let next = 0;
+      /** Writes one instance's iSlot lanes and returns the instance index. */
+      const push = (x: number, y: number, role: number, tile: number): number => {
+        const i = next++;
+        slotData[i * 4] = x;
+        slotData[i * 4 + 1] = y;
+        slotData[i * 4 + 2] = role;
+        slotData[i * 4 + 3] = tile;
+        return i;
+      };
+
+      for (let y = 0; y < dungeon.height; y++) {
+        for (let x = 0; x < dungeon.width; x++) {
+          // The tile lane stays zero: terrain reads its tile out of the map
+          // texture, so a terrain instance carries only its own grid coordinate.
+          if (dungeon.kinds[y * dungeon.width + x] !== CELL.empty) push(x, y, ROLE.terrain, 0);
+        }
+      }
+      for (const prop of dungeon.props) push(prop.x, prop.y, ROLE.prop, prop.tile);
+      for (const torch of dungeon.torches) push(torch[0], torch[1], ROLE.flame, DUNGEON_TILES.torch);
+      dungeon.patrols.forEach((patrol, i) => {
+        // iSlot.x carries the patrol speed for this role, not a grid column.
+        const speed = 1.5 + (i % 3) * 0.45;
+        const at = push(speed, 0, ROLE.monster, MONSTERS[i % MONSTERS.length]!);
+        rectData[at * 4] = patrol.x0;
+        rectData[at * 4 + 1] = patrol.y0;
+        rectData[at * 4 + 2] = patrol.x1;
+        rectData[at * 4 + 3] = patrol.y1;
+      });
+      push(0, 0, ROLE.hero, DUNGEON_TILES.hero);
+
+      program.instanceAttributes.iSlot.set(slotData);
+      program.instanceAttributes.iRect.set(rectData);
+
+      // Samplers and constants are set once, outside the loop. Re-setting a
+      // sampler every frame invalidates the cached WebGPU bind group and forces
+      // a fresh allocation for no reason.
+      program.uniforms.uAtlas.set(atlasTexture);
+      program.uniforms.uMap.set(map.texture);
+      program.uniforms.uMapSize.set(map.size);
+      program.uniforms.uLight.set(light.texture);
+      program.uniforms.uAtlasGrid.set([ATLAS.cols, ATLAS.rows]);
+      program.uniforms.uAtlasInset.set([
+        0.5 / (ATLAS.cols * ATLAS.tileWidth),
+        0.5 / (ATLAS.rows * ATLAS.tileHeight),
+      ]);
+      program.uniforms.uLayers.set([LAYER.floor, LAYER.decor, LAYER.item, LAYER.actor]);
+      program.uniforms.uCutoff.set(0.5);
+
+      setScene({
+        cells: dungeon.width * dungeon.height,
+        sprites,
+        // Everything the GPU is ever told about this level, in bytes.
+        bytes: slotData.byteLength + rectData.byteLength + map.width * map.height * 8,
+      });
 
       const hero = { x: dungeon.spawn[0], y: dungeon.spawn[1] };
-      const monsters: Actor[] = dungeon.patrols.map((patrol, index) => ({
-        x: patrol[0]![0],
-        y: patrol[0]![1],
-        tile: MONSTERS[index % MONSTERS.length]!,
-        path: patrol,
-        leg: 0,
-        speed: 1.5 + (index % 3) * 0.45,
-        flip: false,
-      }));
-
+      // (x, y, facing, walking) — reused so the loop allocates nothing.
+      const heroUniform = new Float32Array([hero.x, hero.y, 1, 0]);
       const viewProj = mat4.scratch();
       let last = 0;
 
@@ -130,6 +227,10 @@ export default function SpriteTopdownDemo() {
         last = t;
 
         // --- hero movement, blocked by walls ---
+        //
+        // This is the one piece that cannot leave the CPU. There is no readback,
+        // and the camera, the wall test and any future interaction all need the
+        // answer here — so the hero is integrated in JS and shipped as a uniform.
         const keys = keysRef.current;
         let dx = 0;
         let dy = 0;
@@ -144,23 +245,10 @@ export default function SpriteTopdownDemo() {
           if (dungeon.walkable(hero.x + stepX, hero.y)) hero.x += stepX;
           if (dungeon.walkable(hero.x, hero.y + stepY)) hero.y += stepY;
         }
-        const heroMoving = dx !== 0 || dy !== 0;
-        const heroFlip = dx < 0;
-
-        // --- monsters walk their patrol loops ---
-        for (const monster of monsters) {
-          const goal = monster.path[monster.leg]!;
-          const toX = goal[0] - monster.x;
-          const toY = goal[1] - monster.y;
-          const distance = Math.hypot(toX, toY);
-          if (distance < 0.08) {
-            monster.leg = (monster.leg + 1) % monster.path.length;
-          } else {
-            monster.x += (toX / distance) * monster.speed * dt;
-            monster.y += (toY / distance) * monster.speed * dt;
-            monster.flip = toX < 0;
-          }
-        }
+        heroUniform[0] = hero.x;
+        heroUniform[1] = hero.y;
+        heroUniform[2] = dx < 0 ? -1 : 1;
+        heroUniform[3] = dx !== 0 || dy !== 0 ? 1 : 0;
 
         // --- camera follows the hero, clamped to the map ---
         const halfHeight = VIEW_HEIGHT / 2;
@@ -169,109 +257,20 @@ export default function SpriteTopdownDemo() {
         const camY = clamp(hero.y, halfHeight, dungeon.height - halfHeight);
         ortho2d(camX, camY, VIEW_HEIGHT, renderer.aspect, viewProj);
 
-        // --- build the frame's sprite list ---
-        batch.clear();
-
-        // Torches flicker, and the floor near one picks up the warmth. Tinting
-        // is per instance, so "lighting" here costs nothing but a multiply.
-        const flicker = dungeon.torches.map(
-          (_, i) => 0.78 + 0.22 * Math.sin(t * (7 + i * 1.7) + i * 2.1) * Math.sin(t * 3.1 + i),
-        );
-
-        for (const cell of dungeon.cells) {
-          let r = 0.3;
-          let g = 0.29;
-          let b = 0.4;
-          for (let i = 0; i < dungeon.torches.length; i++) {
-            const torch = dungeon.torches[i]!;
-            const d2 = (cell.x - torch[0]) ** 2 + (cell.y - torch[1]) ** 2;
-            // Quadratic falloff over ~4 tiles, squared again so the pool has a
-            // soft edge instead of a hard disc.
-            const fall = Math.max(0, 1 - d2 / 18) ** 2 * flicker[i]!;
-            r += fall * 0.85;
-            g += fall * 0.5;
-            b += fall * 0.2;
-          }
-          batch.push({
-            x: cell.x,
-            y: cell.y,
-            z: cell.wall ? LAYER.decor : LAYER.floor,
-            width: 1,
-            height: 1,
-            tile: cell.tile,
-            tint: [Math.min(r, 1.15), Math.min(g, 1.05), Math.min(b, 1)],
-          });
-        }
-
-        for (const prop of dungeon.props) {
-          batch.push({
-            x: prop.x,
-            y: prop.y,
-            z: LAYER.item,
-            width: 1,
-            height: 1,
-            tile: prop.tile,
-            tint: [0.95, 0.92, 0.88],
-          });
-        }
-
-        for (let i = 0; i < dungeon.torches.length; i++) {
-          const torch = dungeon.torches[i]!;
-          const f = flicker[i]!;
-          batch.push({
-            x: torch[0],
-            y: torch[1],
-            z: LAYER.decor + 0.01,
-            width: 1,
-            height: 1,
-            tile: DUNGEON_TILES.torch,
-            tint: [1, 0.85 + f * 0.15, 0.6 + f * 0.2],
-          });
-        }
-
-        for (const monster of monsters) {
-          batch.push({
-            x: monster.x,
-            y: monster.y + Math.abs(Math.sin(t * 6 + monster.x)) * 0.09,
-            z: depthForY(monster.y, dungeon.height),
-            width: 1,
-            height: 1,
-            tile: monster.tile,
-            flipX: monster.flip,
-            tint: [0.95, 0.95, 1],
-          });
-        }
-
-        batch.push({
-          x: hero.x,
-          // A bob while walking is the whole animation — Tiny Dungeon has one
-          // frame per character, so motion has to come from the transform.
-          y: hero.y + (heroMoving ? Math.abs(Math.sin(t * 11)) * 0.12 : 0),
-          z: depthForY(hero.y, dungeon.height),
-          width: 1,
-          height: 1,
-          tile: DUNGEON_TILES.hero,
-          flipX: heroFlip,
-        });
-
+        // 84 bytes of payload: a camera, a clock and a hero. Torch flicker,
+        // monster patrols, atlas rects, tile choice and lighting are all derived
+        // in the vertex shader from data that never moves again.
         program.uniforms.uViewProj.set(viewProj);
-        program.uniforms.uRight.set(AXIS_RIGHT);
-        program.uniforms.uUp.set(AXIS_UP);
-        program.uniforms.uAtlas.set(atlasTexture);
-        program.instanceAttributes.iCenter.set(batch.centers);
-        program.instanceAttributes.iSize.set(batch.sizes);
-        program.instanceAttributes.iUvRect.set(batch.uvRects);
-        program.instanceAttributes.iTint.set(batch.tints);
-        program.draw({ instanceCount: batch.count });
-
-        if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) {
-          setSprites(batch.count);
-        }
+        program.uniforms.uTime.set(t);
+        program.uniforms.uHero.set(heroUniform);
+        program.draw({ instanceCount: sprites });
       });
 
       cleanup = () => {
         stop();
         program.dispose();
+        light.texture.dispose();
+        map.texture.dispose();
         atlasTexture.dispose();
         renderer.destroy();
       };
@@ -302,13 +301,33 @@ export default function SpriteTopdownDemo() {
             value, so a monster below the hero overlaps him with no CPU sort anywhere.
           </p>
           <p>
-            Torchlight is a per-instance tint: distance falloff summed on the CPU into the{' '}
-            <code>iTint</code> attribute. There is no lighting pass.
+            The map <em>is</em> a texture: {scene.cells.toLocaleString()} cells of &ldquo;what stands
+            here, which tile&rdquo;, two bytes each, read per instance in the vertex shader — so a
+            floor tile&rsquo;s instance carries nothing but its own grid coordinate. Torchlight is a
+            second byte image baked at load —
+            distance to the nearest torch, and which torch — so a sprite costs one texture fetch to
+            light instead of a loop over every lamp in the level. That is not fewer arithmetic
+            operations than the CPU pass it replaced; flicker is still a sine per sprite per frame.
+            What it buys is that no lighting result crosses the bus and no JavaScript ever walks the
+            level again. Monster patrols are a closed form of the clock, and the atlas rect of a tile
+            index is derived in the shader rather than uploaded.
+          </p>
+          <p>
+            The instance buffer is uploaded <strong>once</strong>:{' '}
+            {scene.sprites.toLocaleString()} sprites,{' '}
+            {Math.round(scene.bytes / 1024).toLocaleString()} KiB of it, and then nothing. Per frame
+            the bus carries 84 bytes of payload — a view-projection, a clock, and the hero&rsquo;s
+            position, the one thing that has to stay on the CPU because it drives the camera and the
+            wall test and nothing can be read back off the GPU. WebGPU rewrites its whole 128-byte
+            uniform block to deliver those 84. The same scene rebuilt into a sprite batch every frame
+            is {scene.sprites.toLocaleString()} instances × 13 floats, about 41 KiB a frame forever,
+            for a level that never changes.
           </p>
         </div>
       </div>
       <DemoStats stats={stats}>
-        {sprites} sprites · 1 draw call · depth-layered, no sort
+        {scene.sprites.toLocaleString()} sprites · 1 draw call · 84 B of uniform payload per frame
+        (128 B of block on WebGPU), 0 B of geometry
         <br />
         <DemoCredit />
         <br />
@@ -339,12 +358,4 @@ const MONSTERS = [
 
 function clamp(value: number, low: number, high: number): number {
   return high < low ? (low + high) / 2 : Math.min(Math.max(value, low), high);
-}
-
-/**
- * Actors share one layer band but are separated inside it by Y, so lower-on-
- * screen draws in front. The band is small enough never to reach the next layer.
- */
-function depthForY(y: number, mapHeight: number): number {
-  return LAYER.actor + (1 - y / mapHeight) * 0.05;
 }

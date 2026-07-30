@@ -10,6 +10,11 @@ import { shader, discard, texture, vec4 } from 'brometal';
  * Every surviving fragment is fully opaque, so the program can write depth and
  * the GPU sorts the sprites — no CPU sort, and sprites that intersect each
  * other or the 3D world resolve per pixel.
+ *
+ * The vertex stage below is identical text to sprite-blend's, deliberately: the
+ * pair is read as a diff, so the difference between the files should stay
+ * confined to the fragment stage plus what it needs (`uCutoff`, `discard`). See
+ * the note in that file.
  */
 export default shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },

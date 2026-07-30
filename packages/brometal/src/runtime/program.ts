@@ -56,6 +56,15 @@ export interface DrawOptions {
   vertexCount?: number;
   /** First vertex/index to draw. Default 0. */
   first?: number;
+  /**
+   * First instance to draw. Default 0.
+   *
+   * This is what lets one instance buffer hold a static prefix and a dynamic
+   * suffix and still draw them as separate calls with different uniforms —
+   * otherwise the split needs two buffers, and the static half gets re-uploaded
+   * whenever the dynamic half changes size.
+   */
+  firstInstance?: number;
 }
 
 export interface UniformHandle<T extends GpuType> {
@@ -225,12 +234,34 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
           'no instance data — call program.instanceAttributes.<name>.set(...) before draw()',
           'instances',
         );
+        const firstInstance = drawOptions.firstInstance ?? 0;
         const instanceCount = clampDrawCount(
           drawOptions.instanceCount,
-          uploadedInstances,
+          uploadedInstances - firstInstance,
           'instanceCount',
         );
         if (instanceCount === 0) return;
+        // WebGL2 has no baseInstance parameter, so the offset is applied by
+        // re-pointing the instance attributes at the right element instead. The
+        // VAO keeps the offset until something else re-points it, which the next
+        // set() or a differently-offset draw both do.
+        if (firstInstance !== 0) {
+          bindVaoCached(gl, vao);
+          for (const entry of compiled.layout.attributes) {
+            if (entry.divisor !== 1) continue;
+            const state = instanceStates.get(entry.name);
+            if (state === undefined) continue;
+            gl.bindBuffer(gl.ARRAY_BUFFER, state.buffer);
+            gl.vertexAttribPointer(
+              entry.location,
+              entry.size,
+              gl.FLOAT,
+              false,
+              0,
+              firstInstance * entry.size * 4,
+            );
+          }
+        }
         if (indexState !== null) {
           gl.drawElementsInstanced(
             gl.TRIANGLES,
@@ -241,6 +272,17 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
           );
         } else {
           gl.drawArraysInstanced(gl.TRIANGLES, first, vertexCount, instanceCount);
+        }
+        // Restore the base pointers so an un-offset draw on this program is not
+        // silently shifted by whatever the previous call asked for.
+        if (firstInstance !== 0) {
+          for (const entry of compiled.layout.attributes) {
+            if (entry.divisor !== 1) continue;
+            const state = instanceStates.get(entry.name);
+            if (state === undefined) continue;
+            gl.bindBuffer(gl.ARRAY_BUFFER, state.buffer);
+            gl.vertexAttribPointer(entry.location, entry.size, gl.FLOAT, false, 0, 0);
+          }
         }
       } else if (indexState !== null) {
         gl.drawElements(gl.TRIANGLES, vertexCount, indexState.type, first * indexByteSize(indexState.type));

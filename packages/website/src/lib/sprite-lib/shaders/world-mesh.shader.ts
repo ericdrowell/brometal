@@ -1,27 +1,34 @@
-import { shader, vec3, vec4, normalize, dot, max, length, sin, cos } from 'brometal';
+import { shader, vec3, vec4, normalize, dot, max, length } from 'brometal';
 
 /**
  * Instanced flat-shaded meshes — the trees and rocks. One program per mesh, but
  * one shader for all of them: the geometry carries its own per-vertex colour, so
  * a tree and a boulder differ only in the buffers bound to them.
  *
- * Per instance: a world position, a uniform scale and a yaw, and a tint. Yaw
- * alone (rather than a full matrix) is enough for scenery standing on the ground,
- * and it keeps the instance data at eight floats.
+ * Per instance: a world position, a uniform scale, a yaw and a tint. Yaw alone
+ * (rather than a full matrix) is enough for scenery standing on the ground, and
+ * it keeps the instance data to nine floats.
+ *
+ * The yaw arrives as `iScaleRot = (scale, cos(yaw), sin(yaw))` rather than as an
+ * angle, because a rotation that is constant across an instance would otherwise
+ * be recomputed once per vertex — 261 vertices for a conifer, 408 for a bushy
+ * tree. One extra float per instance, uploaded once at startup, buys back two
+ * transcendentals on all 139,410 scenery vertices every frame. The grass shader
+ * makes the same trade for the same reason and states the arithmetic.
  *
  * Alpha carries camera distance for the depth-of-field pass, as in every world
  * shader here.
  */
 export default shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3', aColor: 'vec3' },
-  instanceAttributes: { iPos: 'vec3', iScaleYaw: 'vec2', iTint: 'vec3' },
+  instanceAttributes: { iPos: 'vec3', iScaleRot: 'vec3', iTint: 'vec3' },
   uniforms: { uViewProj: 'mat4', uCamPos: 'vec3', uLightDir: 'vec3' },
   varyings: { vNormal: 'vec3', vColor: 'vec3', vDepth: 'float' },
 
-  vertex({ aPosition, aNormal, aColor, iPos, iScaleYaw, iTint }, { uViewProj, uCamPos }, v) {
-    const s = iScaleYaw.x;
-    const c = cos(iScaleYaw.y);
-    const sn = sin(iScaleYaw.y);
+  vertex({ aPosition, aNormal, aColor, iPos, iScaleRot, iTint }, { uViewProj, uCamPos }, v) {
+    const s = iScaleRot.x;
+    const c = iScaleRot.y;
+    const sn = iScaleRot.z;
     // Yaw about Y, then uniform scale, then translate.
     const rotated = vec3(
       aPosition.x * c + aPosition.z * sn,

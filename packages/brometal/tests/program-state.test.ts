@@ -35,6 +35,7 @@ function stubRenderer(): { renderer: Renderer; calls: RecordedCall[] } {
     SRC_ALPHA: GL_SRC_ALPHA,
     ONE_MINUS_SRC_ALPHA: GL_ONE_MINUS_SRC_ALPHA,
     ONE: GL_ONE,
+    FLOAT: 0x1406,
     ARRAY_BUFFER: 0x8892,
     ELEMENT_ARRAY_BUFFER: 0x8893,
     STATIC_DRAW: 0x88e4,
@@ -61,7 +62,7 @@ function stubRenderer(): { renderer: Renderer; calls: RecordedCall[] } {
     bindBuffer: () => undefined,
     bufferData: () => undefined,
     enableVertexAttribArray: () => undefined,
-    vertexAttribPointer: () => undefined,
+    vertexAttribPointer: record('vertexAttribPointer'),
     vertexAttribDivisor: () => undefined,
     useProgram: () => undefined,
     enable: record('enable'),
@@ -250,6 +251,33 @@ describe('draw() ranges', () => {
     program.draw({ first: 3, vertexCount: 3 });
     // 3 indices in at 2 bytes each = byte offset 6.
     expect(lastCall(calls, 'drawElements')?.args).toEqual([GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 6]);
+  });
+
+  it('offsets the instance attributes for firstInstance', () => {
+    const { renderer, calls } = stubRenderer();
+    const program = createProgram(renderer, compiled(INSTANCED_SHADER));
+    program.attributes.aPosition!.set(new Float32Array(9));
+    program.instanceAttributes.iOffset!.set(new Float32Array(30)); // 10 instances
+    calls.length = 0;
+    program.draw({ instanceCount: 4, firstInstance: 6 });
+    // WebGL2 has no baseInstance, so the offset is a re-pointed attribute:
+    // instance 6 of a vec3 stream starts at byte 6 * 3 * 4 = 72.
+    const pointers = calls.filter((c) => c.method === 'vertexAttribPointer');
+    expect(pointers[0]?.args).toEqual([1, 3, 0x1406, false, 0, 72]);
+    expect(lastCall(calls, 'drawArraysInstanced')?.args).toEqual([GL_TRIANGLES, 0, 3, 4]);
+    // ...and restored afterwards, so the next un-offset draw is not shifted.
+    expect(pointers[pointers.length - 1]?.args).toEqual([1, 3, 0x1406, false, 0, 0]);
+  });
+
+  it('counts firstInstance against what was uploaded', () => {
+    const { renderer } = stubRenderer();
+    const program = createProgram(renderer, compiled(INSTANCED_SHADER));
+    program.attributes.aPosition!.set(new Float32Array(9));
+    program.instanceAttributes.iOffset!.set(new Float32Array(30)); // 10 instances
+    // 6 + 5 > 10, so this must throw rather than read past the buffer.
+    expect(() => program.draw({ instanceCount: 5, firstInstance: 6 })).toThrow(
+      /instanceCount: 5 \}\) exceeds the 4 uploaded/,
+    );
   });
 
   it('draws every index by default', () => {

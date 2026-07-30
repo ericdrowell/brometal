@@ -21,11 +21,16 @@ float waveHeight(float x, float z, float t) {
 void main() {
   float wave = waveHeight(aPosition.x, aPosition.z, uTime);
   vec3 world = vec3(aPosition.x, uWaterLevel + wave * 0.055, aPosition.z);
+  float bed = uWaterLevel - terrainHeight(aPosition.x, aPosition.z);
   vWorld = world;
   vWave = wave;
-  vBed = uWaterLevel - terrainHeight(aPosition.x, aPosition.z);
+  vBed = bed;
   vDepth = length(world - uCamPos);
-  gl_Position = uViewProj * vec4(world, 1.0);
+  vec4 clip = uViewProj * vec4(world, 1.0);
+  if (bed < -0.5) {
+    clip = vec4(2.0, 2.0, 2.0, 1.0);
+  }
+  gl_Position = clip;
 }
 `,
   fragmentSrc: `#version 300 es
@@ -38,14 +43,16 @@ in float vDepth;
 in float vBed;
 in float vWave;
 out vec4 fragColor;
-float waveHeight(float x, float z, float t) {
-  return sin(x * 0.55 + t * 1.15) * 0.55 + sin(z * 0.42 - t * 0.85) * 0.3 + sin((x + z) * 0.9 + t * 1.9) * 0.15;
+vec3 waveNormal(float x, float z, float t) {
+  float cosA = cos(x * 0.55 + t * 1.15);
+  float cosB = cos(z * 0.42 - t * 0.85);
+  float cosC = cos((x + z) * 0.9 + t * 1.9);
+  float gx = 0.55 * 0.55 * cosA + 0.15 * 0.9 * cosC;
+  float gz = 0.3 * 0.42 * cosB + 0.15 * 0.9 * cosC;
+  return normalize(vec3(-gx * 0.154, 1.0, -gz * 0.154));
 }
 void main() {
-  float e = 0.35;
-  float dx = waveHeight(vWorld.x + e, vWorld.z, uTime) - waveHeight(vWorld.x - e, vWorld.z, uTime);
-  float dz = waveHeight(vWorld.x, vWorld.z + e, uTime) - waveHeight(vWorld.x, vWorld.z - e, uTime);
-  vec3 normal = normalize(vec3(-dx * 0.22, 1.0, -dz * 0.22));
+  vec3 normal = waveNormal(vWorld.x, vWorld.z, uTime);
   vec3 shallow = vec3(0.42, 0.75, 0.72);
   vec3 deep = vec3(0.07, 0.24, 0.42);
   vec3 body = mix(shallow, deep, smoothstep(0.05, 2.6, vBed));
@@ -86,25 +93,35 @@ fn terrainHeight(x : f32, z : f32) -> f32 {
 fn waveHeight(x : f32, z : f32, t : f32) -> f32 {
   return sin(x * 0.55 + t * 1.15) * 0.55 + sin(z * 0.42 - t * 0.85) * 0.3 + sin((x + z) * 0.9 + t * 1.9) * 0.15;
 }
+fn waveNormal(x : f32, z : f32, t : f32) -> vec3f {
+  let cosA = cos(x * 0.55 + t * 1.15);
+  let cosB = cos(z * 0.42 - t * 0.85);
+  let cosC = cos((x + z) * 0.9 + t * 1.9);
+  let gx = 0.55 * 0.55 * cosA + 0.15 * 0.9 * cosC;
+  let gz = 0.3 * 0.42 * cosB + 0.15 * 0.9 * cosC;
+  return normalize(vec3f(-gx * 0.154, 1.0, -gz * 0.154));
+}
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
   let wave = waveHeight(bm_in.aPosition.x, bm_in.aPosition.z, bm_u.uTime);
   let world = vec3f(bm_in.aPosition.x, bm_u.uWaterLevel + wave * 0.055, bm_in.aPosition.z);
+  let bed = bm_u.uWaterLevel - terrainHeight(bm_in.aPosition.x, bm_in.aPosition.z);
   bm_out.vWorld = world;
   bm_out.vWave = wave;
-  bm_out.vBed = bm_u.uWaterLevel - terrainHeight(bm_in.aPosition.x, bm_in.aPosition.z);
+  bm_out.vBed = bed;
   bm_out.vDepth = length(world - bm_u.uCamPos);
-  bm_out.bm_position = bm_u.uViewProj * vec4f(world, 1.0);
+  var clip = bm_u.uViewProj * vec4f(world, 1.0);
+  if (bed < -0.5) {
+    clip = vec4f(2.0, 2.0, 2.0, 1.0);
+  }
+  bm_out.bm_position = clip;
   bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;
   return bm_out;
 }
 @fragment
 fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
-  let e = 0.35;
-  let dx = waveHeight(bm_in.vWorld.x + e, bm_in.vWorld.z, bm_u.uTime) - waveHeight(bm_in.vWorld.x - e, bm_in.vWorld.z, bm_u.uTime);
-  let dz = waveHeight(bm_in.vWorld.x, bm_in.vWorld.z + e, bm_u.uTime) - waveHeight(bm_in.vWorld.x, bm_in.vWorld.z - e, bm_u.uTime);
-  let normal = normalize(vec3f(-dx * 0.22, 1.0, -dz * 0.22));
+  let normal = waveNormal(bm_in.vWorld.x, bm_in.vWorld.z, bm_u.uTime);
   let shallow = vec3f(0.42, 0.75, 0.72);
   let deep = vec3f(0.07, 0.24, 0.42);
   let body = mix(shallow, deep, smoothstep(0.05, 2.6, bm_in.vBed));

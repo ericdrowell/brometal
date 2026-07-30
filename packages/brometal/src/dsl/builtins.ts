@@ -92,12 +92,14 @@ export function cross(): Vec3 {
 }
 
 export function mix(a: number, b: number, t: number): number;
+export function mix<T extends Vec2 | Vec3 | Vec4>(a: T, b: T, t: T): T;
 export function mix<T extends Vec2 | Vec3 | Vec4>(a: T, b: T, t: number): T;
 export function mix(): never {
   return gpuOnly('mix');
 }
 
 export function clamp(x: number, min: number, max: number): number;
+export function clamp<T extends Vec2 | Vec3 | Vec4>(x: T, min: T, max: T): T;
 export function clamp<T extends Vec2 | Vec3 | Vec4>(x: T, min: number, max: number): T;
 export function clamp(): never {
   return gpuOnly('clamp');
@@ -109,92 +111,110 @@ export function length(): number {
 }
 
 export function sin(x: number): number;
+export function sin<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function sin(): number {
   return gpuOnly('sin');
 }
 
 export function cos(x: number): number;
+export function cos<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function cos(): number {
   return gpuOnly('cos');
 }
 
 export function abs(x: number): number;
+export function abs<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function abs(): number {
   return gpuOnly('abs');
 }
 
 export function fract(x: number): number;
+export function fract<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function fract(): number {
   return gpuOnly('fract');
 }
 
 export function floor(x: number): number;
+export function floor<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function floor(): number {
   return gpuOnly('floor');
 }
 
 export function sqrt(x: number): number;
+export function sqrt<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function sqrt(): number {
   return gpuOnly('sqrt');
 }
 
 export function pow(base: number, exponent: number): number;
+export function pow<T extends Vec2 | Vec3 | Vec4>(base: T, exponent: T): T;
 export function pow(): number {
   return gpuOnly('pow');
 }
 
 export function tan(x: number): number;
+export function tan<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function tan(): number {
   return gpuOnly('tan');
 }
 
 export function asin(x: number): number;
+export function asin<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function asin(): number {
   return gpuOnly('asin');
 }
 
 export function acos(x: number): number;
+export function acos<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function acos(): number {
   return gpuOnly('acos');
 }
 
 export function atan(y: number, x: number): number;
 export function atan(x: number): number;
+export function atan<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function atan(): number {
   return gpuOnly('atan');
 }
 
 export function exp(x: number): number;
+export function exp<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function exp(): number {
   return gpuOnly('exp');
 }
 
 export function exp2(x: number): number;
+export function exp2<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function exp2(): number {
   return gpuOnly('exp2');
 }
 
 export function log(x: number): number;
+export function log<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function log(): number {
   return gpuOnly('log');
 }
 
 export function sign(x: number): number;
+export function sign<T extends Vec2 | Vec3 | Vec4>(x: T): T;
 export function sign(): number {
   return gpuOnly('sign');
 }
 
 export function mod(a: number, b: number): number;
+export function mod<T extends Vec2 | Vec3 | Vec4>(a: T, b: T): T;
 export function mod(): number {
   return gpuOnly('mod');
 }
 
 export function step(edge: number, x: number): number;
+export function step<T extends Vec2 | Vec3 | Vec4>(edge: T, x: T): T;
 export function step(): number {
   return gpuOnly('step');
 }
 
 export function smoothstep(edge0: number, edge1: number, x: number): number;
+export function smoothstep<T extends Vec2 | Vec3 | Vec4>(edge0: T, edge1: T, x: T): T;
 export function smoothstep(): number {
   return gpuOnly('smoothstep');
 }
@@ -207,11 +227,13 @@ export function distance(): number {
 }
 
 export function min(a: number, b: number): number;
+export function min<T extends Vec2 | Vec3 | Vec4>(a: T, b: T): T;
 export function min(): number {
   return gpuOnly('min');
 }
 
 export function max(a: number, b: number): number;
+export function max<T extends Vec2 | Vec3 | Vec4>(a: T, b: T): T;
 export function max(): number {
   return gpuOnly('max');
 }

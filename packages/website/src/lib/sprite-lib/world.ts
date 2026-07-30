@@ -63,7 +63,17 @@ function rng(seed: number): () => number {
   };
 }
 
-/** Somewhere a tree can stand: dry, not too steep, inside the world. */
+/**
+ * Somewhere a tree can stand: dry, not too steep, inside the world.
+ *
+ * The 0.52 is generous to the point of being inert — writing `terrainSlope` as a
+ * closed-form gradient made it possible to state the bound, and |∇h| tops out at
+ * 0.31427 on this field, so in practice only the water test rejects anything.
+ * Left as it is because tightening it would move trees for no reason; a field
+ * steep enough to matter would need it. The ground shader's cliff band
+ * (0.22–0.29) is the threshold that does discriminate, and it was picked against
+ * that measured maximum rather than by eye.
+ */
 function plantable(x: number, z: number, margin: number): boolean {
   if (Math.abs(x) > WORLD_EXTENT - margin || Math.abs(z) > WORLD_EXTENT - margin) return false;
   const h = terrainHeight(x, z);

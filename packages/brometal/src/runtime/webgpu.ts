@@ -637,8 +637,13 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
         available - first,
         indexBuffer !== null ? 'vertexCount (indices)' : 'vertexCount',
       );
+      const firstInstance = drawOptions.firstInstance ?? 0;
       const instanceCount = isInstanced
-        ? clampDrawCount(drawOptions.instanceCount, resolveCount(instanceStates, 'instance'), 'instanceCount')
+        ? clampDrawCount(
+            drawOptions.instanceCount,
+            resolveCount(instanceStates, 'instance') - firstInstance,
+            'instanceCount',
+          )
         : 1;
       if (instanceCount === 0 || vertexCount === 0) return;
       for (const entry of compiled.layout.attributes) {
@@ -691,9 +696,10 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       });
       if (indexBuffer !== null) {
         pass.setIndexBuffer(indexBuffer, indexFormat);
-        pass.drawIndexed(vertexCount, instanceCount, first);
+        // drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
+        pass.drawIndexed(vertexCount, instanceCount, first, 0, firstInstance);
       } else {
-        pass.draw(vertexCount, instanceCount, first);
+        pass.draw(vertexCount, instanceCount, first, firstInstance);
       }
     },
     dispose(): void {

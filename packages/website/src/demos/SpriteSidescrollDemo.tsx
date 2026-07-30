@@ -5,28 +5,27 @@ import {
   createProgram,
   createRenderer,
   loadTexture,
-  mat4,
-  type BroMetalProgram,
   type BroMetalTexture,
   type RendererBackend,
 } from 'brometal';
-import cutoutShader from '@/lib/sprite-lib/shaders/sprite-cutout.shader.gen';
+import parallaxShader from '@/lib/sprite-lib/shaders/platformer-parallax.shader.gen';
+import terrainShader from '@/lib/sprite-lib/shaders/platformer-terrain.shader.gen';
+import propsShader from '@/lib/sprite-lib/shaders/platformer-props.shader.gen';
+import walkersShader from '@/lib/sprite-lib/shaders/platformer-walkers.shader.gen';
+import playerShader from '@/lib/sprite-lib/shaders/platformer-player.shader.gen';
 import {
-  AXIS_RIGHT,
-  AXIS_UP,
   LAYER,
   QUAD_INDICES,
   QUAD_POSITIONS,
   QUAD_UVS,
-  SpriteBatch,
-  ortho2d,
   spriteAtlas,
-  type SpriteAtlas,
 } from '@/lib/sprite-lib/sprites';
 import {
+  atlasGeom,
   BACKGROUND_TILES,
   buildLevel,
   CHAR_TILES,
+  createLevelTexture,
   PLATFORMER_TILES,
   type Level,
 } from '@/lib/sprite-lib/platformer';
@@ -34,31 +33,77 @@ import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import DemoCredit from '@/lib/sprite-lib/DemoCredit';
 
-type CutoutProgram = BroMetalProgram<
-  (typeof cutoutShader)['attributes'],
-  (typeof cutoutShader)['instanceAttributes'],
-  (typeof cutoutShader)['uniforms']
->;
-
 const VIEW_HEIGHT = 15;
 const RUN_SPEED = 7.5;
 const GRAVITY = -34;
 const JUMP_SPEED = 12.4;
 const COYOTE_SECONDS = 0.09;
 
+const WORLD_ATLAS = { cols: 20, rows: 9, tileWidth: 18, tileHeight: 18 };
+const CHAR_ATLAS = { cols: 9, rows: 3, tileWidth: 24, tileHeight: 24 };
+const BG_ATLAS = { cols: 8, rows: 3, tileWidth: 24, tileHeight: 24 };
+
+/** Backdrop tuning: strip size, the band's centre Y, and its layer depth. */
+const BAND_SIZE = 9;
+const BAND_Y = 7.6;
+const BACKDROP_Z = -0.45;
 /**
- * A playable pixel-art platformer.
+ * How much of the camera's motion the background keeps. 0 would pin it to the
+ * world, 1 would pin it to the screen; 0.72 reads as distant hills.
+ */
+const PARALLAX_FACTOR = 0.72;
+/**
+ * Strip slots per tier. Slots past the right edge draw off-screen and are
+ * clipped, which is why an over-allocated fixed count is safer than an
+ * aspect-derived `instanceCount`: `draw()` throws if the count exceeds what was
+ * uploaded, and an exception out of the frame callback stops the loop for good.
  *
- * Three atlases means exactly three draw calls: the parallax background, the
- * world (tiles, coins, flag, foliage), and the characters. Within each,
- * layering is a Z per sprite — background behind the tiles, the player in front
- * of both — resolved by the depth buffer because cut-out sprites write depth.
+ * The shader places slot 0 up to two strips left of the view, so the covered
+ * width is a little under (SLOTS - 2) * BAND_SIZE. Swept against every camera
+ * position, 20 slots cover every aspect below 10.5 and 16 ran out at 8.1 — which
+ * a short ultrawide window can actually reach, since the canvas is 100vw x 100vh.
+ * The margin costs 64 bytes, once.
+ */
+const PARALLAX_SLOTS = 20;
+
+const PLAYER_SIZE = 1.35;
+const PLAYER_WALK_FPS = 11;
+const WALKER_SIZE = 1.3;
+const COIN_SIZE = 0.8;
+const COIN_BOB = [3.4, 0.12] as const;
+const FLAG_FPS = 6;
+const CUTOFF = 0.5;
+
+/** Player state codes, matched by `platformer-player.shader.ts`. */
+const STATE_AIRBORNE = 0;
+const STATE_IDLE = 1;
+const STATE_RUNNING = 2;
+
+/**
+ * A playable pixel-art platformer where the level never travels to the GPU
+ * twice.
+ *
+ * Five programs, five draw calls, and after startup the only instance data any
+ * frame uploads is the player's `vec4`. The terrain is a static grid of cells
+ * that read their own tile out of an 87x1 level texture; the backdrop, the coins
+ * and the walkers are static buffers animated from `uTime`. Layering is still a
+ * Z per sprite resolved by the depth buffer, because cut-out sprites write depth.
+ *
+ * There is no view-projection matrix anywhere: a 2D orthographic camera is four
+ * numbers, and each shader applies them itself (see `toClip` in
+ * `platformer-terrain.shader.ts`).
+ *
+ * What this demo does NOT claim is credit for the difference against the version
+ * it replaced. Most of that gap was a plain bug — the old code handed `set()` a
+ * batch's 4096-slot backing array instead of its live prefix — and it was fixed in
+ * `sprites.ts`, not here. The panel spells the split out; so does the comment
+ * above the terrain grid.
  */
 export default function SpriteSidescrollDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
-  const [hud, setHud] = useState({ coins: 0, total: 0, sprites: 0 });
+  const [hud, setHud] = useState({ coins: 0, total: 0, instances: 0 });
   const keysRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -103,40 +148,147 @@ export default function SpriteSidescrollDemo() {
         return;
       }
 
-      const worldAtlas: SpriteAtlas = spriteAtlas(worldTexture, {
-        cols: 20,
-        rows: 9,
-        tileWidth: 18,
-        tileHeight: 18,
-      });
-      const charAtlas: SpriteAtlas = spriteAtlas(charTexture, {
-        cols: 9,
-        rows: 3,
-        tileWidth: 24,
-        tileHeight: 24,
-      });
-      const bgAtlas: SpriteAtlas = spriteAtlas(bgTexture, {
-        cols: 8,
-        rows: 3,
-        tileWidth: 24,
-        tileHeight: 24,
-      });
+      const level: Level = buildLevel();
+      const levelTexture = createLevelTexture(renderer, level);
 
-      const program: CutoutProgram = createProgram(renderer, cutoutShader, {
+      // ── Programs: one per batch ──────────────────────────────────────────
+      // Not stylistic. Instance data lives in the program's buffers, so a
+      // program shared between two batches can only be fed by re-uploading both
+      // every frame — the moment one of them stops uploading it draws with the
+      // other's data. Splitting is what makes "upload once" expressible at all.
+      const parallax = createProgram(renderer, parallaxShader, {
         blend: 'alpha',
         depthWrite: true,
       });
-      program.attributes.aPosition.set(QUAD_POSITIONS);
-      program.attributes.aUv.set(QUAD_UVS);
-      program.setIndices(QUAD_INDICES);
-      program.uniforms.uCutoff.set(0.5);
+      const terrain = createProgram(renderer, terrainShader, {
+        blend: 'alpha',
+        depthWrite: true,
+      });
+      const props = createProgram(renderer, propsShader, { blend: 'alpha', depthWrite: true });
+      const walkers = createProgram(renderer, walkersShader, {
+        blend: 'alpha',
+        depthWrite: true,
+      });
+      const player = createProgram(renderer, playerShader, {
+        blend: 'alpha',
+        depthWrite: true,
+      });
+      const programs = [parallax, terrain, props, walkers, player];
+      for (const program of programs) {
+        program.attributes.aPosition.set(QUAD_POSITIONS);
+        program.attributes.aUv.set(QUAD_UVS);
+        program.setIndices(QUAD_INDICES);
+        program.uniforms.uCutoff.set(CUTOFF);
+      }
 
-      const level: Level = buildLevel();
-      const worldBatch = new SpriteBatch(worldAtlas, 4096);
-      const charBatch = new SpriteBatch(charAtlas, 64);
-      const bgBatch = new SpriteBatch(bgAtlas, 128);
+      // ── Backdrop: one slot per strip per tier, uploaded once ────────────
+      const slots = new Float32Array(PARALLAX_SLOTS * 2 * 2);
+      for (let slot = 0; slot < PARALLAX_SLOTS; slot++) {
+        for (let tier = 0; tier < 2; tier++) {
+          const at = (slot * 2 + tier) * 2;
+          slots[at] = slot;
+          slots[at + 1] = tier;
+        }
+      }
+      parallax.instanceAttributes.iSlot.set(slots);
+      parallax.uniforms.uAtlas.set(bgTexture);
+      parallax.uniforms.uAtlasGeom.set(atlasGeom(BG_ATLAS));
+      parallax.uniforms.uBand.set([BAND_SIZE, BAND_Y, PARALLAX_FACTOR, BACKDROP_Z]);
+      parallax.uniforms.uTiles.set([
+        BACKGROUND_TILES.band[0],
+        BACKGROUND_TILES.band.length,
+        BACKGROUND_TILES.fill,
+      ]);
 
-      const player = {
+      // ── Terrain: one instance per grid cell, uploaded once ──────────────
+      // The grid is a plain rectangle one row taller than the terrain needs;
+      // that top row is the decor slot. 870 cells stand in for the level's 354
+      // real ones: the other 516 cull themselves in the vertex shader, and
+      // because clipping happens after that shader they still cost their vertex
+      // invocations — what self-culling buys is rasterization, not vertex work.
+      //
+      // Worth being clear about what this grid does and does not save. It does
+      // not save a byte per frame over uploading 354 static sprites once; the
+      // instance data here is 6,960 B of (column, row) pairs against 18.5 KiB of
+      // sprite stamps, both one-time. What it buys is that the level's shape stops
+      // being a CPU data structure at all — no 331-entry sprite array, no tile
+      // loop, no string-keyed occupancy Set.
+      const gridRows = level.tileRows + 1;
+      const gridCells = level.width * gridRows;
+      const cells = new Float32Array(gridCells * 2);
+      for (let column = 0; column < level.width; column++) {
+        for (let row = 0; row < gridRows; row++) {
+          const at = (column * gridRows + row) * 2;
+          cells[at] = column;
+          cells[at + 1] = row;
+        }
+      }
+      terrain.instanceAttributes.iCell.set(cells);
+      terrain.uniforms.uAtlas.set(worldTexture);
+      terrain.uniforms.uAtlasGeom.set(atlasGeom(WORLD_ATLAS));
+      terrain.uniforms.uLevel.set(levelTexture.texture);
+      terrain.uniforms.uLevelSize.set(levelTexture.size);
+      terrain.uniforms.uRuns.set([
+        PLATFORMER_TILES.surfaceRun,
+        PLATFORMER_TILES.interiorRun,
+        PLATFORMER_TILES.underRun,
+        PLATFORMER_TILES.loneRun,
+      ]);
+      terrain.uniforms.uParams.set([
+        PLATFORMER_TILES.platform,
+        level.tileRows,
+        LAYER.floor,
+        LAYER.decor,
+      ]);
+
+      // ── Coins and the flag: static, plus a liveness float ───────────────
+      const coins = level.coins.map((coin) => ({ ...coin, taken: false }));
+      const propCount = coins.length + 1;
+      const propCenters = new Float32Array(propCount * 3);
+      const propStamps = new Float32Array(propCount * 4);
+      const propAlive = new Float32Array(propCount).fill(1);
+      coins.forEach((coin, i) => {
+        propCenters.set([coin.x, coin.y, LAYER.item], i * 3);
+        propStamps.set([PLATFORMER_TILES.coin, COIN_SIZE, COIN_SIZE, 0], i * 4);
+      });
+      const flagIndex = coins.length;
+      propCenters.set([level.flag[0], level.flag[1], LAYER.decor], flagIndex * 3);
+      propStamps.set([PLATFORMER_TILES.flagA, 1, 1, 1], flagIndex * 4);
+      props.instanceAttributes.iCenter.set(propCenters);
+      props.instanceAttributes.iStamp.set(propStamps);
+      props.instanceAttributes.iAlive.set(propAlive);
+      props.uniforms.uAtlas.set(worldTexture);
+      props.uniforms.uAtlasGeom.set(atlasGeom(WORLD_ATLAS));
+      props.uniforms.uBob.set(COIN_BOB);
+      props.uniforms.uFlag.set([PLATFORMER_TILES.flagA, FLAG_FPS, 2]);
+      props.uniforms.uCoinTint.set([1.15, 1.1, 0.7]);
+
+      // ── Walkers: patrol stamps, uploaded once ───────────────────────────
+      // Their tile never changes, so the UV rect is baked here rather than
+      // derived per vertex — the CPU is the right place for data that is
+      // genuinely constant.
+      const charAtlas = spriteAtlas(charTexture, CHAR_ATLAS);
+      const patrols = new Float32Array(level.walkers.length * 4);
+      const traits = new Float32Array(level.walkers.length * 4);
+      const walkerRects = new Float32Array(level.walkers.length * 4);
+      level.walkers.forEach((walker, i) => {
+        patrols.set([walker.from, walker.to, walker.y, walker.speed], i * 4);
+        traits.set([walker.phase, WALKER_SIZE, WALKER_SIZE, LAYER.actor - 0.02], i * 4);
+        charAtlas.rect(walker.tile, walkerRects, i * 4);
+      });
+      walkers.instanceAttributes.iPatrol.set(patrols);
+      walkers.instanceAttributes.iTrait.set(traits);
+      walkers.instanceAttributes.iUvRect.set(walkerRects);
+      walkers.uniforms.uAtlas.set(charTexture);
+
+      // ── Player: the only per-frame upload in the demo ───────────────────
+      const state = new Float32Array(4);
+      player.uniforms.uAtlas.set(charTexture);
+      player.uniforms.uAtlasGeom.set(atlasGeom(CHAR_ATLAS));
+      player.uniforms.uPlayer.set([PLAYER_SIZE, LAYER.actor, PLAYER_WALK_FPS]);
+      player.uniforms.uFrames.set([CHAR_TILES.playerIdle, CHAR_TILES.playerWalk]);
+
+      const body = {
         x: 3,
         y: 6,
         vx: 0,
@@ -145,11 +297,14 @@ export default function SpriteSidescrollDemo() {
         sinceGrounded: 99,
         facing: 1,
       };
-      const coins = level.coins.map((coin) => ({ ...coin, taken: false }));
       let collected = 0;
       let jumpHeld = false;
 
-      const viewProj = mat4.scratch();
+      // The camera, as the four numbers a 2D orthographic projection actually
+      // needs. Every shader does the projection itself from these, so no mat4 is
+      // built here and no mat4 is uploaded: 16 bytes per program per frame
+      // instead of 64, and a vertex pays three multiplies instead of sixteen.
+      const camera = new Float32Array(4);
       let last = 0;
 
       const stop = renderer.loop((t) => {
@@ -163,208 +318,110 @@ export default function SpriteSidescrollDemo() {
         const right = keys.has('d') || keys.has('arrowright');
         const wantJump = keys.has(' ') || keys.has('w') || keys.has('arrowup');
 
-        player.vx = (right ? RUN_SPEED : 0) - (left ? RUN_SPEED : 0);
-        if (player.vx !== 0) player.facing = player.vx > 0 ? 1 : -1;
+        body.vx = (right ? RUN_SPEED : 0) - (left ? RUN_SPEED : 0);
+        if (body.vx !== 0) body.facing = body.vx > 0 ? 1 : -1;
 
         // Coyote time: a jump pressed a few frames after walking off a ledge
         // still counts. Without it the controls feel broken rather than strict.
-        player.sinceGrounded = player.grounded ? 0 : player.sinceGrounded + dt;
-        if (wantJump && !jumpHeld && player.sinceGrounded < COYOTE_SECONDS) {
-          player.vy = JUMP_SPEED;
-          player.grounded = false;
-          player.sinceGrounded = 99;
+        body.sinceGrounded = body.grounded ? 0 : body.sinceGrounded + dt;
+        if (wantJump && !jumpHeld && body.sinceGrounded < COYOTE_SECONDS) {
+          body.vy = JUMP_SPEED;
+          body.grounded = false;
+          body.sinceGrounded = 99;
         }
         jumpHeld = wantJump;
 
-        player.vy = Math.max(player.vy + GRAVITY * dt, -28);
+        body.vy = Math.max(body.vy + GRAVITY * dt, -28);
 
         // --- horizontal then vertical, so a corner never wedges the player ---
         const halfW = 0.34;
         const halfH = 0.48;
-        const stepX = player.vx * dt;
-        if (!level.solidAt(player.x + stepX + Math.sign(stepX) * halfW, player.y, halfW, halfH)) {
-          player.x += stepX;
+        const stepX = body.vx * dt;
+        if (!level.solidAt(body.x + stepX + Math.sign(stepX) * halfW, body.y, halfW, halfH)) {
+          body.x += stepX;
         }
-        const stepY = player.vy * dt;
-        if (level.solidAt(player.x, player.y + stepY, halfW, halfH)) {
-          if (player.vy < 0) player.grounded = true;
-          player.vy = 0;
+        const stepY = body.vy * dt;
+        if (level.solidAt(body.x, body.y + stepY, halfW, halfH)) {
+          if (body.vy < 0) body.grounded = true;
+          body.vy = 0;
         } else {
-          player.y += stepY;
-          if (player.vy !== 0) player.grounded = false;
+          body.y += stepY;
+          if (body.vy !== 0) body.grounded = false;
         }
-        player.x = Math.min(Math.max(player.x, 1), level.width - 1);
-        if (player.y < -6) {
-          player.x = 3;
-          player.y = 6;
-          player.vy = 0;
+        body.x = Math.min(Math.max(body.x, 1), level.width - 1);
+        if (body.y < -6) {
+          body.x = 3;
+          body.y = 6;
+          body.vy = 0;
         }
 
         // --- coins ---
-        for (const coin of coins) {
+        // A coin's bob is presentation and lives in the shader; a coin's
+        // existence is on the HUD, and there is no readback, so the pickup test
+        // stays here. It re-uploads the liveness attribute on the frames it
+        // fires and on no others.
+        let picked = false;
+        for (let i = 0; i < coins.length; i++) {
+          const coin = coins[i]!;
           if (coin.taken) continue;
-          if (Math.abs(coin.x - player.x) < 0.7 && Math.abs(coin.y - player.y) < 0.8) {
+          if (Math.abs(coin.x - body.x) < 0.7 && Math.abs(coin.y - body.y) < 0.8) {
             coin.taken = true;
             collected++;
+            propAlive[i] = 0;
+            picked = true;
           }
         }
+        if (picked) props.instanceAttributes.iAlive.set(propAlive);
 
         // --- camera: follow x, clamp to level, keep y mostly steady ---
         const halfHeight = VIEW_HEIGHT / 2;
         const halfWidth = halfHeight * renderer.aspect;
-        const camX = Math.min(Math.max(player.x, halfWidth), level.width - halfWidth);
-        const camY = Math.max(player.y * 0.35 + 4.2, halfHeight - 2);
-        ortho2d(camX, camY, VIEW_HEIGHT, renderer.aspect, viewProj);
+        camera[0] = Math.min(Math.max(body.x, halfWidth), level.width - halfWidth);
+        camera[1] = Math.max(body.y * 0.35 + 4.2, halfHeight - 2);
+        camera[2] = halfWidth;
+        camera[3] = halfHeight;
 
-        // --- parallax background ---
-        // The horizon band scrolls at a fraction of the camera, and the solid
-        // haze strip below it butts against the band's lower edge so the two
-        // read as one backdrop.
-        bgBatch.clear();
-        const bandSize = 9;
-        const bandY = 7.6;
-        const drift = camX * PARALLAX_FACTOR;
-        const firstBand = Math.floor((camX - drift - halfWidth) / bandSize) - 1;
-        const lastBand = Math.ceil((camX - drift + halfWidth) / bandSize) + 1;
-        for (let i = firstBand; i <= lastBand; i++) {
-          const x = i * bandSize + drift;
-          bgBatch.push({
-            x,
-            y: bandY,
-            z: -0.45,
-            width: bandSize,
-            height: bandSize,
-            tile: BACKGROUND_TILES.band[Math.abs(i) % BACKGROUND_TILES.band.length]!,
-          });
-          bgBatch.push({
-            x,
-            y: bandY - bandSize,
-            z: -0.45,
-            width: bandSize,
-            height: bandSize,
-            tile: BACKGROUND_TILES.fill,
-          });
-        }
+        // --- draw ---
+        // Nothing below rebuilds a sprite. Every program gets the camera, the
+        // animated ones get the clock, and the player gets four floats.
+        //
+        // Five writes for one camera is the cost of one program per batch: there
+        // is no shared uniform block, so each program owns its own copy. It is
+        // the largest per-frame number left in this demo.
+        for (const program of programs) program.uniforms.uCamera.set(camera);
+        props.uniforms.uTime.set(t);
+        walkers.uniforms.uTime.set(t);
+        player.uniforms.uTime.set(t);
 
-        // --- world sprites ---
-        worldBatch.clear();
+        state[0] = body.x;
+        state[1] = body.y;
+        state[2] = body.facing;
+        state[3] = body.grounded
+          ? body.vx === 0
+            ? STATE_IDLE
+            : STATE_RUNNING
+          : STATE_AIRBORNE;
+        player.instanceAttributes.iState.set(state);
 
-        for (const tile of level.tiles) {
-          worldBatch.push({
-            x: tile.x,
-            y: tile.y,
-            z: LAYER.floor,
-            width: 1,
-            height: 1,
-            tile: tile.tile,
-          });
-        }
-        for (const decor of level.decor) {
-          worldBatch.push({
-            x: decor.x,
-            y: decor.y,
-            z: LAYER.decor,
-            width: 1,
-            height: 1,
-            tile: decor.tile,
-          });
-        }
-        for (const coin of coins) {
-          if (coin.taken) continue;
-          worldBatch.push({
-            x: coin.x,
-            // Coins bob and are lit a touch brighter than the world.
-            y: coin.y + Math.sin(t * 3.4 + coin.x) * 0.12,
-            z: LAYER.item,
-            width: 0.8,
-            height: 0.8,
-            tile: PLATFORMER_TILES.coin,
-            tint: [1.15, 1.1, 0.7],
-          });
-        }
-        worldBatch.push({
-          x: level.flag[0],
-          y: level.flag[1],
-          z: LAYER.decor,
-          width: 1,
-          height: 1,
-          tile: Math.floor(t * 6) % 2 === 0 ? PLATFORMER_TILES.flagA : PLATFORMER_TILES.flagB,
-        });
-
-        // --- characters ---
-        charBatch.clear();
-        for (const walker of level.walkers) {
-          // Ping-pong along a segment; the sprite flips with the direction.
-          const span = walker.to - walker.from;
-          const phase = (Math.sin(t * walker.speed + walker.phase) + 1) / 2;
-          const x = walker.from + span * phase;
-          const heading = Math.cos(t * walker.speed + walker.phase) > 0 ? 1 : -1;
-          charBatch.push({
-            x,
-            y: walker.y,
-            z: LAYER.actor - 0.02,
-            width: 1.3,
-            height: 1.3,
-            tile: walker.tile,
-            flipX: heading < 0,
-          });
-        }
-        charBatch.push({
-          x: player.x,
-          y: player.y,
-          z: LAYER.actor,
-          width: 1.35,
-          height: 1.35,
-          // Two-frame walk cycle while running on the ground; the airborne
-          // frame is held for the whole jump.
-          tile: player.grounded
-            ? player.vx === 0
-              ? CHAR_TILES.playerIdle
-              : Math.floor(t * 11) % 2 === 0
-                ? CHAR_TILES.playerIdle
-                : CHAR_TILES.playerWalk
-            : CHAR_TILES.playerWalk,
-          flipX: player.facing < 0,
-        });
-
-        // --- draw: one call per atlas ---
-        program.uniforms.uViewProj.set(viewProj);
-        program.uniforms.uRight.set(AXIS_RIGHT);
-        program.uniforms.uUp.set(AXIS_UP);
-
-        program.uniforms.uAtlas.set(bgTexture);
-        program.instanceAttributes.iCenter.set(bgBatch.centers);
-        program.instanceAttributes.iSize.set(bgBatch.sizes);
-        program.instanceAttributes.iUvRect.set(bgBatch.uvRects);
-        program.instanceAttributes.iTint.set(bgBatch.tints);
-        program.draw({ instanceCount: bgBatch.count });
-
-        program.uniforms.uAtlas.set(worldTexture);
-        program.instanceAttributes.iCenter.set(worldBatch.centers);
-        program.instanceAttributes.iSize.set(worldBatch.sizes);
-        program.instanceAttributes.iUvRect.set(worldBatch.uvRects);
-        program.instanceAttributes.iTint.set(worldBatch.tints);
-        program.draw({ instanceCount: worldBatch.count });
-
-        program.uniforms.uAtlas.set(charTexture);
-        program.instanceAttributes.iCenter.set(charBatch.centers);
-        program.instanceAttributes.iSize.set(charBatch.sizes);
-        program.instanceAttributes.iUvRect.set(charBatch.uvRects);
-        program.instanceAttributes.iTint.set(charBatch.tints);
-        program.draw({ instanceCount: charBatch.count });
+        parallax.draw();
+        terrain.draw();
+        props.draw();
+        walkers.draw();
+        player.draw();
 
         if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) {
           setHud({
             coins: collected,
             total: coins.length,
-            sprites: bgBatch.count + worldBatch.count + charBatch.count,
+            instances: slots.length / 2 + gridCells + propCount + level.walkers.length + 1,
           });
         }
       });
 
       cleanup = () => {
         stop();
-        program.dispose();
+        for (const program of programs) program.dispose();
+        levelTexture.texture.dispose();
         for (const texture of loaded) texture.dispose();
         renderer.destroy();
       };
@@ -389,20 +446,54 @@ export default function SpriteSidescrollDemo() {
             <strong>W</strong> to jump. Collect the coins; fall off and you respawn at the start.
           </p>
           <p>
-            Three atlases, three draw calls — background, world, characters. The parallax
-            horizon, tiles, coins, the flag, the walkers and the player are all instanced batches
-            layered by a Z per sprite. The depth buffer resolves it, so nothing here maintains a
-            back-to-front submission order.
+            Five programs, five draw calls — backdrop, terrain, props, walkers, player. Every
+            instance buffer is filled once at load. The terrain is a plain rectangle of grid cells
+            that each read their own tile out of an 87×1 <em>level texture</em> in the vertex
+            shader: the height of their column and its two neighbours decide which of the
+            four-variant ground runs to use, and cells with nothing in them collapse to a clipped
+            degenerate quad. That is what lets a fixed-size buffer stand in for a ragged
+            hand-authored level. There is no view-projection matrix either — a 2D orthographic
+            camera is four floats, and each shader applies them itself.
           </p>
           <p>
-            The player is an over-allocated batch drawn with{' '}
-            <code>draw(&#123; instanceCount &#125;)</code>, so a coin disappearing costs one fewer
-            instance rather than a buffer reallocation.
+            The parallax strips, the coin bob, the flag flip and the walkers&apos; ping-pong patrol
+            are all functions of <code>uTime</code> and the camera, so they animate without a byte
+            moving. Player physics, input and the coin count stay on the CPU — the camera follows
+            the player and the HUD reads its score, and nothing can be read back off the GPU. The
+            player therefore uploads one <code>vec4</code> per frame: <strong>16 bytes</strong> of
+            instance data, plus 92 bytes of uniforms.
+          </p>
+          <p>
+            <strong>Where the saving actually came from.</strong> This demo used to upload
+            217&nbsp;KiB a frame, and it would be dishonest to bill that against the shaders. About
+            99% of it was a bug: the old code handed <code>set()</code> a sprite batch&apos;s
+            4096-slot <em>backing array</em> instead of its live prefix, so it re-sent the whole
+            capacity every frame. Fixing that in <code>sprites.ts</code> alone gets 217&nbsp;KiB
+            down to roughly 20&nbsp;KiB. Giving each batch its own program and filling every
+            instance buffer once — no shader work at all — takes that to about 2.4&nbsp;KiB. Only the
+            last
+            2.4&nbsp;KiB is what the vertex shaders above earn, by turning per-frame sprite stamps
+            into arithmetic. The level texture and the terrain grid save <em>no</em> per-frame bytes
+            over a one-time static upload; they are here because they delete the CPU tile loop and
+            the level&apos;s sprite array outright.
+          </p>
+          <p>
+            <strong>And what it costs.</strong> 940 quads are submitted to draw about 390: the
+            terrain grid is 870 cells for 354 real tiles, and the backdrop is 40 fixed slots for the
+            handful on screen. Clipping happens <em>after</em> the vertex shader, so a self-culled
+            quad saves rasterizing and shading — never its vertex invocations. Draw calls went from
+            three to five, and because there is no shared uniform block, one camera now means five
+            uniform writes a frame instead of one (WebGPU re-sends each program&apos;s whole block
+            regardless of what changed, so it pays 400 bytes there rather than 92). Trading vertex
+            work and uniform traffic for zero per-frame instance traffic is the deal on offer; it is
+            a good one here, and it would not be if the level were a thousand columns of mostly
+            empty grid.
           </p>
         </div>
       </div>
       <DemoStats stats={stats}>
-        {hud.coins}/{hud.total} coins · {hud.sprites} sprites · 3 draw calls
+        {hud.coins}/{hud.total} coins · {hud.instances} quads submitted · 5 draw calls · 16 B/frame
+        instance data
         <br />
         <DemoCredit />
         <br />
@@ -424,9 +515,3 @@ const CONTROL_KEYS = new Set([
   'arrowright',
   'arrowdown',
 ]);
-
-/**
- * How much of the camera's motion the background keeps. 0 would pin it to the
- * world, 1 would pin it to the screen; 0.72 reads as distant hills.
- */
-const PARALLAX_FACTOR = 0.72;

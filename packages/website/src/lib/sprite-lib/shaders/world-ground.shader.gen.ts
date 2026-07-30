@@ -10,20 +10,25 @@ out vec3 vNormal;
 out float vHeight;
 out float vDepth;
 out float vSlope;
-float terrainHeight(float x, float z) {
-  return 1.55 * sin(x * 0.085) * cos(z * 0.075) + 0.75 * sin(x * 0.17 + 1.7) * cos(z * 0.155 + 0.6) + 0.35 * sin((x + z) * 0.26 + 2.4);
+vec3 terrainField(float x, float z) {
+  float sinAx = sin(x * 0.085);
+  float cosAx = cos(x * 0.085);
+  float sinAz = sin(z * 0.075);
+  float cosAz = cos(z * 0.075);
+  float sinBx = sin(x * 0.17 + 1.7);
+  float cosBx = cos(x * 0.17 + 1.7);
+  float sinBz = sin(z * 0.155 + 0.6);
+  float cosBz = cos(z * 0.155 + 0.6);
+  float sinC = sin((x + z) * 0.26 + 2.4);
+  float cosC = cos((x + z) * 0.26 + 2.4);
+  return vec3(1.55 * sinAx * cosAz + 0.75 * sinBx * cosBz + 0.35 * sinC, 1.55 * 0.085 * cosAx * cosAz + 0.75 * 0.17 * cosBx * cosBz + 0.35 * 0.26 * cosC, -1.55 * 0.075 * sinAx * sinAz - 0.75 * 0.155 * sinBx * sinBz + 0.35 * 0.26 * cosC);
 }
 void main() {
-  float h = terrainHeight(aPosition.x, aPosition.z);
-  vec3 world = vec3(aPosition.x, h, aPosition.z);
-  float e = 0.5;
-  float hx0 = terrainHeight(aPosition.x - e, aPosition.z);
-  float hx1 = terrainHeight(aPosition.x + e, aPosition.z);
-  float hz0 = terrainHeight(aPosition.x, aPosition.z - e);
-  float hz1 = terrainHeight(aPosition.x, aPosition.z + e);
-  vNormal = normalize(vec3(hx0 - hx1, 2.0 * e, hz0 - hz1));
-  vSlope = length(vec2(hx1 - hx0, hz1 - hz0)) / (2.0 * e);
-  vHeight = h;
+  vec3 field = terrainField(aPosition.x, aPosition.z);
+  vec3 world = vec3(aPosition.x, field.x, aPosition.z);
+  vNormal = normalize(vec3(-field.y, 1.0, -field.z));
+  vSlope = length(vec2(field.y, field.z));
+  vHeight = field.x;
   vDepth = length(world - uCamPos);
   gl_Position = uViewProj * vec4(world, 1.0);
 }
@@ -45,14 +50,11 @@ void main() {
   vec3 grass = vec3(0.29, 0.5, 0.24);
   vec3 grassDry = vec3(0.44, 0.55, 0.26);
   vec3 rock = vec3(0.44, 0.42, 0.42);
-  vec3 snow = vec3(0.86, 0.88, 0.9);
   float shore = smoothstep(uWaterLevel + 0.55, uWaterLevel - 0.1, vHeight);
   float dry = smoothstep(0.1, 1.3, vHeight);
-  float high = smoothstep(1.6, 2.35, vHeight);
   vec3 albedo = mix(grass, grassDry, dry);
-  albedo = mix(albedo, snow, high);
+  albedo = mix(albedo, rock, smoothstep(0.22, 0.29, vSlope));
   albedo = mix(albedo, sand, shore);
-  albedo = mix(albedo, rock, smoothstep(0.55, 1.15, vSlope));
   fragColor = vec4(albedo * (ambient + diffuse * 0.62), vDepth);
 }
 `,
@@ -73,22 +75,27 @@ struct BmVSOut {
   @location(2) vDepth : f32,
   @location(3) vSlope : f32,
 }
-fn terrainHeight(x : f32, z : f32) -> f32 {
-  return 1.55 * sin(x * 0.085) * cos(z * 0.075) + 0.75 * sin(x * 0.17 + 1.7) * cos(z * 0.155 + 0.6) + 0.35 * sin((x + z) * 0.26 + 2.4);
+fn terrainField(x : f32, z : f32) -> vec3f {
+  let sinAx = sin(x * 0.085);
+  let cosAx = cos(x * 0.085);
+  let sinAz = sin(z * 0.075);
+  let cosAz = cos(z * 0.075);
+  let sinBx = sin(x * 0.17 + 1.7);
+  let cosBx = cos(x * 0.17 + 1.7);
+  let sinBz = sin(z * 0.155 + 0.6);
+  let cosBz = cos(z * 0.155 + 0.6);
+  let sinC = sin((x + z) * 0.26 + 2.4);
+  let cosC = cos((x + z) * 0.26 + 2.4);
+  return vec3f(1.55 * sinAx * cosAz + 0.75 * sinBx * cosBz + 0.35 * sinC, 1.55 * 0.085 * cosAx * cosAz + 0.75 * 0.17 * cosBx * cosBz + 0.35 * 0.26 * cosC, -1.55 * 0.075 * sinAx * sinAz - 0.75 * 0.155 * sinBx * sinBz + 0.35 * 0.26 * cosC);
 }
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
-  let h = terrainHeight(bm_in.aPosition.x, bm_in.aPosition.z);
-  let world = vec3f(bm_in.aPosition.x, h, bm_in.aPosition.z);
-  let e = 0.5;
-  let hx0 = terrainHeight(bm_in.aPosition.x - e, bm_in.aPosition.z);
-  let hx1 = terrainHeight(bm_in.aPosition.x + e, bm_in.aPosition.z);
-  let hz0 = terrainHeight(bm_in.aPosition.x, bm_in.aPosition.z - e);
-  let hz1 = terrainHeight(bm_in.aPosition.x, bm_in.aPosition.z + e);
-  bm_out.vNormal = normalize(vec3f(hx0 - hx1, 2.0 * e, hz0 - hz1));
-  bm_out.vSlope = length(vec2f(hx1 - hx0, hz1 - hz0)) / (2.0 * e);
-  bm_out.vHeight = h;
+  let field = terrainField(bm_in.aPosition.x, bm_in.aPosition.z);
+  let world = vec3f(bm_in.aPosition.x, field.x, bm_in.aPosition.z);
+  bm_out.vNormal = normalize(vec3f(-field.y, 1.0, -field.z));
+  bm_out.vSlope = length(vec2f(field.y, field.z));
+  bm_out.vHeight = field.x;
   bm_out.vDepth = length(world - bm_u.uCamPos);
   bm_out.bm_position = bm_u.uViewProj * vec4f(world, 1.0);
   bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;
@@ -103,14 +110,11 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let grass = vec3f(0.29, 0.5, 0.24);
   let grassDry = vec3f(0.44, 0.55, 0.26);
   let rock = vec3f(0.44, 0.42, 0.42);
-  let snow = vec3f(0.86, 0.88, 0.9);
   let shore = smoothstep(bm_u.uWaterLevel + 0.55, bm_u.uWaterLevel - 0.1, bm_in.vHeight);
   let dry = smoothstep(0.1, 1.3, bm_in.vHeight);
-  let high = smoothstep(1.6, 2.35, bm_in.vHeight);
   var albedo = mix(grass, grassDry, dry);
-  albedo = mix(albedo, snow, high);
+  albedo = mix(albedo, rock, smoothstep(0.22, 0.29, bm_in.vSlope));
   albedo = mix(albedo, sand, shore);
-  albedo = mix(albedo, rock, smoothstep(0.55, 1.15, bm_in.vSlope));
   return vec4f(albedo * (ambient + diffuse * 0.62), bm_in.vDepth);
 }
 `,

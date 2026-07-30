@@ -27,6 +27,7 @@ import {
   SpriteBatch,
   billboardBasis,
   spriteAtlas,
+  uploadSpriteBatch,
 } from '@/lib/sprite-lib/sprites';
 import {
   bushyTreeMesh,
@@ -36,7 +37,7 @@ import {
   treeMesh,
   type FlatMesh,
 } from '@/lib/sprite-lib/mesh';
-import { packInstances } from '@/lib/sprite-lib/mesh-batch';
+import { packInstances, type MeshInstanceArrays } from '@/lib/sprite-lib/mesh-batch';
 import { buildWorld, WATER_LEVEL, walkHeight, type World } from '@/lib/sprite-lib/world';
 import { DUNGEON_TILES } from '@/lib/sprite-lib/dungeon';
 import BackendBadge from '@/components/BackendBadge';
@@ -55,6 +56,16 @@ const SUN = new Float32Array([0.48, 0.74, 0.42]);
 const SKY: readonly [number, number, number] = [0.55, 0.75, 0.88];
 /** Alpha the scene target is cleared to — the sky reads as maximally far. */
 const FAR_DEPTH = 400;
+/**
+ * Segments per side of the terrain and water grids.
+ *
+ * 96 over 92 world units is a 0.96-unit cell. The height field's shortest
+ * wavelength is 2π/(0.26·√2) ≈ 17 units, so that is ~18 samples per wavelength —
+ * already far past the point where more vertices change the silhouette. The
+ * terrain used to be at 150 (0.61-unit cells), which cost 2.4× the vertex
+ * invocations and 480 KiB of startup upload to render the same hills.
+ */
+const GRID_SEGMENTS = 96;
 
 /**
  * 2.5D: sprite characters and props inside a real 3D world.
@@ -140,17 +151,27 @@ export default function Sprite25DDemo() {
 
       const world: World = buildWorld();
 
-      // --- terrain and water: one displaced grid each ---
-      const terrainGrid = groundGrid(world.extent * 2, 150);
+      // --- terrain and water: the same flat grid, displaced by two shaders ---
+      // Both grids want the same tessellation now, and a grid is nothing but
+      // `-half + i * step` — so it is built once. The two programs still get
+      // their own GPU buffers (buffers belong to a program in this runtime), but
+      // the JS arrays and the loop that fills them are shared.
+      //
+      // Sharing it is load-bearing, not just tidy: because ground and water are
+      // linear over the *same* cells, "is the water under the terrain here?" is
+      // decidable at the three corners of a triangle, which is what lets the
+      // water shader cull four fifths of itself with no risk of a hole.
+      const grid = groundGrid(world.extent * 2, GRID_SEGMENTS);
+      const gridIndices = narrowGridIndices(grid.indices, GRID_SEGMENTS);
+
       const groundProgram = createProgram(renderer, groundShader);
-      groundProgram.attributes.aPosition.set(terrainGrid.positions);
-      groundProgram.setIndices(terrainGrid.indices);
+      groundProgram.attributes.aPosition.set(grid.positions);
+      groundProgram.setIndices(gridIndices);
       groundProgram.uniforms.uWaterLevel.set(WATER_LEVEL);
 
-      const waterGrid = groundGrid(world.extent * 2, 96);
       const waterProgram = createProgram(renderer, waterShader);
-      waterProgram.attributes.aPosition.set(waterGrid.positions);
-      waterProgram.setIndices(waterGrid.indices);
+      waterProgram.attributes.aPosition.set(grid.positions);
+      waterProgram.setIndices(gridIndices);
       waterProgram.uniforms.uWaterLevel.set(WATER_LEVEL);
 
       // --- instanced 3D scenery: one program per mesh ---
@@ -163,7 +184,7 @@ export default function Sprite25DDemo() {
         program.attributes.aNormal.set(mesh.normals);
         program.attributes.aColor.set(mesh.colors);
         program.instanceAttributes.iPos.set(instances.positions);
-        program.instanceAttributes.iScaleYaw.set(instances.scaleYaw);
+        program.instanceAttributes.iScaleRot.set(resolveYaw(instances));
         program.instanceAttributes.iTint.set(instances.tints);
         return program;
       };
@@ -181,9 +202,22 @@ export default function Sprite25DDemo() {
       grassProgram.attributes.aNormal.set(grassMesh.normals);
       grassProgram.attributes.aColor.set(grassMesh.colors);
       grassProgram.instanceAttributes.iPos.set(grassInstances.positions);
-      grassProgram.instanceAttributes.iScaleYaw.set(grassInstances.scaleYaw);
+      grassProgram.instanceAttributes.iScaleRot.set(resolveYaw(grassInstances));
       grassProgram.instanceAttributes.iTint.set(grassInstances.tints);
       grassProgram.uniforms.uWind.set(0.42);
+
+      // The sun never moves, so it is uploaded once rather than re-sent to six
+      // programs every frame. Only uViewProj, uCamPos and uTime actually change.
+      for (const program of [
+        groundProgram,
+        waterProgram,
+        coniferProgram,
+        bushyProgram,
+        rockProgram,
+        grassProgram,
+      ]) {
+        program.uniforms.uLightDir.set(SUN);
+      }
 
       // --- sprites: props and hero, one program each ---
       const buildSpriteProgram = () => {
@@ -209,10 +243,9 @@ export default function Sprite25DDemo() {
           tint: prop.tint,
         });
       }
-      propProgram.instanceAttributes.iCenter.set(propBatch.centers);
-      propProgram.instanceAttributes.iSize.set(propBatch.sizes);
-      propProgram.instanceAttributes.iUvRect.set(propBatch.uvRects);
-      propProgram.instanceAttributes.iTint.set(propBatch.tints);
+      // Props never move: one upload, here, and `uploadSpriteBatch` marks the
+      // batch clean so nothing re-sends it.
+      const propCount = uploadSpriteBatch(propProgram, propBatch);
 
       const heroBatch = new SpriteBatch(heroAtlas, 4);
 
@@ -302,10 +335,10 @@ export default function Sprite25DDemo() {
           tile: DUNGEON_TILES.hero,
           flipX: hero.facing < 0,
         });
-        heroProgram.instanceAttributes.iCenter.set(heroBatch.centers);
-        heroProgram.instanceAttributes.iSize.set(heroBatch.sizes);
-        heroProgram.instanceAttributes.iUvRect.set(heroBatch.uvRects);
-        heroProgram.instanceAttributes.iTint.set(heroBatch.tints);
+        // The hero is the only thing this demo uploads per frame, and it is one
+        // sprite: 13 floats. Passing the batch's backing store instead would
+        // upload its whole capacity — four sprites' worth — for the same result.
+        const heroCount = uploadSpriteBatch(heroProgram, heroBatch);
 
         billboardBasis(view, true, right, up);
 
@@ -318,12 +351,10 @@ export default function Sprite25DDemo() {
           () => {
             groundProgram.uniforms.uViewProj.set(viewProj);
             groundProgram.uniforms.uCamPos.set(camVec);
-            groundProgram.uniforms.uLightDir.set(SUN);
             groundProgram.draw();
 
             waterProgram.uniforms.uViewProj.set(viewProj);
             waterProgram.uniforms.uCamPos.set(camVec);
-            waterProgram.uniforms.uLightDir.set(SUN);
             waterProgram.uniforms.uTime.set(t);
             waterProgram.draw();
 
@@ -334,26 +365,25 @@ export default function Sprite25DDemo() {
             ] as const) {
               program.uniforms.uViewProj.set(viewProj);
               program.uniforms.uCamPos.set(camVec);
-              program.uniforms.uLightDir.set(SUN);
               program.draw({ instanceCount: instances.count });
             }
 
             grassProgram.uniforms.uViewProj.set(viewProj);
             grassProgram.uniforms.uCamPos.set(camVec);
-            grassProgram.uniforms.uLightDir.set(SUN);
             grassProgram.uniforms.uTime.set(t);
             grassProgram.draw({ instanceCount: grassInstances.count });
 
             for (const [program, texture, count] of [
-              [propProgram, atlasTexture, propBatch.count],
-              [heroProgram, heroTexture, heroBatch.count],
+              [propProgram, atlasTexture, propCount],
+              [heroProgram, heroTexture, heroCount],
             ] as const) {
+              if (count === 0) continue;
               program.uniforms.uViewProj.set(viewProj);
               program.uniforms.uRight.set(right);
               program.uniforms.uUp.set(up);
               program.uniforms.uCamPos.set(camVec);
               program.uniforms.uAtlas.set(texture as BroMetalTexture);
-              program.draw({ instanceCount: count as number });
+              program.draw({ instanceCount: count });
             }
           },
           { clear: [SKY[0], SKY[1], SKY[2], FAR_DEPTH] },
@@ -376,7 +406,7 @@ export default function Sprite25DDemo() {
             trees: conifers.count + bushy.count,
             rocks: rocks.count,
             grass: grassInstances.count,
-            sprites: propBatch.count + heroBatch.count,
+            sprites: propCount + heroCount,
           });
         }
       });
@@ -488,6 +518,21 @@ export default function Sprite25DDemo() {
             a channel that is only free because the sprites <code>discard()</code> instead of
             blending.
           </p>
+          <p>
+            Nothing here is uploaded per frame except the hero&apos;s single quad. Ground normals
+            and water ripples come from the height field&apos;s exact derivative rather than a
+            central difference — same picture, a third of the sines — and every tree, rock and
+            blade of grass ships its rotation already resolved to a cosine and a sine, because a
+            value that is constant across an instance would otherwise be recomputed on every one
+            of its vertices, every frame.
+          </p>
+          <p>
+            Only a tenth of this world is under water, but the water is one grid over all of it.
+            The vertex shader throws away the four fifths of that grid buried under dry land by
+            pushing it outside the clip volume — using the bed depth it already had to compute for
+            the shading. Grass got the same treatment and it was reverted; the shader files
+            explain when the trick pays and when it only looks like it does.
+          </p>
         </div>
       </div>
       <DemoStats stats={stats}>
@@ -501,6 +546,50 @@ export default function Sprite25DDemo() {
       <BackendBadge backend={backend} />
     </>
   );
+}
+
+/**
+ * Turns `(scale, yaw)` into `(scale, cos yaw, sin yaw)` for the mesh and grass
+ * shaders.
+ *
+ * A yaw is one float and a resolved rotation is two, so this looks like a step
+ * backwards — 9,404 instances, 37 KiB more upload. It is not: a yaw is constant
+ * across an instance but the pipeline has no per-instance stage, so the shader
+ * would evaluate `cos`/`sin` of it once per *vertex*. That is 159,246 grass
+ * vertices plus 139,410 tree and rock vertices every frame paying for two
+ * transcendentals each — roughly 600,000 a frame — against 37 KiB uploaded once
+ * at startup. Trading a one-time upload for permanent per-vertex trig is the
+ * mistake; this is the same trade run the right way round.
+ *
+ * Done here rather than in `packInstances`, which is shared with the other sprite
+ * demos; the proper home for it is `mesh-batch.ts` itself.
+ */
+function resolveYaw(instances: MeshInstanceArrays): Float32Array {
+  const out = new Float32Array(Math.max(instances.count, 1) * 3);
+  for (let i = 0; i < instances.count; i++) {
+    const yaw = instances.scaleYaw[i * 2 + 1]!;
+    out[i * 3] = instances.scaleYaw[i * 2]!;
+    out[i * 3 + 1] = Math.cos(yaw);
+    out[i * 3 + 2] = Math.sin(yaw);
+  }
+  return out;
+}
+
+/**
+ * `groundGrid` hands back a `Uint32Array` whatever the grid size, and
+ * `setIndices` picks the GPU element type off the array it is given — so a grid
+ * whose highest index is 9,408 ships twice the bytes it needs. 96 segments is
+ * 55,296 indices: 216 KiB as u32, 108 KiB as u16, for identical geometry.
+ *
+ * Narrowed here rather than in `mesh.ts`, which is shared with the other sprite
+ * demos; the proper home for this is `groundGrid` itself.
+ */
+function narrowGridIndices(
+  indices: Uint32Array,
+  segments: number,
+): Uint16Array | Uint32Array {
+  const vertexCount = (segments + 1) * (segments + 1);
+  return vertexCount <= 65536 ? new Uint16Array(indices) : indices;
 }
 
 const MOVEMENT_KEYS = new Set([
