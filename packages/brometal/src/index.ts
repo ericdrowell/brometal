@@ -8,6 +8,7 @@ export type {
   Sampler2D,
   ShaderDefinition,
   ShaderLayout,
+  Swizzles,
   Values,
   Vec2,
   Vec3,
@@ -21,6 +22,7 @@ export {
   clamp,
   cos,
   cross,
+  discard,
   distance,
   dot,
   exp,
@@ -55,6 +57,7 @@ export type {
   AttributeHandle,
   BlendMode,
   BroMetalProgram,
+  DrawOptions,
   ProgramOptions,
   UniformHandle,
 } from './runtime/program.js';

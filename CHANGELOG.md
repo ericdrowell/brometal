@@ -8,6 +8,11 @@ APIs may still shift until 1.0.
 ## Unreleased
 
 ### Changed
+- **WebGL2 alpha blending now matches WebGPU's destination alpha.** `blend:
+  'alpha'` applied `SRC_ALPHA` to the alpha channel too, writing `aSrc²` where
+  the WebGPU backend wrote `aSrc`. Invisible on an opaque canvas; visible
+  wherever that alpha is read back — a composited canvas, or a blended pass into
+  a render target that is later sampled. Now uses `blendFuncSeparate`.
 - **CSS sizes the canvas; BroMetal owns the drawing buffer.** The
   `width`/`height` attributes are no longer read at all — size the canvas with a
   stylesheet (flex and grid included) and the runtime tracks it at the device
@@ -22,10 +27,45 @@ APIs may still shift until 1.0.
   onto the floor by gravity still grips while one merely touching a wall slides
   past it freely.
 
+### Fixed
+- **WebGPU: several uploads to one program per frame no longer alias.** A frame
+  is one command encoder submitted once at the end, and `queue.writeBuffer` is
+  ordered against that submit rather than against the draws inside it — so two
+  draws that each uploaded their own instance data both saw whichever batch was
+  written *last*. Attribute uploads now append at a fresh offset when they
+  repeat within a frame, and each draw binds its vertex buffers at the offset its
+  own data went to. This is the same mechanism the uniform ring already used for
+  the same reason. Uploading once per frame, which is what every existing
+  example does, is unaffected.
+- **WebGPU: a buffer that outgrows its allocation mid-frame is no longer
+  destroyed while still referenced.** Draws already recorded into the open pass
+  point at the old buffer, so destroying it failed the entire submit — taking
+  every draw in the frame down, not just the one that grew. Replaced buffers are
+  now released at the next frame boundary.
+
 ### Added
+- **`discard()` in the shader DSL** — fragment-stage only, usable inside an
+  `if`, compiled to `discard` in both GLSL and WGSL. This is what makes cut-out
+  sprites work: discard the sub-threshold alpha and every surviving fragment is
+  opaque, so the program can write depth and the GPU orders the sprites instead
+  of the CPU sorting them back-to-front every frame. Rejected in `vertex()`, in
+  helpers (which `vertex()` can call), as a value, and with arguments.
+- **`program.draw({ instanceCount })`** — draw part of what was uploaded, so one
+  over-allocated buffer can back a pool that grows and shrinks without
+  reallocating. A count larger than what was uploaded is clamped, with one warning
+  per message; a zero count skips the draw. It is not an exception, because
+  `draw()` runs inside the frame callback and both loops re-arm
+  `requestAnimationFrame` only after that callback returns.
+- **`mat4.orthographic(left, right, bottom, top, near, far, out?)`** — the 2D
+  projection. Same GL clip conventions as `mat4.perspective`, so one matrix
+  drives both backends.
+- **Full swizzle types.** `Vec2`/`Vec3`/`Vec4` now type every swizzle the
+  compiler already accepted. `v4.zw` compiled to correct GLSL but failed
+  typecheck with TS2339 — exactly the spelling an atlas-rect shader wants.
 - `createProgram(renderer, shader, { blend })` — `'alpha'` and `'additive'`
   blend modes on both backends; blended programs depth-test but don't
-  depth-write.
+  depth-write. A cut-out program that returns alpha 1 is opaque, so `blend: 'none'`
+  already writes depth — no option needed.
 - `mat4.lookAt(eye, target, up?)` and `camera.lookAt(x, y, z)`.
 - **`createRenderTarget(renderer, { width, height })` and `renderer.drawTo(target, fn)`**
   — an off-screen RGBA16F surface a program draws into and any shader can

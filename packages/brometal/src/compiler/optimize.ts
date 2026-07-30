@@ -17,6 +17,8 @@ function foldStmt(statement: IrStmt): IrStmt {
       return { ...statement, expr: foldExpr(statement.expr) };
     case 'return':
       return { ...statement, expr: foldExpr(statement.expr) };
+    case 'discard':
+      return statement;
     case 'if': {
       const folded: IrStmt = {
         kind: 'if',

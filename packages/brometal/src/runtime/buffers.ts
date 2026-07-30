@@ -1,3 +1,42 @@
+/**
+ * Compares a requested instance count with the number of instances that were
+ * uploaded, and returns a count that is safe to draw.
+ *
+ * A request that is too large is a mistake in the application, but this function
+ * does not throw. `draw()` runs inside the frame callback, and both render loops
+ * ask for the next animation frame only after that callback returns. An exception
+ * therefore stops the animation permanently. On WebGPU it also leaves the render
+ * pass open on an encoder that nobody submits, which makes the renderer unusable.
+ *
+ * The count is reduced instead, and the runtime writes one warning for each
+ * distinct message.
+ */
+export function resolveDrawCount(requested: number | undefined, available: number): number {
+  const limit = Math.max(available, 0);
+  if (requested === undefined) return limit;
+  if (!Number.isFinite(requested) || requested < 0) {
+    warnOnce(`draw({ instanceCount: ${requested} }) is not a count. Drawing ${limit} instead.`);
+    return limit;
+  }
+  const count = Math.floor(requested);
+  if (count > limit) {
+    warnOnce(
+      `draw({ instanceCount: ${count} }) is more than the ${limit} instances that were uploaded. ` +
+        `Drawing ${limit} instead.`,
+    );
+    return limit;
+  }
+  return count;
+}
+
+const warned = new Set<string>();
+
+function warnOnce(message: string): void {
+  if (warned.has(message)) return;
+  warned.add(message);
+  console.warn(`BroMetal: ${message}`);
+}
+
 export interface AttributeState {
   buffer: WebGLBuffer;
   componentCount: number;

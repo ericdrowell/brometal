@@ -1,5 +1,11 @@
 import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
-import { uploadAttribute, uploadIndices, type AttributeState, type IndexState } from './buffers.js';
+import {
+  resolveDrawCount,
+  uploadAttribute,
+  uploadIndices,
+  type AttributeState,
+  type IndexState,
+} from './buffers.js';
 import type { Renderer } from './context.js';
 import { bindVaoCached, forgetProgram, forgetVao, useProgramCached } from './state.js';
 import { createUniformSetter, type UniformValue } from './uniforms.js';
@@ -9,14 +15,27 @@ export type BlendMode = 'none' | 'alpha' | 'additive';
 
 export interface ProgramOptions {
   /**
-   * 'alpha' = classic transparency, 'additive' = light accumulation (glows,
-   * particles). Blended programs test depth but do not write it.
+   * Sets the blend mode. 'alpha' gives normal transparency. 'additive' adds
+   * light, for glows and particles.
+   *
+   * A blended program tests depth. By default it does not write depth.
    */
   blend?: BlendMode;
 }
 
 export interface AttributeHandle {
   set(data: Float32Array): void;
+}
+
+export interface DrawOptions {
+  /**
+   * Sets the number of instances to draw. The default is the number that was
+   * uploaded.
+   *
+   * This lets one large buffer hold a pool that grows and becomes smaller. Upload
+   * the full capacity one time. Then draw only the instances that are in use.
+   */
+  instanceCount?: number;
 }
 
 export interface UniformHandle<T extends GpuType> {
@@ -32,7 +51,7 @@ export interface BroMetalProgram<
   readonly instanceAttributes: { [K in keyof I]: AttributeHandle };
   readonly uniforms: { [K in keyof U]: UniformHandle<U[K]> };
   setIndices(data: Uint16Array | Uint32Array): void;
-  draw(): void;
+  draw(options?: DrawOptions): void;
   dispose(): void;
 }
 
@@ -139,8 +158,8 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
       bindVaoCached(gl, vao);
       uploadIndices(gl, indexState, data);
     },
-    draw(): void {
-      const vertexCount = resolveCount(
+    draw(drawOptions: DrawOptions = {}): void {
+      const uploadedVertices = resolveCount(
         vertexStates,
         'no vertex data — call program.attributes.<name>.set(...) before draw()',
         'vertices',
@@ -149,27 +168,44 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
       bindVaoCached(gl, vao);
       if (blend === 'none') {
         gl.disable(gl.BLEND);
-        gl.depthMask(true);
       } else {
         gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE);
-        gl.depthMask(false);
+        // Set the alpha factors separately from the colour factors. The
+        // destination alpha is then equal to the value that the WebGPU backend
+        // writes.
+        //
+        // With SRC_ALPHA on the alpha channel, a blended pass writes aSrc squared.
+        // The two backends then disagree wherever the application reads that
+        // alpha. A canvas that the page composites is one example. A render target
+        // that a later pass samples is another.
+        gl.blendFuncSeparate(
+          gl.SRC_ALPHA,
+          blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE,
+          gl.ONE,
+          blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE,
+        );
       }
+      // A blended pass cannot record one depth for a part-transparent fragment, so
+      // it tests depth and does not write it. An opaque pass writes it.
+      gl.depthMask(blend === 'none');
+
       if (isInstanced) {
-        const instanceCount = resolveCount(
+        const uploadedInstances = resolveCount(
           instanceStates,
           'no instance data — call program.instanceAttributes.<name>.set(...) before draw()',
           'instances',
         );
+        const instanceCount = resolveDrawCount(drawOptions.instanceCount, uploadedInstances);
+        if (instanceCount === 0) return;
         if (indexState !== null) {
           gl.drawElementsInstanced(gl.TRIANGLES, indexState.count, indexState.type, 0, instanceCount);
         } else {
-          gl.drawArraysInstanced(gl.TRIANGLES, 0, vertexCount, instanceCount);
+          gl.drawArraysInstanced(gl.TRIANGLES, 0, uploadedVertices, instanceCount);
         }
       } else if (indexState !== null) {
         gl.drawElements(gl.TRIANGLES, indexState.count, indexState.type, 0);
       } else {
-        gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+        gl.drawArrays(gl.TRIANGLES, 0, uploadedVertices);
       }
     },
     dispose(): void {

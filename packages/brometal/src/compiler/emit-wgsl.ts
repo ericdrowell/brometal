@@ -151,6 +151,9 @@ function emitStatements(lines: string[], statements: IrStmt[], ctx: EmitContext,
           lines.push(`${indent}return ${emitExpr(statement.expr, ctx, 0)};`);
         }
         break;
+      case 'discard':
+        lines.push(`${indent}discard;`);
+        break;
       case 'if': {
         lines.push(`${indent}if (${emitExpr(statement.condition, ctx, 0)}) {`);
         emitStatements(lines, statement.then, ctx, depth + 1);
@@ -235,9 +238,12 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
       : `textureSampleLevel(${sampler.name}, ${sampler.name}_sampler, ${uv}, 0.0)`;
   }
 
-  if (expr.callee === 'clamp' && args[0]!.type !== 'float') {
-    // GLSL allows clamp(vec, float, float); WGSL requires matching types —
-    // splat the scalar bounds into vectors.
+  if (expr.callee === 'clamp' && args[0]!.type !== 'float' && args[1]!.type === 'float') {
+    // GLSL permits clamp(vec, float, float). WGSL requires the three types to be
+    // equal, so expand the scalar bounds into vectors.
+    //
+    // Do not expand bounds that are already vectors. That gives vec3f(vec3f(...)),
+    // which is not valid WGSL.
     const ctor = WGSL_TYPES[args[0]!.type];
     const x = emitExpr(args[0]!, ctx, 0);
     const lo = emitExpr(args[1]!, ctx, 0);

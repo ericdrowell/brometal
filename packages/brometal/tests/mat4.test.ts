@@ -115,3 +115,46 @@ describe('mat4', () => {
     expectVecClose([...aliasB], expected);
   });
 });
+
+describe('mat4.orthographic', () => {
+  it('maps the volume corners onto the clip cube', () => {
+    const m = mat4.orthographic(-4, 4, -3, 3, 1, 101);
+    // Left-bottom-near -> (-1, -1, -1); right-top-far -> (1, 1, 1).
+    expectVecClose(transform(m, [-4, -3, -1, 1]), [-1, -1, -1, 1]);
+    expectVecClose(transform(m, [4, 3, -101, 1]), [1, 1, 1, 1]);
+  });
+
+  it('puts the centre of the volume at the origin', () => {
+    const m = mat4.orthographic(-4, 4, -3, 3, 1, 101);
+    expectVecClose(transform(m, [0, 0, -51, 1]), [0, 0, 0, 1]);
+  });
+
+  it('handles an off-centre volume', () => {
+    // A 2D camera showing 20x10 world units centred on (100, 50).
+    const m = mat4.orthographic(90, 110, 45, 55, -1, 1);
+    expectVecClose(transform(m, [100, 50, 0, 1]), [0, 0, 0, 1]);
+    expectVecClose(transform(m, [90, 45, 0, 1]), [-1, -1, 0, 1]);
+    expectVecClose(transform(m, [110, 55, 0, 1]), [1, 1, 0, 1]);
+  });
+
+  it('does not divide by w — scale is depth-independent', () => {
+    const m = mat4.orthographic(-4, 4, -3, 3, 1, 101);
+    const near = transform(m, [2, 0, -2, 1]);
+    const far = transform(m, [2, 0, -90, 1]);
+    expect(near[3]).toBeCloseTo(1, 6);
+    expect(far[3]).toBeCloseTo(1, 6);
+    expect(near[0]).toBeCloseTo(far[0]!, 6);
+  });
+
+  it('writes into a provided out matrix without allocating', () => {
+    const out = mat4.scratch();
+    const result = mat4.orthographic(-1, 1, -1, 1, -1, 1, out);
+    expect(result).toBe(out);
+  });
+
+  it('rejects an empty volume', () => {
+    expect(() => mat4.orthographic(0, 0, -1, 1, -1, 1)).toThrow(/non-empty volume/);
+    expect(() => mat4.orthographic(-1, 1, 2, 2, -1, 1)).toThrow(/non-empty volume/);
+    expect(() => mat4.orthographic(-1, 1, -1, 1, 5, 5)).toThrow(/non-empty volume/);
+  });
+});

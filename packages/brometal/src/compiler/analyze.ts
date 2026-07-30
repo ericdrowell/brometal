@@ -74,24 +74,23 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
       args.length === 2 && args[0]!.type === 'vec3' && args[1]!.type === 'vec3' ? 'vec3' : null,
   },
   mix: {
-    signature: 'mix(a, b, t) expects matching float/vec a and b, and a float t',
+    signature: 'mix(a, b, t) expects matching float/vec a and b, and t either float or the same type',
     check: (args) =>
       args.length === 3 &&
       floatOrVec(args[0]!.type) &&
       args[0]!.type === args[1]!.type &&
-      args[2]!.type === 'float'
+      (args[2]!.type === 'float' || args[2]!.type === args[0]!.type)
         ? args[0]!.type
         : null,
   },
   clamp: {
-    signature: 'clamp(x, min, max) expects a float/vec x and float bounds',
-    check: (args) =>
-      args.length === 3 &&
-      floatOrVec(args[0]!.type) &&
-      args[1]!.type === 'float' &&
-      args[2]!.type === 'float'
-        ? args[0]!.type
-        : null,
+    signature: 'clamp(x, min, max) expects a float/vec x, with float bounds or bounds matching x',
+    check: (args) => {
+      if (args.length !== 3 || !floatOrVec(args[0]!.type)) return null;
+      const scalarBounds = args[1]!.type === 'float' && args[2]!.type === 'float';
+      const matchingBounds = args[1]!.type === args[0]!.type && args[2]!.type === args[0]!.type;
+      return scalarBounds || matchingBounds ? args[0]!.type : null;
+    },
   },
   texture: {
     signature: 'texture(sampler, uv) expects a sampler2D and a vec2',
@@ -109,35 +108,41 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
         ? args[0]!.type
         : null,
   },
-  sin: floatUnary('sin'),
-  cos: floatUnary('cos'),
-  tan: floatUnary('tan'),
-  asin: floatUnary('asin'),
-  acos: floatUnary('acos'),
-  abs: floatUnary('abs'),
-  fract: floatUnary('fract'),
-  floor: floatUnary('floor'),
-  sqrt: floatUnary('sqrt'),
-  exp: floatUnary('exp'),
-  exp2: floatUnary('exp2'),
-  log: floatUnary('log'),
-  sign: floatUnary('sign'),
-  pow: floatBinary('pow'),
-  min: floatBinary('min'),
-  max: floatBinary('max'),
-  mod: floatBinary('mod'),
-  step: floatBinary('step'),
+  sin: componentUnary('sin'),
+  cos: componentUnary('cos'),
+  tan: componentUnary('tan'),
+  asin: componentUnary('asin'),
+  acos: componentUnary('acos'),
+  abs: componentUnary('abs'),
+  fract: componentUnary('fract'),
+  floor: componentUnary('floor'),
+  sqrt: componentUnary('sqrt'),
+  exp: componentUnary('exp'),
+  exp2: componentUnary('exp2'),
+  log: componentUnary('log'),
+  sign: componentUnary('sign'),
+  pow: componentBinary('pow'),
+  min: componentBinary('min'),
+  max: componentBinary('max'),
+  mod: componentBinary('mod'),
+  step: componentBinary('step'),
   atan: {
-    signature: 'atan(y, x) or atan(x) expects float arguments',
-    check: (args) =>
-      (args.length === 1 || args.length === 2) && args.every((arg) => arg.type === 'float')
-        ? 'float'
-        : null,
+    signature: 'atan(x) or atan(y, x) expects floats, or vectors of the same type',
+    check: (args) => {
+      if (args.length === 1) return floatOrVec(args[0]!.type) ? args[0]!.type : null;
+      if (args.length !== 2) return null;
+      return floatOrVec(args[0]!.type) && args[0]!.type === args[1]!.type ? args[0]!.type : null;
+    },
   },
   smoothstep: {
-    signature: 'smoothstep(edge0, edge1, x) expects three floats',
+    signature: 'smoothstep(edge0, edge1, x) expects three floats, or three vectors of the same type',
     check: (args) =>
-      args.length === 3 && args.every((arg) => arg.type === 'float') ? 'float' : null,
+      args.length === 3 &&
+      floatOrVec(args[0]!.type) &&
+      args[0]!.type === args[1]!.type &&
+      args[1]!.type === args[2]!.type
+        ? args[0]!.type
+        : null,
   },
   distance: {
     signature: 'distance(a, b) expects two vectors of the same type',
@@ -146,17 +151,31 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
   },
 };
 
-function floatUnary(name: string): IntrinsicRule {
+/**
+ * Operates on each component of a float or a vector. Returns the type of the
+ * argument. GLSL calls this rule genType. Both targets support it directly.
+ */
+function componentUnary(name: string): IntrinsicRule {
   return {
-    signature: `${name}(x) expects one float`,
-    check: (args) => (args.length === 1 && args[0]!.type === 'float' ? 'float' : null),
+    signature: `${name}(x) expects one float/vec2/vec3/vec4`,
+    check: (args) => (args.length === 1 && floatOrVec(args[0]!.type) ? args[0]!.type : null),
   };
 }
 
-function floatBinary(name: string): IntrinsicRule {
+/**
+ * Operates on each component of two arguments of the same type.
+ *
+ * GLSL also permits a scalar second argument, as in min(vec3, float). This rule
+ * does not permit it. WGSL requires the two types to be equal, so both emitters
+ * would have to expand the scalar into a vector. Write min(v, vec3(0.5)) instead.
+ */
+function componentBinary(name: string): IntrinsicRule {
   return {
-    signature: `${name}(a, b) expects two floats`,
-    check: (args) => (args.length === 2 && args[0]!.type === 'float' && args[1]!.type === 'float' ? 'float' : null),
+    signature: `${name}(a, b) expects two floats, or two vectors of the same type`,
+    check: (args) =>
+      args.length === 2 && floatOrVec(args[0]!.type) && args[0]!.type === args[1]!.type
+        ? args[0]!.type
+        : null,
   };
 }
 
@@ -635,6 +654,10 @@ function lowerMutation(
   expr: ts.Expression,
   options: { topLevel: boolean },
 ): IrStmt {
+  if (ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) && expr.expression.text === 'discard') {
+    return lowerDiscard(ctx, expr);
+  }
+
   if (ts.isPostfixUnaryExpression(expr) && ts.isIdentifier(expr.operand)) {
     const op = expr.operator === ts.SyntaxKind.PlusPlusToken ? '+' : '-';
     const binding = requireMutableFloat(ctx, scope, expr.operand, `${op}${op}`);
@@ -696,6 +719,29 @@ function lowerMutation(
     expr,
     `expression statements must be assignments (v.name = ..., x = ..., x += ..., x++) — other side effects are not supported`,
   );
+}
+
+/**
+ * discard() is a statement and not a value. It is the only function call that can
+ * be an expression statement.
+ *
+ * Only fragment() can use it. The vertex stage can call a helper function, and a
+ * discard has no meaning there. Therefore a helper function cannot use it.
+ */
+function lowerDiscard(ctx: StageContext, expr: ts.CallExpression): IrStmt {
+  if (ctx.stage !== 'fragment') {
+    throw errorAt(
+      ctx.sourceFile,
+      expr,
+      ctx.stage === 'vertex'
+        ? `discard() is only valid in fragment() — there is no fragment to throw away in the vertex stage`
+        : `discard() is only valid in fragment(), not in ${ctx.ownerLabel} — a helper may be called from vertex(), where discarding is meaningless`,
+    );
+  }
+  if (expr.arguments.length > 0) {
+    throw errorAt(ctx.sourceFile, expr, `discard() takes no arguments`);
+  }
+  return { kind: 'discard' };
 }
 
 function requireMutableFloat(
@@ -972,6 +1018,14 @@ function lowerCall(ctx: StageContext, scope: Scope, node: ts.CallExpression): Ir
   const callee = node.expression.text;
   if (scope.lookup(callee) !== undefined) {
     throw errorAt(ctx.sourceFile, node, `'${callee}' is not callable in shader code`);
+  }
+
+  if (callee === 'discard') {
+    throw errorAt(
+      ctx.sourceFile,
+      node,
+      `discard() produces no value — call it as its own statement, e.g. \`if (alpha < 0.5) { discard(); }\``,
+    );
   }
 
   const args = node.arguments.map((arg) => lowerExpr(ctx, scope, arg));

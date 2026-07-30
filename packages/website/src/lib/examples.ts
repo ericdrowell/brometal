@@ -130,6 +130,35 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
       },
     ],
   },
+  {
+    title: 'Sprite Games',
+    examples: [
+      {
+        slug: 'sprites-compare',
+        name: 'Blended vs Cut-out',
+        description:
+          'The same forest drawn two ways side by side — alpha blending with a CPU sort against discard() with depth writes, with the cost of each on screen.',
+      },
+      {
+        slug: 'sprite-topdown',
+        name: '2D Top-down',
+        description:
+          'A top-down dungeon crawl on an orthographic camera — tilemap, hero, monsters and torchlight, the whole scene in one instanced draw call.',
+      },
+      {
+        slug: 'sprite-sidescroll',
+        name: '2D Side-scroller',
+        description:
+          'A playable pixel-art platformer: run, jump, collect coins. Parallax layers, a walk cycle, and a scrolling orthographic camera.',
+      },
+      {
+        slug: 'sprite-2-3d',
+        name: '2.3D World',
+        description:
+          'Flat sprite characters in a real 3D world — the shape Ankity calls 2.3D. Displaced terrain, water, low-poly trees and rocks, instanced grass, with depth-of-field and vignette sliders.',
+      },
+    ],
+  },
 ];
 
 /** Flat, ordered list used for prev/next navigation. */
