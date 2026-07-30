@@ -12,7 +12,7 @@
  *
  * `createTexture` accepts a `TexImageSource`, and `ImageData` is one of those
  * types. Therefore an RGBA8 data texture needs no change to the library. There is
- * no path to upload float data. See "Gap 7" in docs/sprite-rendering.md.
+ * no path to upload float data or 16-bit data.
  *
  * The 8-bit limit costs precision, but it does not prevent the technique. A tile
  * index fits in one byte, and a quantised distance also fits in one byte. Put the

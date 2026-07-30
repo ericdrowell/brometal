@@ -13,8 +13,9 @@
  * function, so no rounding of floats can differ between JavaScript and a GPU. A
  * noise field looks better, but it puts correctness at risk.
  *
- * A shader cannot import a helper from another file. See "10.3.2" in
- * docs/sprite-rendering.md. That limit is the cause of the duplication.
+ * A shader cannot import a helper from another file. The compiler puts the functions
+ * of `brometal/shader-functions` into a shader, but it permits that one module only.
+ * That limit is the cause of the duplication.
  */
 
 /** Half-width of the world. Terrain is defined everywhere; this is where it ends. */
