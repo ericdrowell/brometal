@@ -48,9 +48,10 @@ export function texture(): Vec4 {
  * ```
  *
  * This function makes cut-out sprites possible. Each fragment that remains is
- * fully opaque. The program can then write depth with `depthWrite: true`, and it
- * can draw the sprites in any order. Without discard(), the application must sort
- * the sprites from back to front on the CPU in each frame.
+ * fully opaque, so the program writes depth, and it can draw the sprites in any
+ * order. Without discard(), a sprite with a transparent edge must blend, a blended
+ * program cannot write depth, and the application must sort the sprites from back
+ * to front on the CPU in each frame.
  */
 export function discard(): void {
   gpuOnly('discard');
