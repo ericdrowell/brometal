@@ -9,8 +9,8 @@ export default function DemoCredit() {
   return (
     <>
       Demo by{' '}
-      <a href="https://x.com/iammrduncan" target="_blank" rel="noopener noreferrer">
-        iamMrDuncan
+      <a href="https://github.com/shadowcodex" target="_blank" rel="noopener noreferrer">
+        shadowcodex
       </a>
     </>
   );

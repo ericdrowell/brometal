@@ -35,8 +35,9 @@ export function texture(): Vec4 {
 }
 
 /**
- * Throws the current fragment away — nothing is written to the colour or depth
- * buffer. Fragment stage only, and only as a statement inside an `if`:
+ * Discards the current fragment. The GPU writes no colour and no depth for it.
+ *
+ * Use discard() only in the fragment stage. Put it in an `if` statement:
  *
  * ```ts
  * fragment({ uAtlas, uCutoff }, { vUv }) {
@@ -46,9 +47,10 @@ export function texture(): Vec4 {
  * }
  * ```
  *
- * This is what makes cut-out sprites work: the surviving fragments are fully
- * opaque, so the program can write depth (`depthWrite: true`) and draw in any
- * order instead of being sorted back-to-front on the CPU every frame.
+ * This function makes cut-out sprites possible. Each fragment that remains is
+ * fully opaque. The program can then write depth with `depthWrite: true`, and it
+ * can draw the sprites in any order. Without discard(), the application must sort
+ * the sprites from back to front on the CPU in each frame.
  */
 export function discard(): void {
   gpuOnly('discard');

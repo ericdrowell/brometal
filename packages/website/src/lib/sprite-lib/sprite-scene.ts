@@ -121,7 +121,7 @@ export function buildSpriteScene(clumps = 90): SpriteScene {
 
 /**
  * Camera path shared by both demos: a slow orbit outside the forest, angled
- * down enough to read as 2.5D but shallow enough that the billboards overlap
+ * down enough to look like 2.3D but shallow enough that the billboards overlap
  * heavily — overlap is the whole point of the comparison.
  */
 export function orbitCamera(

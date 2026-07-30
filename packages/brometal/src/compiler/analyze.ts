@@ -152,8 +152,8 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
 };
 
 /**
- * Component-wise on a float or a vector, returning the argument's own type —
- * GLSL's `genType` rule, which both targets implement natively.
+ * Operates on each component of a float or a vector. Returns the type of the
+ * argument. GLSL calls this rule genType. Both targets support it directly.
  */
 function componentUnary(name: string): IntrinsicRule {
   return {
@@ -163,10 +163,11 @@ function componentUnary(name: string): IntrinsicRule {
 }
 
 /**
- * Component-wise on two arguments of the SAME type. The mixed scalar/vector
- * forms GLSL also allows (`min(vec3, float)`) are deliberately not accepted:
- * WGSL requires matching types, so they would need the operand splatting into a
- * vector in both emitters. Write `min(v, vec3(0.5))` instead.
+ * Operates on each component of two arguments of the same type.
+ *
+ * GLSL also permits a scalar second argument, as in min(vec3, float). This rule
+ * does not permit it. WGSL requires the two types to be equal, so both emitters
+ * would have to expand the scalar into a vector. Write min(v, vec3(0.5)) instead.
  */
 function componentBinary(name: string): IntrinsicRule {
   return {
@@ -721,9 +722,11 @@ function lowerMutation(
 }
 
 /**
- * `discard()` is a statement, not a value — it is the only call allowed to stand
- * alone as an expression statement. Restricted to fragment(): a helper can be
- * reached from vertex(), where discarding is meaningless.
+ * discard() is a statement and not a value. It is the only function call that can
+ * be an expression statement.
+ *
+ * Only fragment() can use it. The vertex stage can call a helper function, and a
+ * discard has no meaning there. Therefore a helper function cannot use it.
  */
 function lowerDiscard(ctx: StageContext, expr: ts.CallExpression): IrStmt {
   if (ctx.stage !== 'fragment') {

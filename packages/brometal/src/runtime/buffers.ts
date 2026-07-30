@@ -1,10 +1,12 @@
 /**
- * Resolves an optional draw-range request against what was actually uploaded.
- * A request larger than the buffer is a bug worth naming rather than silently
- * clamping — the GPU would otherwise read past the end of the data.
+ * Compares a requested draw count with the number of elements that were uploaded.
  *
- * Lives here rather than in program.ts so both backends can share it without
- * program.ts and webgpu.ts importing each other's values.
+ * A request that is larger than the buffer is an error. Report it, and do not
+ * reduce it without a message. If the count is too large, the GPU reads past the
+ * end of the data.
+ *
+ * This function is here, and not in program.ts, so that both backends can use it.
+ * program.ts and webgpu.ts must not import values from each other.
  */
 export function clampDrawCount(requested: number | undefined, available: number, label: string): number {
   if (requested === undefined) return Math.max(available, 0);

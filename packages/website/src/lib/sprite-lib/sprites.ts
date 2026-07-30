@@ -1,24 +1,25 @@
 /**
- * A minimal sprite layer over BroMetal — the shape a 2D/2.5D game framework
- * would build on top of the library.
+ * A small sprite layer above BroMetal. A 2D or 2.3D game framework can use this
+ * shape.
  *
- * Three pieces:
- *  - `spriteAtlas` turns a tile index into the `vec4` UV rect the shader wants.
- *  - `SpriteBatch` is an over-allocated instance pool: `push()` per sprite, then
- *    upload the four arrays and `draw({ instanceCount: batch.count })`. Capacity
- *    only grows, so a batch that grows and shrinks never reallocates.
- *  - `billboardBasis` derives the camera-facing (or Y-locked) quad axes from a
- *    camera's view matrix.
+ * There are three parts:
+ *  - `spriteAtlas` changes a tile index into the UV rectangle that the shader
+ *    needs.
+ *  - `SpriteBatch` is an instance pool with spare capacity. Call `push()` for each
+ *    sprite. Then upload the four arrays and call
+ *    `draw({ instanceCount: batch.count })`. The capacity only increases, so a
+ *    batch that grows and becomes smaller does not allocate again.
+ *  - `billboardBasis` calculates the axes of a billboard quad from the view matrix
+ *    of a camera.
  *
- * `SpriteBatch.sort` is what the cut-out path exists to delete: cut-out sprites
- * write depth, so the GPU orders them and the CPU never touches the array. It is
- * kept because the blended demo needs it to be correct at all — that contrast is
- * the point of the pair.
+ * `SpriteBatch.sort` is the work that the cut-out method removes. Cut-out sprites
+ * write depth, so the GPU puts them in order and the CPU does not touch the array.
+ * The function remains because the blended demo cannot be correct without it. That
+ * difference is the purpose of the comparison.
  *
- * One caveat worth knowing: give each batch its own program. Several uploads into
- * one program per frame works, but only because the WebGPU backend appends each
- * one at a fresh buffer offset; separate programs make the intent obvious and
- * keep the buffers independent.
+ * Give each batch its own program. Several uploads into one program in one frame
+ * are correct, but only because the WebGPU backend writes each one at a new buffer
+ * offset. Separate programs show the intent, and they keep the buffers independent.
  */
 import { mat4, type BroMetalTexture, type Mat4Array } from 'brometal';
 
@@ -241,18 +242,20 @@ export interface SpriteInstanceTarget {
  * that as "no instance data" rather than drawing nothing. Callers must skip the
  * draw when this returns 0.
  *
- * ## The dirty skip requires one program per batch
+ * ## Each batch needs its own program
  *
- * Skipping the upload is only safe if nothing else has written to that program's
- * instance buffers since. Two batches sharing one program will silently draw each
- * other's data: batch A uploads and draws, batch B uploads and draws, and next
- * frame A is clean so its `set()` is skipped — leaving B's instances bound while
- * A's draw call runs. The failure looks like sprites from the wrong atlas rather
- * than like a missing upload, which is why it is worth stating here and not just
- * in the header.
+ * It is safe to skip the upload only if nothing else wrote to the instance buffers
+ * of that program after it. If two batches use one program, each batch draws the
+ * data of the other batch. The sequence is: batch A uploads and draws, then batch
+ * B uploads and draws. In the next frame, batch A is not dirty, so the runtime
+ * skips its `set()`. The instances of batch B are still bound when the draw call
+ * of batch A runs.
  *
- * Give each batch its own program. That is cheap: programs share the compiled
- * shader module and only own their buffers.
+ * The result looks like sprites from the wrong atlas. It does not look like a
+ * missing upload. This note is here for that reason.
+ *
+ * Give each batch its own program. The cost is low. Programs share the compiled
+ * shader module, and they own only their buffers.
  */
 export function uploadSpriteBatch(program: SpriteInstanceTarget, batch: SpriteBatch): number {
   if (batch.count === 0) return 0;
@@ -287,14 +290,13 @@ function permute(data: Float32Array, order: number[], stride: number): void {
 }
 
 /**
- * Camera basis for billboarded quads, read out of a view matrix.
+ * Calculates the axes of a billboard quad from a view matrix.
  *
- * `Mat4Array` is column-major, so row *i* is (m[i], m[4+i], m[8+i]) — and the
- * rows of a view matrix's rotation are the camera axes in world space.
+ * `Mat4Array` is column-major. Row *i* is (m[i], m[4+i], m[8+i]). The rows of the
+ * rotation part of a view matrix are the camera axes in world space.
  *
- * `yLocked` keeps sprites upright and only yaws them toward the camera, which
- * is what a 2.5D world wants: a tree should not lie back when the camera looks
- * down at it.
+ * `yLocked` keeps the sprites vertical. It turns them around the Y axis only. A
+ * 2.3D world needs this. If the camera looks down, a tree must not lean back.
  */
 export function billboardBasis(
   view: Mat4Array,

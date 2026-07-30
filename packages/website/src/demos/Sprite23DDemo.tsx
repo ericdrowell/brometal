@@ -68,7 +68,9 @@ const FAR_DEPTH = 400;
 const GRID_SEGMENTS = 96;
 
 /**
- * 2.5D: sprite characters and props inside a real 3D world.
+ * 2.3D: sprite characters and props inside a real 3D world.
+ *
+ * 2.3D (2D + 3D) is the author's term for this shape, from his Ankity engine.
  *
  * Terrain, water, trees, rocks and grass are actual geometry — a displaced grid,
  * flat-shaded instanced meshes, and instanced blades with wind. Fences, barrels,
@@ -83,20 +85,20 @@ const GRID_SEGMENTS = 96;
  * scene. Transparency comes from `discard()` instead, which is the only reason
  * this arrangement is available at all.
  */
-export default function Sprite25DDemo() {
+export default function Sprite23DDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const [counts, setCounts] = useState({ trees: 0, rocks: 0, grass: 0, sprites: 0 });
   const keysRef = useRef(new Set<string>());
 
-  const [focus, setFocus] = useState(22);
-  const [aperture, setAperture] = useState(7);
-  const [vignette, setVignette] = useState(0.35);
+  const [focus, setFocus] = useState(17);
+  const [aperture, setAperture] = useState(11.5);
+  const [vignette, setVignette] = useState(0.74);
   // Refs so the render loop reads the live value without re-running the effect.
-  const focusRef = useRef(22);
-  const apertureRef = useRef(7);
-  const vignetteRef = useRef(0.35);
+  const focusRef = useRef(17);
+  const apertureRef = useRef(11.5);
+  const vignetteRef = useRef(0.74);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -498,42 +500,24 @@ export default function Sprite25DDemo() {
             />
             <output htmlFor="vignette">{vignette.toFixed(2)}</output>
           </div>
-          <p>
-            Blur at 0 makes the pass a straight copy. Pull Focus in and the far hills go soft; push
-            it out and the foreground grass does instead.
+          <p className="panel-note">
+            Move Focus in and the far hills go soft. Move it out and the near grass goes soft
+            instead. Blur at 0 turns the effect off.
           </p>
         </div>
         <div className="panel">
-          <h1>2.5D World</h1>
-          <p>
-            <strong>WASD</strong> or <strong>arrow keys</strong> to walk. Wade into the lakes.
+          <h1>2.3D World</h1>
+          <p className="panel-note">
+            Flat sprite characters standing in a real 3D world. The author of this demo calls that
+            shape <strong>2.3D</strong> — 2D plus 3D — in his engine, Ankity. Walk with{' '}
+            <strong>WASD</strong> and wade into the lakes.
           </p>
-          <p>
-            Terrain, water, trees, rocks and grass are real 3D geometry; the fences, barrels,
-            mushrooms and the hero are still sprites. One depth buffer holds both, so the hero is
-            occluded by a 3D tree and a sprite fence alike — per pixel, nothing sorted.
+          <p className="panel-note">
+            The ground, water, trees, rocks and grass are true geometry. The hero, the fences and the
+            barrels are flat pictures. Both kinds write to one depth buffer, so the hero disappears
+            behind whatever is really in front of him, pixel by pixel, with nothing sorted.
           </p>
-          <p>
-            The scene renders to a float target whose alpha carries camera distance for the blur —
-            a channel that is only free because the sprites <code>discard()</code> instead of
-            blending.
-          </p>
-          <p>
-            Nothing here is uploaded per frame except the hero&apos;s single quad. Ground normals
-            and water ripples come from the height field&apos;s exact derivative rather than a
-            central difference — same picture, a third of the sines — and every tree, rock and
-            blade of grass ships its rotation already resolved to a cosine and a sine, because a
-            value that is constant across an instance would otherwise be recomputed on every one
-            of its vertices, every frame.
-          </p>
-          <p>
-            Only a tenth of this world is under water, but the water is one grid over all of it.
-            The vertex shader throws away the four fifths of that grid buried under dry land by
-            pushing it outside the clip volume — using the bed depth it already had to compute for
-            the shading. Grass got the same treatment and it was reverted; the shader files
-            explain when the trick pays and when it only looks like it does.
-          </p>
-        </div>
+      </div>
       </div>
       <DemoStats stats={stats}>
         {counts.trees} trees · {counts.rocks} rocks · {counts.grass} grass blades ·{' '}

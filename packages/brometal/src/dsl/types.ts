@@ -5,13 +5,15 @@ export type GpuType = (typeof GPU_TYPES)[number];
 export type GpuRecord = Record<string, GpuType>;
 
 /**
- * Every multi-component swizzle available on a vector with components `C`,
- * generated rather than listed: `.zw`, `.xxy`, `.wzyx` and the rest are all
- * legal GLSL and all accepted by the compiler, so the types have to agree or
- * valid shader code fails to typecheck in the editor.
+ * All of the multi-component swizzles for a vector that has the components `C`.
  *
- * Single-component reads (`.x`) return `number` and are declared on each
- * interface directly — they are the only ones whose type is not a vector.
+ * These types are generated and not written out one by one. GLSL permits `.zw`,
+ * `.xxy`, `.wzyx` and all of the other combinations, and the compiler accepts
+ * them. The types must accept them also. If they do not, correct shader code
+ * fails the type check in the editor.
+ *
+ * A read of one component, such as `.x`, returns a `number`. Each interface
+ * declares those separately, because their type is not a vector.
  */
 export type Swizzles<C extends string> = {
   readonly [K in `${C}${C}`]: Vec2;

@@ -21,7 +21,25 @@
 export const DUNGEON_TILES = {
   floor: [48, 49, 50, 51] as const,
   floorWorn: [52, 53] as const,
-  wall: [57, 58, 59] as const,
+  /**
+   * The wall tiles are a run set. Each tile has a dark border on the sides that
+   * the artist drew as exposed masonry:
+   *
+   *   wallBoth  (58) has a border on the left and the right.
+   *   wallLeft  (57) has a border on the left only.
+   *   wallRight (59) has a border on the right only.
+   *   wallMid   (40) has no side border.
+   *   wallVent  (28) has no side border. It shows a barred vent.
+   *
+   * Select the tile from the neighbour cells. Do not select it at random. A random
+   * selection puts a border in the middle of a wall. Then the wall looks like
+   * many separate blocks.
+   */
+  wallBoth: 58,
+  wallLeft: 57,
+  wallRight: 59,
+  wallMid: 40,
+  wallVent: 28,
   torch: 29,
   crate: 63,
   table: 72,
@@ -142,12 +160,18 @@ export function buildDungeon(): Dungeon {
     carveLine(floor, at, corner, b);
   }
 
-  // Walls wherever a solid cell touches floor — one ring around everything.
-  // The result is two byte arrays rather than a cell list, because its only
-  // consumer is an RGBA8 texture the shader reads per instance.
+  // A wall goes in each solid cell that touches a floor cell. The result is one
+  // ring around all of the floor.
+  //
+  // The output is two byte arrays, not a list of cell objects. The only consumer
+  // is an RGBA8 data texture. The shader reads one cell of it per instance.
   const kinds = new Uint8Array(WIDTH * HEIGHT);
   const tiles = new Uint8Array(WIDTH * HEIGHT);
   let filled = 0;
+
+  // Pass 1 marks each cell as floor or wall, and gives the floor cells a tile.
+  // The wall tiles need a second pass. A wall tile depends on the cells to its
+  // left and right, and those cells are not marked yet.
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < WIDTH; x++) {
       const slot = at(x, y);
@@ -170,8 +194,34 @@ export function buildDungeon(): Dungeon {
       }
       if (touchesFloor) {
         kinds[slot] = CELL.wall;
-        tiles[slot] = DUNGEON_TILES.wall[Math.floor(random() * DUNGEON_TILES.wall.length)]!;
         filled++;
+      }
+    }
+  }
+
+  // Pass 2 gives each wall cell its tile.
+  //
+  // A side is exposed if the cell on that side is not a wall. Masonry continues
+  // through a neighbour wall, so a shared side gets no border.
+  const isWall = (x: number, y: number): boolean =>
+    inside(x, y) && kinds[at(x, y)] === CELL.wall;
+
+  for (let y = 0; y < HEIGHT; y++) {
+    for (let x = 0; x < WIDTH; x++) {
+      const slot = at(x, y);
+      if (kinds[slot] !== CELL.wall) continue;
+      const openLeft = !isWall(x - 1, y);
+      const openRight = !isWall(x + 1, y);
+      if (openLeft && openRight) {
+        tiles[slot] = DUNGEON_TILES.wallBoth;
+      } else if (openLeft) {
+        tiles[slot] = DUNGEON_TILES.wallLeft;
+      } else if (openRight) {
+        tiles[slot] = DUNGEON_TILES.wallRight;
+      } else {
+        // Both sides are shared. Use the vent tile sometimes. It breaks up a long
+        // wall without a border.
+        tiles[slot] = random() > 0.88 ? DUNGEON_TILES.wallVent : DUNGEON_TILES.wallMid;
       }
     }
   }

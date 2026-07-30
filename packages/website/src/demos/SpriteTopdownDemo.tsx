@@ -290,38 +290,16 @@ export default function SpriteTopdownDemo() {
       <div className="panels">
         <div className="panel">
           <h1>2D Top-down</h1>
-          <p>
-            <strong>WASD</strong> or the <strong>arrow keys</strong> to walk. The camera follows and
-            clamps to the map edges.
+          <p className="panel-note">
+            A dungeon crawl in which the level is a <em>texture</em>, not a list of sprites. Walk
+            with <strong>WASD</strong>. The whole scene draws in one call, and the CPU sends 84 bytes
+            per frame. Each sprite reads its own tile, and its own torchlight, out of two small
+            images in the vertex shader.
           </p>
-          <p>
-            One atlas, one instanced draw call for the entire scene — floor, walls, crates, torch
-            flames, monsters, hero. Layering is a Z per sprite instead of a submission order,
-            because cut-out sprites write depth. Actors get classic y-sorting from that same depth
-            value, so a monster below the hero overlaps him with no CPU sort anywhere.
-          </p>
-          <p>
-            The map <em>is</em> a texture: {scene.cells.toLocaleString()} cells of &ldquo;what stands
-            here, which tile&rdquo;, two bytes each, read per instance in the vertex shader — so a
-            floor tile&rsquo;s instance carries nothing but its own grid coordinate. Torchlight is a
-            second byte image baked at load —
-            distance to the nearest torch, and which torch — so a sprite costs one texture fetch to
-            light instead of a loop over every lamp in the level. That is not fewer arithmetic
-            operations than the CPU pass it replaced; flicker is still a sine per sprite per frame.
-            What it buys is that no lighting result crosses the bus and no JavaScript ever walks the
-            level again. Monster patrols are a closed form of the clock, and the atlas rect of a tile
-            index is derived in the shader rather than uploaded.
-          </p>
-          <p>
-            The instance buffer is uploaded <strong>once</strong>:{' '}
-            {scene.sprites.toLocaleString()} sprites,{' '}
-            {Math.round(scene.bytes / 1024).toLocaleString()} KiB of it, and then nothing. Per frame
-            the bus carries 84 bytes of payload — a view-projection, a clock, and the hero&rsquo;s
-            position, the one thing that has to stay on the CPU because it drives the camera and the
-            wall test and nothing can be read back off the GPU. WebGPU rewrites its whole 128-byte
-            uniform block to deliver those 84. The same scene rebuilt into a sprite batch every frame
-            is {scene.sprites.toLocaleString()} instances × 13 floats, about 41 KiB a frame forever,
-            for a level that never changes.
+          <p className="panel-note">
+            {scene.sprites.toLocaleString()} sprites upload once, then never again. A version that
+            rebuilt this batch every frame moved about 41 KiB per frame, for a level that never
+            changes.
           </p>
         </div>
       </div>

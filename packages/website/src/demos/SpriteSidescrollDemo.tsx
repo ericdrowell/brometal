@@ -441,53 +441,15 @@ export default function SpriteSidescrollDemo() {
       <div className="panels">
         <div className="panel">
           <h1>2D Side-scroller</h1>
-          <p>
-            <strong>A / D</strong> or <strong>← →</strong> to run, <strong>Space</strong> or{' '}
-            <strong>W</strong> to jump. Collect the coins; fall off and you respawn at the start.
+          <p className="panel-note">
+            A pixel-art platformer built the way BroMetal prefers: send the level to the GPU once,
+            then animate it there. <strong>A / D</strong> to run, <strong>Space</strong> to jump,
+            collect the coins.
           </p>
-          <p>
-            Five programs, five draw calls — backdrop, terrain, props, walkers, player. Every
-            instance buffer is filled once at load. The terrain is a plain rectangle of grid cells
-            that each read their own tile out of an 87×1 <em>level texture</em> in the vertex
-            shader: the height of their column and its two neighbours decide which of the
-            four-variant ground runs to use, and cells with nothing in them collapse to a clipped
-            degenerate quad. That is what lets a fixed-size buffer stand in for a ragged
-            hand-authored level. There is no view-projection matrix either — a 2D orthographic
-            camera is four floats, and each shader applies them itself.
-          </p>
-          <p>
-            The parallax strips, the coin bob, the flag flip and the walkers&apos; ping-pong patrol
-            are all functions of <code>uTime</code> and the camera, so they animate without a byte
-            moving. Player physics, input and the coin count stay on the CPU — the camera follows
-            the player and the HUD reads its score, and nothing can be read back off the GPU. The
-            player therefore uploads one <code>vec4</code> per frame: <strong>16 bytes</strong> of
-            instance data, plus 92 bytes of uniforms.
-          </p>
-          <p>
-            <strong>Where the saving actually came from.</strong> This demo used to upload
-            217&nbsp;KiB a frame, and it would be dishonest to bill that against the shaders. About
-            99% of it was a bug: the old code handed <code>set()</code> a sprite batch&apos;s
-            4096-slot <em>backing array</em> instead of its live prefix, so it re-sent the whole
-            capacity every frame. Fixing that in <code>sprites.ts</code> alone gets 217&nbsp;KiB
-            down to roughly 20&nbsp;KiB. Giving each batch its own program and filling every
-            instance buffer once — no shader work at all — takes that to about 2.4&nbsp;KiB. Only the
-            last
-            2.4&nbsp;KiB is what the vertex shaders above earn, by turning per-frame sprite stamps
-            into arithmetic. The level texture and the terrain grid save <em>no</em> per-frame bytes
-            over a one-time static upload; they are here because they delete the CPU tile loop and
-            the level&apos;s sprite array outright.
-          </p>
-          <p>
-            <strong>And what it costs.</strong> 940 quads are submitted to draw about 390: the
-            terrain grid is 870 cells for 354 real tiles, and the backdrop is 40 fixed slots for the
-            handful on screen. Clipping happens <em>after</em> the vertex shader, so a self-culled
-            quad saves rasterizing and shading — never its vertex invocations. Draw calls went from
-            three to five, and because there is no shared uniform block, one camera now means five
-            uniform writes a frame instead of one (WebGPU re-sends each program&apos;s whole block
-            regardless of what changed, so it pays 400 bytes there rather than 92). Trading vertex
-            work and uniform traffic for zero per-frame instance traffic is the deal on offer; it is
-            a good one here, and it would not be if the level were a thousand columns of mostly
-            empty grid.
+          <p className="panel-note">
+            The coins bob, the flag waves and the enemies patrol from a clock inside the shader, so
+            none of that moves a byte. Only the player needs the CPU, because the camera follows him
+            and the score has to be read — 16 bytes of him per frame.
           </p>
         </div>
       </div>

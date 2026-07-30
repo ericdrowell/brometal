@@ -631,3 +631,70 @@ a:hover {
   color: #e8eaf2;
   font-size: 15px;
 }
+
+/* Two demos side by side on one screen, for an A/B comparison. */
+.split-stage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  background: #2a2a3c;
+}
+
+.split-half {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.split-half canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split-label {
+  position: absolute;
+  /* Clear of the site header and the prev/next example nav above it. */
+  top: 122px;
+  left: 12px;
+  z-index: 6;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: rgba(16, 16, 26, 0.82);
+  border: 1px solid #2a2a3c;
+  color: #e8eaf2;
+  font-size: 12px;
+  user-select: none;
+}
+
+.split-label span {
+  color: #9aa0b4;
+}
+
+.split-stats {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 6;
+  color: #9aa0b4;
+  font-size: 11px;
+  line-height: 1.6;
+  user-select: none;
+}
+
+.split-stats strong {
+  color: #e8eaf2;
+}
+
+.split-stats .bad {
+  color: #ff8f6b;
+}
+
+.split-stats .good {
+  color: #7ddba0;
+}

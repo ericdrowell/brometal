@@ -239,9 +239,11 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
   }
 
   if (expr.callee === 'clamp' && args[0]!.type !== 'float' && args[1]!.type === 'float') {
-    // GLSL allows clamp(vec, float, float); WGSL requires matching types —
-    // splat the scalar bounds into vectors. Bounds that are already vectors need
-    // no splat, and wrapping them would emit vec3f(vec3f(...)).
+    // GLSL permits clamp(vec, float, float). WGSL requires the three types to be
+    // equal, so expand the scalar bounds into vectors.
+    //
+    // Do not expand bounds that are already vectors. That gives vec3f(vec3f(...)),
+    // which is not valid WGSL.
     const ctor = WGSL_TYPES[args[0]!.type];
     const x = emitExpr(args[0]!, ctx, 0);
     const lo = emitExpr(args[1]!, ctx, 0);

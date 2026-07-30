@@ -8,25 +8,29 @@
  * `program.draw({ instanceCount })` then draws the whole map with zero per-frame
  * bytes.
  *
- * ## Why 8-bit
+ * ## Why the data is 8-bit
  *
- * BroMetal's `createTexture` takes a `TexImageSource`, and `ImageData` is one —
- * so RGBA8 data textures need no library change. There is no float upload path
- * (see "Gap 7" in docs/sprite-rendering.md), which costs us precision but not
- * capability: a tile index fits exactly in a byte, and so does a quantised
- * distance. Pack accordingly and decode with `byteOf` below.
+ * `createTexture` accepts a `TexImageSource`, and `ImageData` is one of those
+ * types. Therefore an RGBA8 data texture needs no change to the library. There is
+ * no path to upload float data. See "Gap 7" in docs/sprite-rendering.md.
+ *
+ * The 8-bit limit costs precision, but it does not prevent the technique. A tile
+ * index fits in one byte, and a quantised distance also fits in one byte. Put the
+ * values in bytes, and decode them in the shader with `floor(channel * 255 + 0.5)`.
  *
  * ## flipY must be false
  *
- * Both backends put source row 0 at v=0 when `flipY: false` (WebGL2 via
- * `UNPACK_FLIP_Y_WEBGL`, WebGPU via `copyExternalImageToTexture`), so row
- * indices survive the upload unchanged and agree across backends. The V-direction
- * disagreement BroMetal warns about is specific to *render targets*, where a
- * fullscreen quad's rasterization order differs — not to uploaded images.
+ * With `flipY: false`, both backends put source row 0 at v=0. WebGL2 uses
+ * `UNPACK_FLIP_Y_WEBGL`, and WebGPU uses `copyExternalImageToTexture`. Row indexes
+ * are therefore the same after the upload, and the two backends agree.
  *
- * Leaving `flipY` at its default of `true` would silently mirror the map
- * vertically, which for a tilemap reads as a level-generator bug rather than an
- * upload bug.
+ * BroMetal gives a warning about the direction of V. That warning applies to render
+ * targets, where the order of rasterization of a full-screen quad is different. It
+ * does not apply to images that you upload.
+ *
+ * The default value of `flipY` is `true`. That value turns the map upside down, and
+ * it gives no error message. For a tilemap, the result looks like an error in the
+ * level generator and not an error in the upload.
  */
 import { createTexture, type BroMetalTexture, type Renderer } from 'brometal';
 

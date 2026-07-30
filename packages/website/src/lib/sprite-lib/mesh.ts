@@ -1,12 +1,14 @@
 /**
- * Stylized low-poly meshes for the 2.5D world, built by composing BroMetal's
- * parametric geometries and then **flat-shading** them.
+ * Low-poly meshes for the 2.3D world. Each mesh joins parametric geometries from
+ * BroMetal, and then uses **flat shading**.
  *
- * Flat shading is what makes the look: de-index the mesh and give all three
- * vertices of each triangle that triangle's own normal, so every facet reads as
- * a single flat plane instead of a smooth gradient. It costs vertex count — no
- * sharing — but these meshes are tens of triangles and drawn thousands of times
- * by instancing, so the vertex data is paid for once.
+ * Flat shading gives the style. Remove the indexes from the mesh. Then give the
+ * three vertices of each triangle the normal of that triangle. Each face is then
+ * one flat plane, and not a smooth gradient.
+ *
+ * This method increases the vertex count, because no vertex is shared. These
+ * meshes have tens of triangles, and instancing draws them thousands of times. The
+ * vertex data therefore has a cost of one upload.
  */
 import { createCylinder, createSphere, type Geometry } from 'brometal';
 

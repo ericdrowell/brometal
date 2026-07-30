@@ -1,13 +1,15 @@
 /**
- * Scene contents for the 2.5D world.
+ * Scene contents for the 2.3D world.
  *
- * The split is the point of the demo: **terrain, water, trees, rocks and grass
- * are real 3D geometry**, while **fences, barrels, sacks and mushrooms stay
- * sprites** — and so does the hero. Both kinds land in the same depth buffer, so
- * a sprite fence occludes and is occluded by a 3D tree correctly, per pixel.
+ * The division is the purpose of the demo. **The terrain, the water, the trees,
+ * the rocks and the grass are true 3D geometry.** **The fences, the barrels, the
+ * sacks, the mushrooms and the hero are sprites.**
  *
- * Everything is placed against `terrainHeight` from `./terrain.ts`, the same
- * function the ground shader displaces by.
+ * Both kinds write to the same depth buffer. A sprite fence can therefore hide a
+ * 3D tree, and a 3D tree can hide the fence. The GPU does this for each pixel.
+ *
+ * `terrainHeight` in `./terrain.ts` gives the position of each object. The ground
+ * shader uses the same function to move its vertices.
  */
 import { WATER_LEVEL, WORLD_EXTENT, terrainHeight, terrainSlope, walkHeight } from './terrain';
 

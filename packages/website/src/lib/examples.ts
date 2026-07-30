@@ -134,16 +134,10 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
     title: 'Sprite Games',
     examples: [
       {
-        slug: 'sprites-blended',
-        name: 'Sprites: Blended',
+        slug: 'sprites-compare',
+        name: 'Blended vs Cut-out',
         description:
-          'A billboard forest drawn with alpha blending — no depth writes, so correctness depends on sorting every sprite on the CPU every frame.',
-      },
-      {
-        slug: 'sprites-cutout',
-        name: 'Sprites: Cut-out',
-        description:
-          'The same forest with discard() and depthWrite — the depth buffer orders the sprites per pixel, with no CPU sort and no per-frame uploads.',
+          'The same forest drawn two ways side by side — alpha blending with a CPU sort against discard() with depth writes, with the cost of each on screen.',
       },
       {
         slug: 'sprite-topdown',
@@ -158,10 +152,10 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
           'A playable pixel-art platformer: run, jump, collect coins. Parallax layers, a walk cycle, and a scrolling orthographic camera.',
       },
       {
-        slug: 'sprite-2-5d',
-        name: '2.5D World',
+        slug: 'sprite-2-3d',
+        name: '2.3D World',
         description:
-          'Walk a sprite hero through a real 3D world — displaced terrain, water, flat-shaded trees and rocks, instanced grass, with depth-of-field and vignette sliders.',
+          'Flat sprite characters in a real 3D world — the shape Ankity calls 2.3D. Displaced terrain, water, low-poly trees and rocks, instanced grass, with depth-of-field and vignette sliders.',
       },
     ],
   },

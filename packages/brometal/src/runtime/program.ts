@@ -15,25 +15,29 @@ export type BlendMode = 'none' | 'alpha' | 'additive';
 
 export interface ProgramOptions {
   /**
-   * 'alpha' = classic transparency, 'additive' = light accumulation (glows,
-   * particles). Blended programs test depth but do not write it by default.
+   * Sets the blend mode. 'alpha' gives normal transparency. 'additive' adds
+   * light, for glows and particles.
+   *
+   * A blended program tests depth. By default it does not write depth.
    */
   blend?: BlendMode;
   /**
-   * Whether the program writes to the depth buffer. Defaults to
-   * `blend === 'none'`, which is what sorted transparency wants.
+   * Controls whether the program writes to the depth buffer. The default is true
+   * when `blend` is 'none'.
    *
-   * Set `true` alongside a cut-out `discard()` in the fragment stage to get
-   * order-independent sprites: every surviving fragment is opaque, so depth
-   * sorts them correctly and the CPU never has to. Set `false` on an opaque
-   * program to make it a depth-test-only second pass.
+   * Set this to true together with `discard()` in the fragment stage. Each
+   * fragment that remains is then opaque, and the depth buffer puts the sprites in
+   * the correct order. The CPU does not sort them.
+   *
+   * Set it to false on an opaque program to make a second pass that only tests
+   * depth.
    */
   depthWrite?: boolean;
   /**
-   * Whether the program tests against the depth buffer. Default `true`.
+   * Controls whether the program tests the depth buffer. The default is true.
    *
-   * `false` is for passes that sit deliberately outside the scene's depth —
-   * a screen-space HUD or a fullscreen backdrop drawn behind everything.
+   * Set it to false for a pass that must ignore the depth of the scene. A
+   * screen-space HUD and a full-screen background are two examples.
    */
   depthTest?: boolean;
 }
@@ -44,25 +48,27 @@ export interface AttributeHandle {
 
 export interface DrawOptions {
   /**
-   * How many instances to draw. Defaults to the number uploaded. Lets one
-   * over-allocated buffer back a growing/shrinking pool without resizing:
-   * upload capacity once, then draw only the live prefix each frame.
+   * Sets the number of instances to draw. The default is the number that was
+   * uploaded.
+   *
+   * This lets one large buffer hold a pool that grows and becomes smaller. Upload
+   * the full capacity one time. Then draw only the instances that are in use.
    */
   instanceCount?: number;
   /**
-   * How many vertices (or indices, when `setIndices` was called) to draw.
-   * Defaults to everything uploaded.
+   * Sets the number of vertices to draw. If you called `setIndices`, this is a
+   * number of indices. The default is the number that was uploaded.
    */
   vertexCount?: number;
-  /** First vertex/index to draw. Default 0. */
+  /** Sets the first vertex or index to draw. The default is 0. */
   first?: number;
   /**
-   * First instance to draw. Default 0.
+   * Sets the first instance to draw. The default is 0.
    *
-   * This is what lets one instance buffer hold a static prefix and a dynamic
-   * suffix and still draw them as separate calls with different uniforms —
-   * otherwise the split needs two buffers, and the static half gets re-uploaded
-   * whenever the dynamic half changes size.
+   * Use this to hold static instances and dynamic instances in one buffer, and to
+   * draw each group with different uniforms. Without it, the two groups need two
+   * buffers. The static group is then uploaded again each time the dynamic group
+   * changes size.
    */
   firstInstance?: number;
 }
@@ -202,10 +208,14 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
         gl.disable(gl.BLEND);
       } else {
         gl.enable(gl.BLEND);
-        // Separate alpha factors so the destination alpha matches the WebGPU
-        // backend: with SRC_ALPHA on the alpha channel too, a blended pass
-        // writes aSrc² and the two backends disagree wherever that alpha is
-        // read back (a composited canvas, or a sampled render target).
+        // Set the alpha factors separately from the colour factors. The
+        // destination alpha is then equal to the value that the WebGPU backend
+        // writes.
+        //
+        // With SRC_ALPHA on the alpha channel, a blended pass writes aSrc squared.
+        // The two backends then disagree wherever the application reads that
+        // alpha. A canvas that the page composites is one example. A render target
+        // that a later pass samples is another.
         gl.blendFuncSeparate(
           gl.SRC_ALPHA,
           blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE,
@@ -241,10 +251,11 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
           'instanceCount',
         );
         if (instanceCount === 0) return;
-        // WebGL2 has no baseInstance parameter, so the offset is applied by
-        // re-pointing the instance attributes at the right element instead. The
-        // VAO keeps the offset until something else re-points it, which the next
-        // set() or a differently-offset draw both do.
+        // WebGL2 has no baseInstance parameter. To apply the offset, point each
+        // instanced attribute at the correct element.
+        //
+        // The VAO keeps this offset. The next set() call replaces it, and so does
+        // a draw that uses a different offset.
         if (firstInstance !== 0) {
           bindVaoCached(gl, vao);
           for (const entry of compiled.layout.attributes) {
@@ -273,8 +284,8 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
         } else {
           gl.drawArraysInstanced(gl.TRIANGLES, first, vertexCount, instanceCount);
         }
-        // Restore the base pointers so an un-offset draw on this program is not
-        // silently shifted by whatever the previous call asked for.
+        // Restore the base pointers. If they stay, a later draw on this program
+        // that uses no offset reads from the wrong element.
         if (firstInstance !== 0) {
           for (const entry of compiled.layout.attributes) {
             if (entry.divisor !== 1) continue;

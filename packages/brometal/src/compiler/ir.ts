@@ -36,7 +36,7 @@ export type IrStmt =
       body: IrStmt[];
     }
   | { kind: 'return'; expr: IrExpr }
-  /** Fragment-only: abandon this fragment, writing neither colour nor depth. */
+  /** Fragment stage only. Discards the fragment. The GPU writes no colour and no depth. */
   | { kind: 'discard' };
 
 export interface HelperParam {

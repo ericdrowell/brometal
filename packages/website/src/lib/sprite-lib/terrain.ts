@@ -1,17 +1,20 @@
 /**
- * The terrain height field for the 2.5D world.
+ * The terrain height field for the 2.3D world.
  *
- * **This function is duplicated in GLSL/WGSL** — every world shader declares its
- * own `terrainHeight` helper with the identical expression, because the vertex
- * shader displaces the ground by it while the CPU needs the same answer to stand
- * a tree, a rock, or the hero on that ground. If the two ever disagree, props
- * float or sink.
+ * **This function also exists in GLSL and WGSL.** Each world shader declares its
+ * own `terrainHeight` helper with the same expression. The vertex shader moves the
+ * ground with it. The CPU needs the same result to put a tree, a rock or the hero
+ * on that ground. If the two versions differ, the props float above the ground or
+ * sink into it.
  *
- * Which is exactly why it is three sine terms and not fbm noise: the shader DSL
- * has `sin`/`cos`, the expression is short enough to keep byte-identical by
- * inspection, and there is no hash function whose float rounding could drift
- * between JS and a GPU. A noise field would look better and would be a
- * correctness liability.
+ * The expression is three sine terms, and not fbm noise, for that reason. The
+ * shader language has `sin` and `cos`. The expression is short, so a person can
+ * compare the two versions and see that they are the same. There is also no hash
+ * function, so no rounding of floats can differ between JavaScript and a GPU. A
+ * noise field looks better, but it puts correctness at risk.
+ *
+ * A shader cannot import a helper from another file. See "10.3.2" in
+ * docs/sprite-rendering.md. That limit is the cause of the duplication.
  */
 
 /** Half-width of the world. Terrain is defined everywhere; this is where it ends. */

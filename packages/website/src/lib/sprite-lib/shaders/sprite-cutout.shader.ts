@@ -3,7 +3,7 @@ import { shader, discard, texture, vec4 } from 'brometal';
 /**
  * Cut-out sprite quads. One instance per sprite; the quad is expanded in the
  * vertex shader along whatever axes `uRight`/`uUp` name, so the same shader
- * draws camera-facing billboards, upright 2.5D billboards, ground-plane tiles,
+ * draws camera-facing billboards, upright 2.3D billboards, ground-plane tiles,
  * and flat 2D sprites — only the two basis uniforms change between draws.
  *
  * The fragment stage discards anything below `uCutoff` instead of blending it.

@@ -106,16 +106,17 @@ function perspective(
 }
 
 /**
- * Orthographic projection — the 2D projection. No perspective divide, so world
- * units map linearly to the screen: a sprite two units wide is always two units
- * wide, whatever its depth.
+ * Makes an orthographic projection matrix. This is the projection for 2D.
  *
- * Emits GL clip-space conventions (z in [-1, 1]) like `perspective` does; the
- * compiler's WGSL output remaps z for WebGPU, so one matrix drives both
- * backends.
+ * There is no perspective divide. World units map to the screen in a linear way.
+ * A sprite that is two units wide is two units wide at each depth.
  *
- * A 2D camera showing `w` × `h` world units centred on (cx, cy) is
- * `orthographic(cx - w/2, cx + w/2, cy - h/2, cy + h/2, -1, 1)`.
+ * The matrix uses the GL clip-space convention, where z is in the range -1 to 1.
+ * `perspective` uses the same convention. The compiler adjusts z for WebGPU in
+ * the WGSL that it generates, so one matrix is correct for both backends.
+ *
+ * For a 2D camera that shows `w` by `h` world units with its centre at (cx, cy),
+ * use `orthographic(cx - w/2, cx + w/2, cy - h/2, cy + h/2, -1, 1)`.
  */
 function orthographic(
   left: number,
