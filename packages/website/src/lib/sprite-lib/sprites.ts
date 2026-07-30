@@ -98,8 +98,18 @@ export interface SpriteInput {
 }
 
 /**
- * Instance-array pool for one sprite shader. Grows by doubling; the GPU buffers
- * are re-uploaded only when capacity changes or content is dirty.
+ * Instance-array pool for one sprite shader.
+ *
+ * Two things here exist to keep the upload honest, and both were originally
+ * missing:
+ *
+ * - `live()` returns views over the **live prefix only**. `set()` hands the
+ *   driver whatever array it is given, so passing the backing store uploads the
+ *   whole capacity — a batch allocated at 4096 uploaded 208 KiB per frame to draw
+ *   800 sprites. Subarray views cost nothing and upload what is actually there.
+ * - `dirty` tracks whether the content changed at all. Static content — a
+ *   tilemap, a scenery set — should upload exactly once, and the only way to know
+ *   that is to track it.
  */
 export class SpriteBatch {
   centers: Float32Array;
@@ -107,6 +117,8 @@ export class SpriteBatch {
   uvRects: Float32Array;
   tints: Float32Array;
   count = 0;
+  /** True when the contents changed since the last `markUploaded()`. */
+  dirty = true;
 
   private capacity: number;
   private readonly atlas: SpriteAtlas;
@@ -125,12 +137,14 @@ export class SpriteBatch {
 
   clear(): void {
     this.count = 0;
+    this.dirty = true;
   }
 
   push(sprite: SpriteInput): void {
     if (this.count === this.capacity) {
       this.grow();
     }
+    this.dirty = true;
     const i = this.count++;
     this.centers[i * 3] = sprite.x;
     this.centers[i * 3 + 1] = sprite.y;
@@ -163,11 +177,31 @@ export class SpriteBatch {
       depths[i] = viewDepth(this.centers[i * 3]!, this.centers[i * 3 + 1]!, this.centers[i * 3 + 2]!);
     }
     order.sort((a, b) => depths[b]! - depths[a]!);
+    this.dirty = true;
     permute(this.centers, order, 3);
     permute(this.sizes, order, 2);
     permute(this.uvRects, order, 4);
     permute(this.tints, order, 4);
     return n;
+  }
+
+  /**
+   * Views over just the live prefix — what should actually be uploaded. These
+   * are views, not copies: no allocation, and they track the backing store until
+   * the next `grow()`.
+   */
+  live(): { centers: Float32Array; sizes: Float32Array; uvRects: Float32Array; tints: Float32Array } {
+    const n = this.count;
+    return {
+      centers: this.centers.subarray(0, n * 3),
+      sizes: this.sizes.subarray(0, n * 2),
+      uvRects: this.uvRects.subarray(0, n * 4),
+      tints: this.tints.subarray(0, n * 4),
+    };
+  }
+
+  markUploaded(): void {
+    this.dirty = false;
   }
 
   private grow(): void {
@@ -182,6 +216,54 @@ export class SpriteBatch {
   get capacityCount(): number {
     return this.capacity;
   }
+}
+
+/**
+ * The instance-attribute shape every sprite shader in this library shares.
+ * Structural, so it matches any `BroMetalProgram` whose instance attributes are
+ * named this way without dragging the full generic signature around.
+ */
+export interface SpriteInstanceTarget {
+  instanceAttributes: {
+    iCenter: { set(data: Float32Array): void };
+    iSize: { set(data: Float32Array): void };
+    iUvRect: { set(data: Float32Array): void };
+    iTint: { set(data: Float32Array): void };
+  };
+}
+
+/**
+ * Uploads a batch's live prefix, and only if it changed. Returns the number of
+ * instances now on the GPU, which is what to pass to `draw({ instanceCount })`.
+ *
+ * Returns 0 for an empty batch **without uploading** — a zero-length upload
+ * would leave the attribute with an element count of zero, and `draw()` rejects
+ * that as "no instance data" rather than drawing nothing. Callers must skip the
+ * draw when this returns 0.
+ *
+ * ## The dirty skip requires one program per batch
+ *
+ * Skipping the upload is only safe if nothing else has written to that program's
+ * instance buffers since. Two batches sharing one program will silently draw each
+ * other's data: batch A uploads and draws, batch B uploads and draws, and next
+ * frame A is clean so its `set()` is skipped — leaving B's instances bound while
+ * A's draw call runs. The failure looks like sprites from the wrong atlas rather
+ * than like a missing upload, which is why it is worth stating here and not just
+ * in the header.
+ *
+ * Give each batch its own program. That is cheap: programs share the compiled
+ * shader module and only own their buffers.
+ */
+export function uploadSpriteBatch(program: SpriteInstanceTarget, batch: SpriteBatch): number {
+  if (batch.count === 0) return 0;
+  if (!batch.dirty) return batch.count;
+  const live = batch.live();
+  program.instanceAttributes.iCenter.set(live.centers);
+  program.instanceAttributes.iSize.set(live.sizes);
+  program.instanceAttributes.iUvRect.set(live.uvRects);
+  program.instanceAttributes.iTint.set(live.tints);
+  batch.markUploaded();
+  return batch.count;
 }
 
 const WHITE: readonly [number, number, number] = [1, 1, 1];
