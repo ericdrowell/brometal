@@ -9,8 +9,8 @@ import {
   type BroMetalProgram,
   type RendererBackend,
 } from 'brometal';
-import blendShader from '@/shaders/sprite-blend.shader.gen';
-import cutoutShader from '@/shaders/sprite-cutout.shader.gen';
+import blendShader from '@/lib/sprite-lib/shaders/sprite-blend.shader.gen';
+import cutoutShader from '@/lib/sprite-lib/shaders/sprite-cutout.shader.gen';
 import {
   QUAD_INDICES,
   QUAD_POSITIONS,
@@ -18,10 +18,11 @@ import {
   SpriteBatch,
   billboardBasis,
   spriteAtlas,
-} from '@/lib/sprites';
-import { buildSpriteScene, orbitCamera } from '@/lib/sprite-scene';
+} from '@/lib/sprite-lib/sprites';
+import { buildSpriteScene, orbitCamera } from '@/lib/sprite-lib/sprite-scene';
 import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
+import DemoCredit from '@/lib/sprite-lib/DemoCredit';
 
 type BlendProgram = BroMetalProgram<
   (typeof blendShader)['attributes'],
@@ -285,6 +286,8 @@ export default function SpriteCompareDemo({ mode }: { mode: SpriteMode }) {
             sort {detail.sortMs.toFixed(2)} ms/frame · {detail.uploads.toFixed(0)} uploads/frame
           </>
         )}
+        <br />
+        <DemoCredit />
         <br />
         Sprites: Tiny Town by <a href="https://kenney.nl/assets/tiny-town">Kenney</a> (CC0)
       </DemoStats>

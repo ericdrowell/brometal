@@ -327,9 +327,10 @@ npm run dev:website    # → http://localhost:3005 (uses the LOCAL workspace pac
 npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
-Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/ball-physics`, `/examples/star-bro`, `/examples/sprites-blended`,
-`/examples/sprites-cutout`, `/examples/sprite-topdown`,
-`/examples/sprite-sidescroll`, `/examples/sprite-2-5d`.
+Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/ball-physics`, `/examples/star-bro`. The **Sprite Games** section adds
+`/examples/sprites-blended`, `/examples/sprites-cutout`,
+`/examples/sprite-topdown`, `/examples/sprite-sidescroll`, and
+`/examples/sprite-2-5d`.
 
 `dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
 

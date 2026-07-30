@@ -10,7 +10,7 @@ import {
   type BroMetalTexture,
   type RendererBackend,
 } from 'brometal';
-import cutoutShader from '@/shaders/sprite-cutout.shader.gen';
+import cutoutShader from '@/lib/sprite-lib/shaders/sprite-cutout.shader.gen';
 import {
   AXIS_RIGHT,
   AXIS_UP,
@@ -22,16 +22,17 @@ import {
   ortho2d,
   spriteAtlas,
   type SpriteAtlas,
-} from '@/lib/sprites';
+} from '@/lib/sprite-lib/sprites';
 import {
   BACKGROUND_TILES,
   buildLevel,
   CHAR_TILES,
   PLATFORMER_TILES,
   type Level,
-} from '@/lib/platformer';
+} from '@/lib/sprite-lib/platformer';
 import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
+import DemoCredit from '@/lib/sprite-lib/DemoCredit';
 
 type CutoutProgram = BroMetalProgram<
   (typeof cutoutShader)['attributes'],
@@ -402,6 +403,8 @@ export default function SpriteSidescrollDemo() {
       </div>
       <DemoStats stats={stats}>
         {hud.coins}/{hud.total} coins · {hud.sprites} sprites · 3 draw calls
+        <br />
+        <DemoCredit />
         <br />
         Sprites: Pixel Platformer by{' '}
         <a href="https://kenney.nl/assets/pixel-platformer">Kenney</a> (CC0)

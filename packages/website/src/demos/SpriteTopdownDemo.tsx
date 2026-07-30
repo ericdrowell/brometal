@@ -9,7 +9,7 @@ import {
   type BroMetalProgram,
   type RendererBackend,
 } from 'brometal';
-import cutoutShader from '@/shaders/sprite-cutout.shader.gen';
+import cutoutShader from '@/lib/sprite-lib/shaders/sprite-cutout.shader.gen';
 import {
   AXIS_RIGHT,
   AXIS_UP,
@@ -20,10 +20,11 @@ import {
   SpriteBatch,
   ortho2d,
   spriteAtlas,
-} from '@/lib/sprites';
-import { buildDungeon, DUNGEON_TILES, type Dungeon } from '@/lib/dungeon';
+} from '@/lib/sprite-lib/sprites';
+import { buildDungeon, DUNGEON_TILES, type Dungeon } from '@/lib/sprite-lib/dungeon';
 import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
+import DemoCredit from '@/lib/sprite-lib/DemoCredit';
 
 type CutoutProgram = BroMetalProgram<
   (typeof cutoutShader)['attributes'],
@@ -308,6 +309,8 @@ export default function SpriteTopdownDemo() {
       </div>
       <DemoStats stats={stats}>
         {sprites} sprites · 1 draw call · depth-layered, no sort
+        <br />
+        <DemoCredit />
         <br />
         Sprites: Tiny Dungeon by <a href="https://kenney.nl/assets/tiny-dungeon">Kenney</a> (CC0)
       </DemoStats>
