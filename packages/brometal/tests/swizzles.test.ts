@@ -147,6 +147,27 @@ export default shader({
     expect(wgsl).toContain('clamp(bm_in.aPosition, vec3f(0.0), vec3f(1.0))');
   });
 
+  it('accepts atan with one vector and with two vectors', () => {
+    const source = `
+import { shader, vec2, vec3, vec4, atan } from 'brometal';
+export default shader({
+  attributes: { aPosition: 'vec3' },
+  varyings: { vA: 'vec3', vB: 'vec3' },
+  vertex({ aPosition }, _u, v) {
+    v.vA = atan(aPosition);
+    v.vB = atan(aPosition, aPosition);
+    return vec4(aPosition, 1);
+  },
+  fragment(_u, { vA, vB }) { return vec4(vA.add(vB), 1); },
+});
+`;
+    const compiled = compile(source);
+    expect(compiled.vertexSrc).toContain('atan(aPosition)');
+    expect(compiled.vertexSrc).toContain('atan(aPosition, aPosition)');
+    // WGSL spells the two-argument form atan2.
+    expect(compiled.wgslSrc ?? '').toContain('atan2(bm_in.aPosition, bm_in.aPosition)');
+  });
+
   it('still rejects mismatched vector widths', () => {
     const source = `
 import { shader, vec2, vec3, vec4, max } from 'brometal';

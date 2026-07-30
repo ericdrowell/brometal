@@ -175,6 +175,7 @@ export function acos(): number {
 export function atan(y: number, x: number): number;
 export function atan(x: number): number;
 export function atan<T extends Vec2 | Vec3 | Vec4>(x: T): T;
+export function atan<T extends Vec2 | Vec3 | Vec4>(y: T, x: T): T;
 export function atan(): number {
   return gpuOnly('atan');
 }

@@ -93,11 +93,11 @@ export default function Sprite23DDemo() {
   const keysRef = useRef(new Set<string>());
 
   const [focus, setFocus] = useState(17);
-  const [aperture, setAperture] = useState(11.5);
+  const [aperture, setAperture] = useState(22);
   const [vignette, setVignette] = useState(0.74);
   // Refs so the render loop reads the live value without re-running the effect.
   const focusRef = useRef(17);
-  const apertureRef = useRef(11.5);
+  const apertureRef = useRef(22);
   const vignetteRef = useRef(0.74);
 
   useEffect(() => {

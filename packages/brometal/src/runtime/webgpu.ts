@@ -633,6 +633,22 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       if (pass === null) {
         throw new Error('BroMetal: draw() must be called inside renderer.loop()');
       }
+      // Do the per-frame bookkeeping before any early exit below. A frame in
+      // which every draw is skipped must still release the retired buffers and
+      // restart the slot ring. If it does not, the buffers stay alive until
+      // dispose(), and the ring can write over an offset that a recorded draw
+      // still uses.
+      if (internals.frame !== lastFrame) {
+        lastFrame = internals.frame;
+        // The GPU has the previous frame, so the buffers that it retired are now
+        // safe to destroy.
+        for (const buffer of retired) {
+          buffer.destroy();
+        }
+        retired.length = 0;
+        slot = -1;
+        uniformsDirty = true;
+      }
       const uploadedVertices = resolveCount(vertexStates, 'vertex');
       const first = drawOptions.first ?? 0;
       const available = indexBuffer !== null ? indexCount : uploadedVertices;
@@ -655,19 +671,6 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
         if (!states.has(entry.name)) {
           throw new Error(`BroMetal: attribute '${entry.name}' has no data — call set(...) before draw()`);
         }
-      }
-      if (internals.frame !== lastFrame) {
-        // New frame: restart the slot ring. Forcing a write keeps this frame's
-        // ascending slots from ever overwriting an offset already referenced.
-        lastFrame = internals.frame;
-        // The previous frame has been submitted, so anything retired during it
-        // is now safe to release.
-        for (const buffer of retired) {
-          buffer.destroy();
-        }
-        retired.length = 0;
-        slot = -1;
-        uniformsDirty = true;
       }
       if (uniformsDirty && uniformBuffer !== null) {
         slot++;
