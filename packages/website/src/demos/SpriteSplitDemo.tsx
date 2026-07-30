@@ -427,10 +427,6 @@ export default function SpriteSplitDemo() {
         <div className="panel">
           <h1>Blended vs cut-out</h1>
           <p className="panel-note">
-            The same {sprites.toLocaleString()} trees, drawn two ways at once. Watch the numbers at
-            the bottom of each half.
-          </p>
-          <p className="panel-note">
             <strong>Left</strong> blends transparent edges. A half-clear pixel has no single depth,
             so the program is not allowed to write depth, and nothing on the GPU knows which tree is
             in front. The CPU has to sort all {sprites.toLocaleString()} sprites every frame and send
@@ -449,11 +445,6 @@ export default function SpriteSplitDemo() {
             One thing: <code>discard()</code> in the shader language. Nothing else in the library
             could throw a pixel away, so a sprite with a soft edge had to blend, and a blended
             program cannot write depth.
-          </p>
-          <p className="panel-note">
-            Note what the right half does <em>not</em> need. Its fragment stage returns alpha 1 on
-            every pixel that survives, so it is opaque, and an opaque program already wrote depth.
-            The only new part is the discard.
           </p>
           <p className="panel-note">
             See stats for differences in renderings.
