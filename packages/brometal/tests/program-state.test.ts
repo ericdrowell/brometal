@@ -108,8 +108,8 @@ function lastCall(calls: RecordedCall[], method: string): RecordedCall | undefin
   return [...calls].reverse().find((call) => call.method === method);
 }
 
-describe('depthWrite / depthTest', () => {
-  it('writes depth by default for an unblended program', () => {
+describe('depth writes follow the blend mode', () => {
+  it('writes depth for an unblended program', () => {
     const { renderer, calls } = stubRenderer();
     const program = createProgram(renderer, compiled(PLAIN_SHADER));
     program.attributes.aPosition!.set(new Float32Array(9));
@@ -117,45 +117,12 @@ describe('depthWrite / depthTest', () => {
     expect(lastCall(calls, 'depthMask')?.args).toEqual([true]);
   });
 
-  it('does not write depth by default for a blended program', () => {
+  it('does not write depth for a blended program', () => {
     const { renderer, calls } = stubRenderer();
     const program = createProgram(renderer, compiled(PLAIN_SHADER), { blend: 'alpha' });
     program.attributes.aPosition!.set(new Float32Array(9));
     program.draw();
     expect(lastCall(calls, 'depthMask')?.args).toEqual([false]);
-  });
-
-  it('lets a blended program opt back into depth writes (the cut-out case)', () => {
-    const { renderer, calls } = stubRenderer();
-    const program = createProgram(renderer, compiled(PLAIN_SHADER), {
-      blend: 'alpha',
-      depthWrite: true,
-    });
-    program.attributes.aPosition!.set(new Float32Array(9));
-    program.draw();
-    expect(lastCall(calls, 'depthMask')?.args).toEqual([true]);
-  });
-
-  it('lets an opaque program opt out of depth writes', () => {
-    const { renderer, calls } = stubRenderer();
-    const program = createProgram(renderer, compiled(PLAIN_SHADER), { depthWrite: false });
-    program.attributes.aPosition!.set(new Float32Array(9));
-    program.draw();
-    expect(lastCall(calls, 'depthMask')?.args).toEqual([false]);
-  });
-
-  it('enables the depth test by default and disables it on request', () => {
-    const on = stubRenderer();
-    const a = createProgram(on.renderer, compiled(PLAIN_SHADER));
-    a.attributes.aPosition!.set(new Float32Array(9));
-    a.draw();
-    expect(on.calls.some((c) => c.method === 'enable' && c.args[0] === GL_DEPTH_TEST)).toBe(true);
-
-    const off = stubRenderer();
-    const b = createProgram(off.renderer, compiled(PLAIN_SHADER), { depthTest: false });
-    b.attributes.aPosition!.set(new Float32Array(9));
-    b.draw();
-    expect(off.calls.some((c) => c.method === 'disable' && c.args[0] === GL_DEPTH_TEST)).toBe(true);
   });
 });
 
@@ -189,7 +156,7 @@ describe('blend factors', () => {
   });
 });
 
-describe('draw() ranges', () => {
+describe('draw({ instanceCount })', () => {
   it('draws every uploaded instance by default', () => {
     const { renderer, calls } = stubRenderer();
     const program = createProgram(renderer, compiled(INSTANCED_SHADER));
@@ -217,75 +184,23 @@ describe('draw() ranges', () => {
     expect(lastCall(calls, 'drawArraysInstanced')).toBeUndefined();
   });
 
-  it('throws when the requested instance count exceeds what was uploaded', () => {
-    const { renderer } = stubRenderer();
+  it('clamps an over-range count instead of throwing', () => {
+    // An exception here would leave the frame callback without re-arming
+    // requestAnimationFrame, so the animation would stop for good.
+    const { renderer, calls } = stubRenderer();
     const program = createProgram(renderer, compiled(INSTANCED_SHADER));
     program.attributes.aPosition!.set(new Float32Array(9));
     program.instanceAttributes.iOffset!.set(new Float32Array(30)); // 10 instances
-    expect(() => program.draw({ instanceCount: 5000 })).toThrow(
-      /instanceCount: 5000 \}\) exceeds the 10 uploaded/,
-    );
+    expect(() => program.draw({ instanceCount: 5000 })).not.toThrow();
+    expect(lastCall(calls, 'drawArraysInstanced')?.args).toEqual([GL_TRIANGLES, 0, 3, 10]);
   });
 
-  it('rejects a negative count', () => {
-    const { renderer } = stubRenderer();
+  it('clamps a negative count instead of throwing', () => {
+    const { renderer, calls } = stubRenderer();
     const program = createProgram(renderer, compiled(INSTANCED_SHADER));
     program.attributes.aPosition!.set(new Float32Array(9));
     program.instanceAttributes.iOffset!.set(new Float32Array(30));
-    expect(() => program.draw({ instanceCount: -1 })).toThrow(/must be a non-negative number/);
-  });
-
-  it('honours vertexCount and first on a non-indexed draw', () => {
-    const { renderer, calls } = stubRenderer();
-    const program = createProgram(renderer, compiled(PLAIN_SHADER));
-    program.attributes.aPosition!.set(new Float32Array(30)); // 10 vertices
-    program.draw({ first: 3, vertexCount: 6 });
-    expect(lastCall(calls, 'drawArrays')?.args).toEqual([GL_TRIANGLES, 3, 6]);
-  });
-
-  it('converts first to a byte offset on an indexed draw', () => {
-    const { renderer, calls } = stubRenderer();
-    const program = createProgram(renderer, compiled(PLAIN_SHADER));
-    program.attributes.aPosition!.set(new Float32Array(30));
-    program.setIndices(new Uint16Array([0, 1, 2, 0, 2, 3]));
-    program.draw({ first: 3, vertexCount: 3 });
-    // 3 indices in at 2 bytes each = byte offset 6.
-    expect(lastCall(calls, 'drawElements')?.args).toEqual([GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 6]);
-  });
-
-  it('offsets the instance attributes for firstInstance', () => {
-    const { renderer, calls } = stubRenderer();
-    const program = createProgram(renderer, compiled(INSTANCED_SHADER));
-    program.attributes.aPosition!.set(new Float32Array(9));
-    program.instanceAttributes.iOffset!.set(new Float32Array(30)); // 10 instances
-    calls.length = 0;
-    program.draw({ instanceCount: 4, firstInstance: 6 });
-    // WebGL2 has no baseInstance, so the offset is a re-pointed attribute:
-    // instance 6 of a vec3 stream starts at byte 6 * 3 * 4 = 72.
-    const pointers = calls.filter((c) => c.method === 'vertexAttribPointer');
-    expect(pointers[0]?.args).toEqual([1, 3, 0x1406, false, 0, 72]);
-    expect(lastCall(calls, 'drawArraysInstanced')?.args).toEqual([GL_TRIANGLES, 0, 3, 4]);
-    // ...and restored afterwards, so the next un-offset draw is not shifted.
-    expect(pointers[pointers.length - 1]?.args).toEqual([1, 3, 0x1406, false, 0, 0]);
-  });
-
-  it('counts firstInstance against what was uploaded', () => {
-    const { renderer } = stubRenderer();
-    const program = createProgram(renderer, compiled(INSTANCED_SHADER));
-    program.attributes.aPosition!.set(new Float32Array(9));
-    program.instanceAttributes.iOffset!.set(new Float32Array(30)); // 10 instances
-    // 6 + 5 > 10, so this must throw rather than read past the buffer.
-    expect(() => program.draw({ instanceCount: 5, firstInstance: 6 })).toThrow(
-      /instanceCount: 5 \}\) exceeds the 4 uploaded/,
-    );
-  });
-
-  it('draws every index by default', () => {
-    const { renderer, calls } = stubRenderer();
-    const program = createProgram(renderer, compiled(PLAIN_SHADER));
-    program.attributes.aPosition!.set(new Float32Array(30));
-    program.setIndices(new Uint16Array([0, 1, 2, 0, 2, 3]));
-    program.draw();
-    expect(lastCall(calls, 'drawElements')?.args).toEqual([GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0]);
+    expect(() => program.draw({ instanceCount: -1 })).not.toThrow();
+    expect(lastCall(calls, 'drawArraysInstanced')?.args).toEqual([GL_TRIANGLES, 0, 3, 10]);
   });
 });

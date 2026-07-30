@@ -50,15 +50,12 @@ APIs may still shift until 1.0.
   opaque, so the program can write depth and the GPU orders the sprites instead
   of the CPU sorting them back-to-front every frame. Rejected in `vertex()`, in
   helpers (which `vertex()` can call), as a value, and with arguments.
-- **`createProgram(renderer, shader, { depthWrite, depthTest })`.** `depthWrite`
-  defaults to `blend === 'none'`, so nothing changes unless you ask; set it
-  `true` alongside a cut-out `discard()` for order-independent transparency.
-  `depthTest: false` is for passes that sit outside the scene's depth, like a
-  screen-space HUD.
-- **`program.draw({ instanceCount, vertexCount, first })`** — draw part of what
-  was uploaded, so one over-allocated buffer can back a pool that grows and
-  shrinks without reallocating. A count larger than the uploaded data throws a
-  named error rather than reading past the buffer; a zero count skips the draw.
+- **`program.draw({ instanceCount })`** — draw part of what was uploaded, so one
+  over-allocated buffer can back a pool that grows and shrinks without
+  reallocating. A count larger than what was uploaded is clamped, with one warning
+  per message; a zero count skips the draw. It is not an exception, because
+  `draw()` runs inside the frame callback and both loops re-arm
+  `requestAnimationFrame` only after that callback returns.
 - **`mat4.orthographic(left, right, bottom, top, near, far, out?)`** — the 2D
   projection. Same GL clip conventions as `mat4.perspective`, so one matrix
   drives both backends.
@@ -67,7 +64,8 @@ APIs may still shift until 1.0.
   typecheck with TS2339 — exactly the spelling an atlas-rect shader wants.
 - `createProgram(renderer, shader, { blend })` — `'alpha'` and `'additive'`
   blend modes on both backends; blended programs depth-test but don't
-  depth-write unless `depthWrite: true` says otherwise.
+  depth-write. A cut-out program that returns alpha 1 is opaque, so `blend: 'none'`
+  already writes depth — no option needed.
 - `mat4.lookAt(eye, target, up?)` and `camera.lookAt(x, y, z)`.
 - **`createRenderTarget(renderer, { width, height })` and `renderer.drawTo(target, fn)`**
   — an off-screen RGBA16F surface a program draws into and any shader can

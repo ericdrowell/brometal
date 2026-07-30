@@ -253,10 +253,7 @@ export default function Sprite23DDemo() {
 
       // --- post pass: depth of field + vignette, straight to the screen ---
       const fullscreen = createPlane({ width: 2, height: 2 });
-      const postProgram = createProgram(renderer, postShader, {
-        depthTest: false,
-        depthWrite: false,
-      });
+      const postProgram = createProgram(renderer, postShader);
       postProgram.attributes.aPosition.set(fullscreen.positions);
       postProgram.setIndices(fullscreen.indices);
 

@@ -259,7 +259,7 @@ export default shader({
 ```
 
 ```ts
-createProgram(renderer, spriteShader, { blend: 'alpha', depthWrite: true });
+createProgram(renderer, spriteShader);   // opaque: writes depth, no options needed
 ```
 
 Every surviving fragment is opaque, so the program can write depth: the GPU
@@ -270,9 +270,11 @@ never get right.
 
 `discard()` is fragment-only and must be a statement inside an `if`; the
 compiler rejects it in `vertex()`, in helpers (which `vertex()` can call), and
-as a value. `depthWrite` defaults to `blend === 'none'`, so existing blended
-programs are unaffected; `depthTest: false` is also available for passes that sit
-outside the scene's depth, like a screen-space HUD.
+as a value.
+
+Note what this does *not* need. The fragment stage above returns alpha 1 on every
+pixel that survives, so the program is opaque, and an opaque program already writes
+depth. No new program option is involved.
 
 `mat4.orthographic(left, right, bottom, top, near, far)` is the projection to
 pair with this for 2D and 2.5D — same GL clip conventions as `mat4.perspective`,
@@ -293,10 +295,10 @@ export default shader({
 
 `program.draw({ instanceCount })` draws only part of what was uploaded, so one
 over-allocated buffer can back a pool that grows and shrinks without
-reallocating — upload capacity once, then draw the live prefix each frame.
-`vertexCount` and `first` narrow the vertex/index range the same way. A count
-larger than the uploaded data throws a named error rather than reading past the
-buffer.
+reallocating — upload capacity once, then draw the live prefix each frame. A count
+larger than the uploaded data is clamped, with one warning per message: `draw()`
+runs inside the frame callback, and throwing there would stop the animation for
+good.
 
 When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The lots-of-cubes example renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
 

@@ -102,10 +102,7 @@ export default function SpriteTopdownDemo() {
         return;
       }
 
-      const program: DungeonProgram = createProgram(renderer, dungeonShader, {
-        blend: 'alpha',
-        depthWrite: true,
-      });
+      const program: DungeonProgram = createProgram(renderer, dungeonShader, { blend: 'none' });
       program.attributes.aPosition.set(QUAD_POSITIONS);
       program.attributes.aUv.set(QUAD_UVS);
       program.setIndices(QUAD_INDICES);

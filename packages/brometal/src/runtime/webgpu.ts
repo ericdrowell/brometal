@@ -6,7 +6,7 @@ import type { BroMetalTexture, TextureOptions } from './texture.js';
 import type { UniformValue } from './uniforms.js';
 import type { RenderTarget } from './render-target.js';
 import { resizeToDisplaySize } from './canvas.js';
-import { clampDrawCount } from './buffers.js';
+import { resolveDrawCount } from './buffers.js';
 
 /**
  * Render targets hold numbers, not pictures. rgba16float rather than 32: full
@@ -292,13 +292,8 @@ interface GpuTextureBinding {
 export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U extends GpuRecord>(
   renderer: Renderer,
   compiled: CompiledShader<A, I, U>,
-  state: { blend: 'none' | 'alpha' | 'additive'; depthWrite: boolean; depthTest: boolean } = {
-    blend: 'none',
-    depthWrite: true,
-    depthTest: true,
-  },
+  blend: 'none' | 'alpha' | 'additive' = 'none',
 ): BroMetalProgram<A, I, U> {
-  const { blend, depthWrite, depthTest } = state;
   const internals = webgpuInternals(renderer);
   const { device } = internals;
   if (compiled.wgslSrc === undefined || compiled.wgslSrc === '') {
@@ -393,8 +388,8 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
         ? {
             depthStencil: {
               format: 'depth24plus' as const,
-              depthWriteEnabled: depthWrite,
-              depthCompare: depthTest ? ('less' as const) : ('always' as const),
+              depthWriteEnabled: blend === 'none',
+              depthCompare: 'less' as const,
             },
           }
         : {}),
@@ -649,21 +644,9 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
         slot = -1;
         uniformsDirty = true;
       }
-      const uploadedVertices = resolveCount(vertexStates, 'vertex');
-      const first = drawOptions.first ?? 0;
-      const available = indexBuffer !== null ? indexCount : uploadedVertices;
-      const vertexCount = clampDrawCount(
-        drawOptions.vertexCount,
-        available - first,
-        indexBuffer !== null ? 'vertexCount (indices)' : 'vertexCount',
-      );
-      const firstInstance = drawOptions.firstInstance ?? 0;
+      const vertexCount = resolveCount(vertexStates, 'vertex');
       const instanceCount = isInstanced
-        ? clampDrawCount(
-            drawOptions.instanceCount,
-            resolveCount(instanceStates, 'instance') - firstInstance,
-            'instanceCount',
-          )
+        ? resolveDrawCount(drawOptions.instanceCount, resolveCount(instanceStates, 'instance'))
         : 1;
       if (instanceCount === 0 || vertexCount === 0) return;
       for (const entry of compiled.layout.attributes) {
@@ -703,10 +686,9 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       });
       if (indexBuffer !== null) {
         pass.setIndexBuffer(indexBuffer, indexFormat);
-        // drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
-        pass.drawIndexed(vertexCount, instanceCount, first, 0, firstInstance);
+        pass.drawIndexed(indexCount, instanceCount);
       } else {
-        pass.draw(vertexCount, instanceCount, first, firstInstance);
+        pass.draw(vertexCount, instanceCount);
       }
     },
     dispose(): void {

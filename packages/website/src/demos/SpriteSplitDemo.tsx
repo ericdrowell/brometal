@@ -111,7 +111,7 @@ export default function SpriteSplitDemo() {
       const groundProgram: BlendProgram = createProgram(renderer, blendShader);
       let spriteProgram: BlendProgram;
       if (mode === 'cutout') {
-        const cutout = createProgram(renderer, cutoutShader, { blend: 'alpha', depthWrite: true });
+        const cutout = createProgram(renderer, cutoutShader, { blend: 'none' });
         cutout.uniforms.uCutoff.set(0.5);
         spriteProgram = cutout as unknown as BlendProgram;
       } else {
@@ -303,10 +303,14 @@ export default function SpriteSplitDemo() {
         <div className="panel">
           <h1>What BroMetal needed</h1>
           <p className="panel-note">
-            Two things, and the right half is impossible without them:{' '}
-            <code>discard()</code> in the shader language, and{' '}
-            <code>{'createProgram(..., { depthWrite: true })'}</code>. Before, any blend mode turned
-            depth writes off with no way to ask for them back.
+            One thing: <code>discard()</code> in the shader language. Nothing else in the library
+            could throw a pixel away, so a sprite with a soft edge had to blend, and a blended
+            program cannot write depth.
+          </p>
+          <p className="panel-note">
+            Note what the right half does <em>not</em> need. Its fragment stage returns alpha 1 on
+            every pixel that survives, so it is opaque, and an opaque program already wrote depth.
+            The only new part is the discard.
           </p>
           <p className="panel-note">
             See stats for differences in renderings.

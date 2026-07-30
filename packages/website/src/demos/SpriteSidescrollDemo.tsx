@@ -156,23 +156,11 @@ export default function SpriteSidescrollDemo() {
       // program shared between two batches can only be fed by re-uploading both
       // every frame — the moment one of them stops uploading it draws with the
       // other's data. Splitting is what makes "upload once" expressible at all.
-      const parallax = createProgram(renderer, parallaxShader, {
-        blend: 'alpha',
-        depthWrite: true,
-      });
-      const terrain = createProgram(renderer, terrainShader, {
-        blend: 'alpha',
-        depthWrite: true,
-      });
-      const props = createProgram(renderer, propsShader, { blend: 'alpha', depthWrite: true });
-      const walkers = createProgram(renderer, walkersShader, {
-        blend: 'alpha',
-        depthWrite: true,
-      });
-      const player = createProgram(renderer, playerShader, {
-        blend: 'alpha',
-        depthWrite: true,
-      });
+      const parallax = createProgram(renderer, parallaxShader, { blend: 'none' });
+      const terrain = createProgram(renderer, terrainShader, { blend: 'none' });
+      const props = createProgram(renderer, propsShader, { blend: 'none' });
+      const walkers = createProgram(renderer, walkersShader, { blend: 'none' });
+      const player = createProgram(renderer, playerShader, { blend: 'none' });
       const programs = [parallax, terrain, props, walkers, player];
       for (const program of programs) {
         program.attributes.aPosition.set(QUAD_POSITIONS);

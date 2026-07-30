@@ -1,6 +1,6 @@
 import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
 import {
-  clampDrawCount,
+  resolveDrawCount,
   uploadAttribute,
   uploadIndices,
   type AttributeState,
@@ -21,25 +21,6 @@ export interface ProgramOptions {
    * A blended program tests depth. By default it does not write depth.
    */
   blend?: BlendMode;
-  /**
-   * Controls whether the program writes to the depth buffer. The default is true
-   * when `blend` is 'none'.
-   *
-   * Set this to true together with `discard()` in the fragment stage. Each
-   * fragment that remains is then opaque, and the depth buffer puts the sprites in
-   * the correct order. The CPU does not sort them.
-   *
-   * Set it to false on an opaque program to make a second pass that only tests
-   * depth.
-   */
-  depthWrite?: boolean;
-  /**
-   * Controls whether the program tests the depth buffer. The default is true.
-   *
-   * Set it to false for a pass that must ignore the depth of the scene. A
-   * screen-space HUD and a full-screen background are two examples.
-   */
-  depthTest?: boolean;
 }
 
 export interface AttributeHandle {
@@ -55,22 +36,6 @@ export interface DrawOptions {
    * the full capacity one time. Then draw only the instances that are in use.
    */
   instanceCount?: number;
-  /**
-   * Sets the number of vertices to draw. If you called `setIndices`, this is a
-   * number of indices. The default is the number that was uploaded.
-   */
-  vertexCount?: number;
-  /** Sets the first vertex or index to draw. The default is 0. */
-  first?: number;
-  /**
-   * Sets the first instance to draw. The default is 0.
-   *
-   * Use this to hold static instances and dynamic instances in one buffer, and to
-   * draw each group with different uniforms. Without it, the two groups need two
-   * buffers. The static group is then uploaded again each time the dynamic group
-   * changes size.
-   */
-  firstInstance?: number;
 }
 
 export interface UniformHandle<T extends GpuType> {
@@ -96,11 +61,8 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
   options: ProgramOptions = {},
 ): BroMetalProgram<A, I, U> {
   const blend = options.blend ?? 'none';
-  // Sorted transparency wants writes off; a cut-out program turns them back on.
-  const depthWrite = options.depthWrite ?? blend === 'none';
-  const depthTest = options.depthTest ?? true;
   if (renderer.backend === 'webgpu') {
-    return createWebgpuProgram(renderer, compiled, { blend, depthWrite, depthTest });
+    return createWebgpuProgram(renderer, compiled, blend);
   }
   const gl = renderer.gl;
   if (gl === undefined) {
@@ -223,20 +185,9 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
           blend === 'alpha' ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE,
         );
       }
-      gl.depthMask(depthWrite);
-      if (depthTest) {
-        gl.enable(gl.DEPTH_TEST);
-      } else {
-        gl.disable(gl.DEPTH_TEST);
-      }
-
-      const first = drawOptions.first ?? 0;
-      const available = indexState !== null ? indexState.count : uploadedVertices;
-      const vertexCount = clampDrawCount(
-        drawOptions.vertexCount,
-        available - first,
-        indexState !== null ? 'vertexCount (indices)' : 'vertexCount',
-      );
+      // A blended pass cannot record one depth for a part-transparent fragment, so
+      // it tests depth and does not write it. An opaque pass writes it.
+      gl.depthMask(blend === 'none');
 
       if (isInstanced) {
         const uploadedInstances = resolveCount(
@@ -244,61 +195,17 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
           'no instance data — call program.instanceAttributes.<name>.set(...) before draw()',
           'instances',
         );
-        const firstInstance = drawOptions.firstInstance ?? 0;
-        const instanceCount = clampDrawCount(
-          drawOptions.instanceCount,
-          uploadedInstances - firstInstance,
-          'instanceCount',
-        );
+        const instanceCount = resolveDrawCount(drawOptions.instanceCount, uploadedInstances);
         if (instanceCount === 0) return;
-        // WebGL2 has no baseInstance parameter. To apply the offset, point each
-        // instanced attribute at the correct element.
-        //
-        // The VAO keeps this offset. The next set() call replaces it, and so does
-        // a draw that uses a different offset.
-        if (firstInstance !== 0) {
-          bindVaoCached(gl, vao);
-          for (const entry of compiled.layout.attributes) {
-            if (entry.divisor !== 1) continue;
-            const state = instanceStates.get(entry.name);
-            if (state === undefined) continue;
-            gl.bindBuffer(gl.ARRAY_BUFFER, state.buffer);
-            gl.vertexAttribPointer(
-              entry.location,
-              entry.size,
-              gl.FLOAT,
-              false,
-              0,
-              firstInstance * entry.size * 4,
-            );
-          }
-        }
         if (indexState !== null) {
-          gl.drawElementsInstanced(
-            gl.TRIANGLES,
-            vertexCount,
-            indexState.type,
-            first * indexByteSize(indexState.type),
-            instanceCount,
-          );
+          gl.drawElementsInstanced(gl.TRIANGLES, indexState.count, indexState.type, 0, instanceCount);
         } else {
-          gl.drawArraysInstanced(gl.TRIANGLES, first, vertexCount, instanceCount);
-        }
-        // Restore the base pointers. If they stay, a later draw on this program
-        // that uses no offset reads from the wrong element.
-        if (firstInstance !== 0) {
-          for (const entry of compiled.layout.attributes) {
-            if (entry.divisor !== 1) continue;
-            const state = instanceStates.get(entry.name);
-            if (state === undefined) continue;
-            gl.bindBuffer(gl.ARRAY_BUFFER, state.buffer);
-            gl.vertexAttribPointer(entry.location, entry.size, gl.FLOAT, false, 0, 0);
-          }
+          gl.drawArraysInstanced(gl.TRIANGLES, 0, uploadedVertices, instanceCount);
         }
       } else if (indexState !== null) {
-        gl.drawElements(gl.TRIANGLES, vertexCount, indexState.type, first * indexByteSize(indexState.type));
+        gl.drawElements(gl.TRIANGLES, indexState.count, indexState.type, 0);
       } else {
-        gl.drawArrays(gl.TRIANGLES, first, vertexCount);
+        gl.drawArrays(gl.TRIANGLES, 0, uploadedVertices);
       }
     },
     dispose(): void {
@@ -343,11 +250,6 @@ function buildAttributeHandle(
       uploadAttribute(gl, state, entry.location, data, entry.divisor);
     },
   };
-}
-
-/** UNSIGNED_SHORT is 0x1403; UNSIGNED_INT is 0x1405. */
-function indexByteSize(type: number): number {
-  return type === 0x1403 ? 2 : 4;
 }
 
 function resolveCount(states: Map<string, AttributeState>, emptyMessage: string, unit: string): number {
