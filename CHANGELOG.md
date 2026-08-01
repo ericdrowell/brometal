@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.13.0 (2026-08-01)
+
 ### Added
 - **Examples ship in the npm package.** Every example from the website is copied
   into `examples/` at publish time — `shaders/` holds the `*.shader.ts` sources,
