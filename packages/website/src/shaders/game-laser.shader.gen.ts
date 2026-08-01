@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const gameLaserShader: CompiledShader<{ aPosition: 'vec3' }, { iStart: 'vec3'; iDir: 'vec3'; iBirth: 'float' }, { uViewProj: 'mat4'; uTime: 'float'; uViewPos: 'vec3' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 iStart;
 layout(location = 2) in vec3 iDir;
@@ -33,6 +35,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 in float vFacing;
 in float vAlong;
 in float vFade;
@@ -95,6 +98,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: { iStart: 'vec3', iDir: 'vec3', iBirth: 'float' },
   uniforms: { uViewProj: 'mat4', uTime: 'float', uViewPos: 'vec3' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"iStart","type":"vec3","location":1,"size":3,"divisor":1},{"name":"iDir","type":"vec3","location":2,"size":3,"divisor":1},{"name":"iBirth","type":"float","location":3,"size":1,"divisor":1}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uTime","type":"float","kind":"1f","size":1,"offset":64},{"name":"uViewPos","type":"vec3","kind":"3fv","size":3,"offset":80}],"uniformBlockSize":96},
+
 };
 
 export default gameLaserShader;

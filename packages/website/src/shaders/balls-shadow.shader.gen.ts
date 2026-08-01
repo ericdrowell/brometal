@@ -3,6 +3,10 @@ import type { CompiledShader } from 'brometal';
 
 const ballsShadowShader: CompiledShader<{ aPosition: 'vec3' }, { iIndex: 'float' }, { uLightViewProj: 'mat4'; uState: 'sampler2D'; uCount: 'float'; uRadius: 'float'; uLightPos: 'vec3'; uRange: 'float' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler3D;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in float iIndex;
 uniform mat4 uLightViewProj;
@@ -12,16 +16,20 @@ uniform float uRadius;
 uniform vec3 uLightPos;
 uniform float uRange;
 out float vDistance;
+float shadowDepth(vec3 worldPos, vec3 lightPos, float range) {
+  return distance(worldPos, lightPos) / range;
+}
 void main() {
   float u = (iIndex + 0.5) / uCount * 0.5;
-  vec3 centre = texture(uState, vec2(u, 0.5)).xyz;
+  vec3 centre = textureLod(uState, vec2(u, 0.5), 0.0).xyz;
   vec3 world = centre + aPosition * uRadius;
-  vDistance = distance(world, uLightPos) / uRange;
+  vDistance = shadowDepth(world, uLightPos, uRange);
   gl_Position = uLightViewProj * vec4(world, 1.0);
 }
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 in float vDistance;
 out vec4 fragColor;
 void main() {
@@ -46,13 +54,16 @@ struct BmVSOut {
   @builtin(position) bm_position : vec4f,
   @location(0) vDistance : f32,
 }
+fn shadowDepth(worldPos : vec3f, lightPos : vec3f, range : f32) -> f32 {
+  return distance(worldPos, lightPos) / range;
+}
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
   let u = (bm_in.iIndex + 0.5) / bm_u.uCount * 0.5;
   let centre = textureSampleLevel(uState, uState_sampler, vec2f(u, 0.5), 0.0).xyz;
   let world = centre + bm_in.aPosition * bm_u.uRadius;
-  bm_out.vDistance = distance(world, bm_u.uLightPos) / bm_u.uRange;
+  bm_out.vDistance = shadowDepth(world, bm_u.uLightPos, bm_u.uRange);
   bm_out.bm_position = bm_u.uLightViewProj * vec4f(world, 1.0);
   bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;
   return bm_out;
@@ -66,6 +77,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: { iIndex: 'float' },
   uniforms: { uLightViewProj: 'mat4', uState: 'sampler2D', uCount: 'float', uRadius: 'float', uLightPos: 'vec3', uRange: 'float' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"iIndex","type":"float","location":1,"size":1,"divisor":1}],"uniforms":[{"name":"uLightViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uState","type":"sampler2D","kind":"1i","size":1,"unit":0,"textureBinding":1,"samplerBinding":2},{"name":"uCount","type":"float","kind":"1f","size":1,"offset":64},{"name":"uRadius","type":"float","kind":"1f","size":1,"offset":68},{"name":"uLightPos","type":"vec3","kind":"3fv","size":3,"offset":80},{"name":"uRange","type":"float","kind":"1f","size":1,"offset":92}],"uniformBlockSize":96},
+
 };
 
 export default ballsShadowShader;

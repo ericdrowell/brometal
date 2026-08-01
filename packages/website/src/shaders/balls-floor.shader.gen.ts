@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const ballsFloorShader: CompiledShader<{ aPosition: 'vec3' }, Record<string, never>, { uViewProj: 'mat4'; uBounds: 'vec3'; uViewPos: 'vec3'; uLightPos: 'vec3'; uSkyTint: 'vec3'; uGroundTint: 'vec3'; uLightViewProj: 'mat4'; uShadowMap: 'sampler2D'; uRange: 'float'; uTexel: 'float'; uSoftness: 'float'; uBias: 'float' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 uniform mat4 uViewProj;
 uniform vec3 uBounds;
@@ -17,6 +19,9 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler3D;
 uniform vec3 uViewPos;
 uniform vec3 uLightPos;
 uniform vec3 uSkyTint;
@@ -45,21 +50,32 @@ vec3 hemisphereLight(vec3 normal, vec3 skyColor, vec3 groundColor) {
   float blend = normalize(normal).y * 0.5 + 0.5;
   return mix(groundColor, skyColor, blend);
 }
+float shadowDepth(vec3 worldPos, vec3 lightPos, float range) {
+  return distance(worldPos, lightPos) / range;
+}
+float shadowFactor(sampler2D shadowMap, mat4 lightViewProj, vec3 worldPos, vec3 normal, vec3 lightPos, float range, float texel, float softness, float bias) {
+  vec3 toLight = normalize(lightPos - worldPos);
+  float facing = max(dot(normalize(normal), toLight), 0.0);
+  float slope = 1.0 + 2.0 * (1.0 - facing);
+  vec3 lookup = worldPos + normalize(normal) * (bias * slope);
+  vec4 clip = lightViewProj * vec4(lookup, 1.0);
+  vec2 uv = ((clip).xy / (clip).w * 0.5 + 0.5);
+  float reference = shadowDepth(lookup, lightPos, range) - bias * slope / range;
+  float visible = 0.0;
+  for (float y = -1.0; y < 2.0; y = y + 1.0) {
+    for (float x = -1.0; x < 2.0; x = x + 1.0) {
+      vec2 tap = uv + vec2(x, y) * (texel * softness);
+      visible = visible + step(reference, texture(shadowMap, tap).x);
+    }
+  }
+  return visible / 9.0;
+}
 void main() {
   vec3 n = vec3(0.0, 1.0, 0.0);
   vec3 viewDir = normalize(uViewPos - vWorld);
   vec3 light = normalize(uLightPos - vWorld);
   float facing = max(dot(n, light), 0.0);
-  vec2 uv = ((uLightViewProj * vec4(vWorld, 1.0)).xy / (uLightViewProj * vec4(vWorld, 1.0)).w * 0.5 + 0.5);
-  float reference = (distance(vWorld, uLightPos) - uBias) / uRange;
-  float visible = 0.0;
-  for (float sy = -1.0; sy < 2.0; sy = sy + 1.0) {
-    for (float sx = -1.0; sx < 2.0; sx = sx + 1.0) {
-      vec2 tap = uv + vec2(sx, sy) * (uTexel * uSoftness);
-      visible = visible + step(reference, texture(uShadowMap, tap).x);
-    }
-  }
-  float sunlight = visible / 9.0;
+  float sunlight = shadowFactor(uShadowMap, uLightViewProj, vWorld, n, uLightPos, uRange, uTexel, uSoftness, uBias);
   vec3 ambient = hemisphereLight(n, uSkyTint, uGroundTint);
   vec3 albedo = vec3(0.09, 0.095, 0.115);
   float gloss = specGGX(n, light, viewDir, 0.34) * 0.5 * sunlight;
@@ -107,6 +123,26 @@ fn hemisphereLight(normal : vec3f, skyColor : vec3f, groundColor : vec3f) -> vec
   let blend = normalize(normal).y * 0.5 + 0.5;
   return mix(groundColor, skyColor, blend);
 }
+fn shadowDepth(worldPos : vec3f, lightPos : vec3f, range : f32) -> f32 {
+  return distance(worldPos, lightPos) / range;
+}
+fn shadowFactor(shadowMap : texture_2d<f32>, shadowMap_sampler : sampler, lightViewProj : mat4x4f, worldPos : vec3f, normal : vec3f, lightPos : vec3f, range : f32, texel : f32, softness : f32, bias : f32) -> f32 {
+  let toLight = normalize(lightPos - worldPos);
+  let facing = max(dot(normalize(normal), toLight), 0.0);
+  let slope = 1.0 + 2.0 * (1.0 - facing);
+  let lookup = worldPos + normalize(normal) * (bias * slope);
+  let clip = lightViewProj * vec4f(lookup, 1.0);
+  let uv = ((clip).xy / (clip).w * vec2f(0.5, -0.5) + vec2f(0.5));
+  let reference = shadowDepth(lookup, lightPos, range) - bias * slope / range;
+  var visible = 0.0;
+  for (var y = -1.0; y < 2.0; y = y + 1.0) {
+    for (var x = -1.0; x < 2.0; x = x + 1.0) {
+      let tap = uv + vec2f(x, y) * (texel * softness);
+      visible = visible + step(reference, textureSampleLevel(shadowMap, shadowMap_sampler, tap, 0.0).x);
+    }
+  }
+  return visible / 9.0;
+}
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
@@ -123,16 +159,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   let viewDir = normalize(bm_u.uViewPos - bm_in.vWorld);
   let light = normalize(bm_u.uLightPos - bm_in.vWorld);
   let facing = max(dot(n, light), 0.0);
-  let uv = ((bm_u.uLightViewProj * vec4f(bm_in.vWorld, 1.0)).xy / (bm_u.uLightViewProj * vec4f(bm_in.vWorld, 1.0)).w * vec2f(0.5, -0.5) + vec2f(0.5));
-  let reference = (distance(bm_in.vWorld, bm_u.uLightPos) - bm_u.uBias) / bm_u.uRange;
-  var visible = 0.0;
-  for (var sy = -1.0; sy < 2.0; sy = sy + 1.0) {
-    for (var sx = -1.0; sx < 2.0; sx = sx + 1.0) {
-      let tap = uv + vec2f(sx, sy) * (bm_u.uTexel * bm_u.uSoftness);
-      visible = visible + step(reference, textureSample(uShadowMap, uShadowMap_sampler, tap).x);
-    }
-  }
-  let sunlight = visible / 9.0;
+  let sunlight = shadowFactor(uShadowMap, uShadowMap_sampler, bm_u.uLightViewProj, bm_in.vWorld, n, bm_u.uLightPos, bm_u.uRange, bm_u.uTexel, bm_u.uSoftness, bm_u.uBias);
   let ambient = hemisphereLight(n, bm_u.uSkyTint, bm_u.uGroundTint);
   let albedo = vec3f(0.09, 0.095, 0.115);
   let gloss = specGGX(n, light, viewDir, 0.34) * 0.5 * sunlight;
@@ -145,6 +172,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uViewProj: 'mat4', uBounds: 'vec3', uViewPos: 'vec3', uLightPos: 'vec3', uSkyTint: 'vec3', uGroundTint: 'vec3', uLightViewProj: 'mat4', uShadowMap: 'sampler2D', uRange: 'float', uTexel: 'float', uSoftness: 'float', uBias: 'float' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uBounds","type":"vec3","kind":"3fv","size":3,"offset":64},{"name":"uViewPos","type":"vec3","kind":"3fv","size":3,"offset":80},{"name":"uLightPos","type":"vec3","kind":"3fv","size":3,"offset":96},{"name":"uSkyTint","type":"vec3","kind":"3fv","size":3,"offset":112},{"name":"uGroundTint","type":"vec3","kind":"3fv","size":3,"offset":128},{"name":"uLightViewProj","type":"mat4","kind":"m4fv","size":16,"offset":144},{"name":"uShadowMap","type":"sampler2D","kind":"1i","size":1,"unit":0,"textureBinding":1,"samplerBinding":2},{"name":"uRange","type":"float","kind":"1f","size":1,"offset":208},{"name":"uTexel","type":"float","kind":"1f","size":1,"offset":212},{"name":"uSoftness","type":"float","kind":"1f","size":1,"offset":216},{"name":"uBias","type":"float","kind":"1f","size":1,"offset":220}],"uniformBlockSize":224},
+
 };
 
 export default ballsFloorShader;

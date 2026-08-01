@@ -17,6 +17,8 @@ const WGSL_TYPES: Record<IrType, string> = {
   vec4: 'vec4f',
   mat4: 'mat4x4f',
   sampler2D: '(sampler2D has no WGSL value type)',
+  sampler3D: '(sampler3D has no WGSL value type)',
+  storage: '(storage has no WGSL value type)',
   bool: 'bool',
 };
 
@@ -41,7 +43,7 @@ const PRIMARY_PRECEDENCE = 8;
 const VEC_CONSTRUCTORS: Record<string, string> = { vec2: 'vec2f', vec3: 'vec3f', vec4: 'vec4f' };
 
 interface EmitContext {
-  stage: 'vertex' | 'fragment' | 'helper';
+  stage: 'vertex' | 'fragment' | 'compute' | 'helper';
   attributes: Set<string>;
   uniforms: Set<string>;
   varyings: Set<string>;
@@ -50,7 +52,9 @@ interface EmitContext {
 export function emitWgsl(ir: ShaderIr, layout: ShaderLayout): string {
   const lines: string[] = [];
 
-  const blockMembers = layout.uniforms.filter((entry) => entry.type !== 'sampler2D');
+  const blockMembers = layout.uniforms.filter(
+    (entry) => entry.type !== 'sampler2D' && entry.type !== 'sampler3D' && entry.type !== 'storage',
+  );
   if (blockMembers.length > 0) {
     lines.push('struct BmUniforms {');
     for (const entry of blockMembers) {
@@ -60,49 +64,101 @@ export function emitWgsl(ir: ShaderIr, layout: ShaderLayout): string {
     lines.push('@group(0) @binding(0) var<uniform> bm_u : BmUniforms;');
   }
   for (const entry of layout.uniforms) {
-    if (entry.type === 'sampler2D') {
-      lines.push(`@group(0) @binding(${entry.textureBinding}) var ${entry.name} : texture_2d<f32>;`);
+    if (entry.type === 'sampler2D' || entry.type === 'sampler3D') {
+      const dimension = entry.type === 'sampler3D' ? '3d' : '2d';
+      lines.push(
+        `@group(0) @binding(${entry.textureBinding}) var ${entry.name} : texture_${dimension}<f32>;`,
+      );
       lines.push(`@group(0) @binding(${entry.samplerBinding}) var ${entry.name}_sampler : sampler;`);
     }
   }
 
-  lines.push('struct BmVSIn {');
-  for (const entry of layout.attributes) {
-    lines.push(`  @location(${entry.location}) ${entry.name} : ${WGSL_TYPES[entry.type as IrType]},`);
+  for (const entry of layout.uniforms) {
+    if (entry.type === 'storage') {
+      const element = ir.storageElements[entry.name]!;
+      // Written buffers need read_write; leaving everything read_write would
+      // stop the driver from making read-only optimisations.
+      const access = ir.storageWritten.includes(entry.name) ? 'read_write' : 'read';
+      lines.push(
+        `@group(0) @binding(${entry.textureBinding}) var<storage, ${access}> ${entry.name} : array<${WGSL_TYPES[element as IrType]}>;`,
+      );
+    }
   }
-  lines.push('}');
 
-  lines.push('struct BmVSOut {');
-  lines.push('  @builtin(position) bm_position : vec4f,');
-  Object.entries(ir.varyings).forEach(([name, type], index) => {
-    lines.push(`  @location(${index}) ${name} : ${WGSL_TYPES[type as IrType]},`);
-  });
-  lines.push('}');
+  // Only for shaders that actually draw. A compute-only shader has no
+  // attributes, and WGSL rejects an empty struct — `struct BmVSIn {}` fails at
+  // pipeline creation, not at compile time, so emitting it unconditionally
+  // would break exactly the shaders this stage exists for.
+  const hasRenderStages = ir.vertex !== undefined && ir.fragment !== undefined;
+  if (hasRenderStages) {
+    lines.push('struct BmVSIn {');
+    for (const entry of layout.attributes) {
+      lines.push(`  @location(${entry.location}) ${entry.name} : ${WGSL_TYPES[entry.type as IrType]},`);
+    }
+    lines.push('}');
+
+    lines.push('struct BmVSOut {');
+    lines.push('  @builtin(position) bm_position : vec4f,');
+    Object.entries(ir.varyings).forEach(([name, type], index) => {
+      lines.push(`  @location(${index}) ${name} : ${WGSL_TYPES[type as IrType]},`);
+    });
+    lines.push('}');
+  }
 
   const names = {
     attributes: new Set([...Object.keys(ir.attributes), ...Object.keys(ir.instanceAttributes)]),
     uniforms: new Set(
-      Object.keys(ir.uniforms).filter((name) => ir.uniforms[name] !== 'sampler2D'),
+      Object.keys(ir.uniforms).filter(
+        (name) =>
+          ir.uniforms[name] !== 'sampler2D' &&
+          ir.uniforms[name] !== 'sampler3D' &&
+          ir.uniforms[name] !== 'storage',
+      ),
     ),
     varyings: new Set(Object.keys(ir.varyings)),
   };
 
-  emitHelpers(lines, ir, new Set([...ir.vertex.usedHelpers, ...ir.fragment.usedHelpers]), names);
+  emitHelpers(
+    lines,
+    ir,
+    new Set([
+      ...(ir.vertex?.usedHelpers ?? []),
+      ...(ir.fragment?.usedHelpers ?? []),
+      ...(ir.compute?.usedHelpers ?? []),
+    ]),
+    names,
+  );
 
-  const vertexCtx: EmitContext = { stage: 'vertex', ...names };
-  lines.push('@vertex');
-  lines.push('fn vs_main(bm_in : BmVSIn) -> BmVSOut {');
-  lines.push('  var bm_out : BmVSOut;');
-  emitStatements(lines, ir.vertex.statements, vertexCtx, 1);
-  lines.push('  bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;');
-  lines.push('  return bm_out;');
-  lines.push('}');
+  if (ir.vertex !== undefined && ir.fragment !== undefined) {
+    const vertexCtx: EmitContext = { stage: 'vertex', ...names };
+    lines.push('@vertex');
+    lines.push('fn vs_main(bm_in : BmVSIn) -> BmVSOut {');
+    lines.push('  var bm_out : BmVSOut;');
+    emitStatements(lines, ir.vertex.statements, vertexCtx, 1);
+    lines.push('  bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;');
+    lines.push('  return bm_out;');
+    lines.push('}');
 
-  const fragmentCtx: EmitContext = { stage: 'fragment', ...names };
-  lines.push('@fragment');
-  lines.push('fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {');
-  emitStatements(lines, ir.fragment.statements, fragmentCtx, 1);
-  lines.push('}');
+    const fragmentCtx: EmitContext = { stage: 'fragment', ...names };
+    lines.push('@fragment');
+    lines.push('fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {');
+    emitStatements(lines, ir.fragment.statements, fragmentCtx, 1);
+    lines.push('}');
+  }
+
+  if (ir.compute !== undefined) {
+    const computeCtx: EmitContext = { stage: 'compute', ...names };
+    const [x, y, z] = ir.workgroupSize;
+    lines.push(`@compute @workgroup_size(${x}, ${y}, ${z})`);
+    lines.push('fn cs_main(@builtin(global_invocation_id) bm_gid : vec3u) {');
+    if (ir.compute.idParam !== undefined) {
+      // The DSL is float-only, so the u32 invocation id is converted once here
+      // rather than at every use.
+      lines.push(`  let ${ir.compute.idParam} = vec3f(bm_gid);`);
+    }
+    emitStatements(lines, ir.compute.statements, computeCtx, 1);
+    lines.push('}');
+  }
 
   return lines.join('\n') + '\n';
 }
@@ -122,7 +178,17 @@ function emitHelpers(
 }
 
 function emitHelper(lines: string[], helper: HelperIr, ctx: EmitContext): void {
-  const params = helper.params.map((param) => `${param.name} : ${WGSL_TYPES[param.type]}`).join(', ');
+  // A sampler parameter becomes two: WGSL keeps the texture and the sampler as
+  // separate objects, and `texture()` inside the body emits
+  // `textureSample(name, name_sampler, uv)` — so the second parameter has to be
+  // named to match. Call sites expand their argument the same way.
+  const params = helper.params
+    .map((param) =>
+      param.type === 'sampler2D' || param.type === 'sampler3D'
+        ? `${param.name} : texture_${param.type === 'sampler3D' ? '3d' : '2d'}<f32>, ${param.name}_sampler : sampler`
+        : `${param.name} : ${WGSL_TYPES[param.type]}`,
+    )
+    .join(', ');
   lines.push(`fn ${helper.name}(${params}) -> ${WGSL_TYPES[helper.returnType]} {`);
   emitStatements(lines, helper.statements, ctx, 1);
   lines.push('}');
@@ -144,6 +210,11 @@ function emitStatements(lines: string[], statements: IrStmt[], ctx: EmitContext,
         lines.push(`${indent}${target} = ${emitExpr(statement.expr, ctx, 0)};`);
         break;
       }
+      case 'storageWrite':
+        lines.push(
+          `${indent}${statement.buffer}[u32(${emitExpr(statement.index, ctx, 0)})] = ${emitExpr(statement.value, ctx, 0)};`,
+        );
+        break;
       case 'return':
         if (ctx.stage === 'vertex') {
           lines.push(`${indent}bm_out.bm_position = ${emitExpr(statement.expr, ctx, 0)};`);
@@ -222,6 +293,25 @@ function emitExpr(expr: IrExpr, ctx: EmitContext, parentPrecedence: number): str
 function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
   const args = expr.args;
 
+  // Storage access is a call in the DSL but an index in WGSL. The index is a
+  // float everywhere in this language, so it is narrowed here rather than making
+  // callers do it.
+  if (expr.callee === 'storageRead') {
+    const buffer = args[0]!;
+    if (buffer.kind !== 'ident') {
+      return '/* unreachable: storage args are always uniform idents */';
+    }
+    return `${buffer.name}[u32(${emitExpr(args[1]!, ctx, 0)})]`;
+  }
+  if (expr.callee === 'storageLength') {
+    const buffer = args[0]!;
+    if (buffer.kind !== 'ident') {
+      return '/* unreachable: storage args are always uniform idents */';
+    }
+    // arrayLength takes a pointer and returns u32; the DSL only has floats.
+    return `f32(arrayLength(&${buffer.name}))`;
+  }
+
   if (expr.callee === 'texture') {
     const sampler = args[0]!;
     if (sampler.kind !== 'ident') {
@@ -264,7 +354,15 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
     return `((${a}) - (${b}) * floor((${a}) / (${b})))`;
   }
 
-  const rendered = args.map((arg) => emitExpr(arg, ctx, 0)).join(', ');
+  // A sampler argument expands into the texture and its sampler, matching the
+  // two parameters `emitHelper` declares for it.
+  const rendered = args
+    .map((arg) =>
+      (arg.type === 'sampler2D' || arg.type === 'sampler3D') && arg.kind === 'ident'
+        ? `${arg.name}, ${arg.name}_sampler`
+        : emitExpr(arg, ctx, 0),
+    )
+    .join(', ');
   if (expr.callee === 'atan' && args.length === 2) {
     return `atan2(${rendered})`;
   }

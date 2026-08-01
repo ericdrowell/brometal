@@ -132,6 +132,6 @@ export default shader({
   },
 });
 `;
-    expect(() => compile(badArgs)).toThrow(/texture\(sampler, uv\) expects a sampler2D and a vec2/);
+    expect(() => compile(badArgs)).toThrow(/texture\(sampler, uv\) expects a sampler2D with a vec2/);
   });
 });

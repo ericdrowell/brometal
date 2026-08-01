@@ -15,6 +15,7 @@ ${compiled.wgslSrc === undefined ? '' : `  wgslSrc: \`${escapeTemplate(compiled.
   instanceAttributes: ${recordValueLiteral(compiled.instanceAttributes)},
   uniforms: ${recordValueLiteral(compiled.uniforms)},
   layout: ${JSON.stringify(compiled.layout)},
+${compiled.storageWritten === undefined ? '' : `  storageWritten: ${JSON.stringify(compiled.storageWritten)},\n`}${compiled.hasCompute === true ? '  hasCompute: true,\n' : ''}
 };
 
 export default ${shaderName};

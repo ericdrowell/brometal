@@ -248,7 +248,6 @@ export default function ShadowDemo() {
           // World units, and small: distance is linear, so one constant holds
           // everywhere in the scene rather than scaling with depth.
           program.uniforms.uBias.set(0.05);
-          program.uniforms.uNormalOffset.set(0.03);
           program.uniforms.uShadowStrength.set(0.88);
           program.draw();
         }

@@ -156,7 +156,6 @@ export default function BallPhysicsDemo() {
       balls.uniforms.uTexel.set(1 / SHADOW_SIZE);
       balls.uniforms.uSoftness.set(1.2);
       balls.uniforms.uBias.set(0.035);
-      balls.uniforms.uNormalOffset.set(0.014);
 
       const glass = createProgram(renderer, glassShader, { blend: 'alpha' });
       glass.attributes.aPosition.set(box.positions);

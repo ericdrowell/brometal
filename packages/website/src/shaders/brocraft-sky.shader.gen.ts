@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const brocraftSkyShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uRight: 'vec3'; uUp: 'vec3'; uForward: 'vec3'; uCamPos: 'vec3'; uSunDir: 'vec3'; uHorizon: 'vec3'; uZenith: 'vec3'; uSunColor: 'vec3'; uTime: 'float'; uTanFov: 'float'; uAspect: 'float' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUv;
 uniform vec3 uRight;
@@ -19,6 +21,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 uniform vec3 uCamPos;
 uniform vec3 uSunDir;
 uniform vec3 uHorizon;
@@ -169,6 +172,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uRight: 'vec3', uUp: 'vec3', uForward: 'vec3', uCamPos: 'vec3', uSunDir: 'vec3', uHorizon: 'vec3', uZenith: 'vec3', uSunColor: 'vec3', uTime: 'float', uTanFov: 'float', uAspect: 'float' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0}],"uniforms":[{"name":"uRight","type":"vec3","kind":"3fv","size":3,"offset":0},{"name":"uUp","type":"vec3","kind":"3fv","size":3,"offset":16},{"name":"uForward","type":"vec3","kind":"3fv","size":3,"offset":32},{"name":"uCamPos","type":"vec3","kind":"3fv","size":3,"offset":48},{"name":"uSunDir","type":"vec3","kind":"3fv","size":3,"offset":64},{"name":"uHorizon","type":"vec3","kind":"3fv","size":3,"offset":80},{"name":"uZenith","type":"vec3","kind":"3fv","size":3,"offset":96},{"name":"uSunColor","type":"vec3","kind":"3fv","size":3,"offset":112},{"name":"uTime","type":"float","kind":"1f","size":1,"offset":124},{"name":"uTanFov","type":"float","kind":"1f","size":1,"offset":128},{"name":"uAspect","type":"float","kind":"1f","size":1,"offset":132}],"uniformBlockSize":144},
+
 };
 
 export default brocraftSkyShader;

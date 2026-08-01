@@ -61,7 +61,22 @@ if (existingTag.status === 0) {
 }
 
 console.log(`Releasing brometal@${version} as ${tag}`);
-exec('git', ['commit', '-am', `release brometal ${tag}`]);
+
+// Stamp the accumulated notes with this version. Entries are hand-written during
+// development under `## Unreleased` (see CLAUDE.md); only the version and date
+// are added here, because the version is not chosen until now.
+exec('node', ['scripts/update-changelog.mjs', version]);
+
+// Regenerate the package's copies AFTER the stamp, so the CHANGELOG.md mirrored
+// into the package carries the version just assigned. Running this before
+// release.mjs would leave the tree dirty at the check above and demand a commit
+// message on every release.
+exec('node', ['scripts/sync-examples.mjs']);
+
+// `git commit -am` stages only tracked files, and the synced examples are
+// untracked the first time they appear — so stage everything explicitly.
+exec('git', ['add', '-A']);
+exec('git', ['commit', '-m', `release brometal ${tag}`]);
 exec('git', ['tag', tag]);
 // Publish BEFORE pushing: the push below is what triggers the Vercel deploy,
 // so by holding it until the registry serves the new version (and the lockfile

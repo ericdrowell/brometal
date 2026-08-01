@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const modelShader: CompiledShader<{ aPosition: 'vec3'; aNormal: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uViewProj: 'mat4'; uModel: 'mat4'; uLightDir: 'vec3'; uViewPos: 'vec3'; uTex: 'sampler2D' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUv;
@@ -21,6 +23,9 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler3D;
 uniform vec3 uLightDir;
 uniform vec3 uViewPos;
 uniform sampler2D uTex;
@@ -106,6 +111,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uViewProj: 'mat4', uModel: 'mat4', uLightDir: 'vec3', uViewPos: 'vec3', uTex: 'sampler2D' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aNormal","type":"vec3","location":1,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":2,"size":2,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uModel","type":"mat4","kind":"m4fv","size":16,"offset":64},{"name":"uLightDir","type":"vec3","kind":"3fv","size":3,"offset":128},{"name":"uViewPos","type":"vec3","kind":"3fv","size":3,"offset":144},{"name":"uTex","type":"sampler2D","kind":"1i","size":1,"unit":0,"textureBinding":1,"samplerBinding":2}],"uniformBlockSize":160},
+
 };
 
 export default modelShader;

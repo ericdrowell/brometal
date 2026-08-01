@@ -117,10 +117,18 @@ export default function HomePage() {
             </div>
           ))}
         </dl>
-        <p className="faq-more">
-          See it running: <Link href="/examples">live WebGL2 and WebGPU examples</Link>.
-        </p>
       </section>
+      <footer className="home-footer">
+        <Link href="/changelog">Changelog</Link>
+        <span aria-hidden="true"> · </span>
+        <Link href="/examples">Examples</Link>
+        <span aria-hidden="true"> · </span>
+        <a href="https://github.com/ericdrowell/brometal">GitHub</a>
+        <span aria-hidden="true"> · </span>
+        <a href="https://www.npmjs.com/package/brometal">npm</a>
+        <span aria-hidden="true"> · </span>
+        <a href="https://discord.gg/fNbTnAQqyg">Discord</a>
+      </footer>
     </main>
   );
 }

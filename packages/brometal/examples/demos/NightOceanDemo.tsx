@@ -9,11 +9,11 @@ import {
   mat4,
   type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import oceanShader from '@/shaders/ocean.shader.gen';
+import BackendBadge from './_site/BackendBadge';
+import DemoStats, { useFrameStats } from './_site/DemoStats';
+import oceanShader from '../shaders/ocean.shader.gen';
 
-export default function OceanDemo() {
+export default function NightOceanDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
@@ -76,7 +76,7 @@ export default function OceanDemo() {
       <canvas ref={canvasRef} className="demo-canvas" />
       <div className="panels">
         <div className="panel">
-          <h1>Ocean</h1>
+          <h1>Night Ocean</h1>
           <p className="panel-note">
             Four Gerstner waves move ~48k vertices in the vertex shader; the fragment adds fbm
             micro-ripples, fresnel sky reflection, and a moonlight glint. All motion is GPU-side —

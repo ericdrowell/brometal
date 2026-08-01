@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const ballsPhysicsShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uState: 'sampler2D'; uCount: 'float'; uDt: 'float'; uGravity: 'vec3'; uBounds: 'vec3'; uRadius: 'float'; uRestitution: 'float'; uFriction: 'float'; uDrag: 'float'; uSleep: 'float'; uSkin: 'float'; uBounceCut: 'float'; uRepair: 'float' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUv;
 out vec2 vUv;
@@ -13,6 +15,9 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler3D;
 uniform sampler2D uState;
 uniform float uCount;
 uniform float uDt;
@@ -308,6 +313,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uState: 'sampler2D', uCount: 'float', uDt: 'float', uGravity: 'vec3', uBounds: 'vec3', uRadius: 'float', uRestitution: 'float', uFriction: 'float', uDrag: 'float', uSleep: 'float', uSkin: 'float', uBounceCut: 'float', uRepair: 'float' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0}],"uniforms":[{"name":"uState","type":"sampler2D","kind":"1i","size":1,"unit":0,"textureBinding":1,"samplerBinding":2},{"name":"uCount","type":"float","kind":"1f","size":1,"offset":0},{"name":"uDt","type":"float","kind":"1f","size":1,"offset":4},{"name":"uGravity","type":"vec3","kind":"3fv","size":3,"offset":16},{"name":"uBounds","type":"vec3","kind":"3fv","size":3,"offset":32},{"name":"uRadius","type":"float","kind":"1f","size":1,"offset":44},{"name":"uRestitution","type":"float","kind":"1f","size":1,"offset":48},{"name":"uFriction","type":"float","kind":"1f","size":1,"offset":52},{"name":"uDrag","type":"float","kind":"1f","size":1,"offset":56},{"name":"uSleep","type":"float","kind":"1f","size":1,"offset":60},{"name":"uSkin","type":"float","kind":"1f","size":1,"offset":64},{"name":"uBounceCut","type":"float","kind":"1f","size":1,"offset":68},{"name":"uRepair","type":"float","kind":"1f","size":1,"offset":72}],"uniformBlockSize":80},
+
 };
 
 export default ballsPhysicsShader;

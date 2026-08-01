@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const oceanShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uViewProj: 'mat4'; uModel: 'mat4'; uTime: 'float'; uViewPos: 'vec3'; uSunDir: 'vec3' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUv;
 uniform mat4 uViewProj;
@@ -47,6 +49,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 uniform float uTime;
 uniform vec3 uViewPos;
 uniform vec3 uSunDir;
@@ -238,6 +241,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uViewProj: 'mat4', uModel: 'mat4', uTime: 'float', uViewPos: 'vec3', uSunDir: 'vec3' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uModel","type":"mat4","kind":"m4fv","size":16,"offset":64},{"name":"uTime","type":"float","kind":"1f","size":1,"offset":128},{"name":"uViewPos","type":"vec3","kind":"3fv","size":3,"offset":144},{"name":"uSunDir","type":"vec3","kind":"3fv","size":3,"offset":160}],"uniformBlockSize":176},
+
 };
 
 export default oceanShader;

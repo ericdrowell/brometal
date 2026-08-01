@@ -3,7 +3,7 @@
  * code: the compiler inlines their implementations at build time when
  * imported in a *.shader.ts file — they never execute on the CPU.
  */
-import type { Vec2, Vec3 } from '../dsl/types.js';
+import type { Mat4, Sampler2D, Vec2, Vec3 } from '../dsl/types.js';
 
 function gpuOnly(name: string): never {
   throw new Error(
@@ -471,6 +471,59 @@ export function applyFriction(): Vec3 {
 export function restingDamp(vel: Vec3, threshold: number): Vec3;
 export function restingDamp(): Vec3 {
   return gpuOnly('restingDamp');
+}
+
+/**
+ * Distance from a point to the light, normalised by the light's range — what a
+ * shadow pass writes into its map.
+ *
+ * Deliberately a *linear distance* rather than a depth-buffer value: depth is
+ * nonlinear and the two backends disagree about its clip range, so a bias tuned
+ * against it holds at one distance and either leaks or detaches at another. One
+ * bias constant works everywhere against this.
+ */
+export function shadowDepth(worldPos: Vec3, lightPos: Vec3, range: number): number;
+export function shadowDepth(): number {
+  return gpuOnly('shadowDepth');
+}
+
+/**
+ * How lit a point is, from 0 (fully shadowed) to 1, sampling a shadow map
+ * written with {@link shadowDepth}. 3x3 PCF with slope-scaled bias.
+ *
+ * The two things this exists to stop you getting wrong, both of which fail
+ * silently and look like a lighting bug rather than a coordinate one:
+ *
+ * - **The uv.** WebGL2 and WebGPU disagree about which row of a render target
+ *   NDC +y lands on, so a hand-rolled `clip.xy / clip.w * 0.5 + 0.5` is correct
+ *   on one backend and vertically mirrored on the other. A mirrored lookup
+ *   still produces a shadow — just attached to the wrong side of the object.
+ *   This uses `targetUv`, which compiles to the right form for each.
+ * - **The bias units.** `bias` is in **world units**. Subtracting it from a
+ *   distance that has already been divided by `range` scales it by `range`,
+ *   making it tens of times larger than it reads — wide enough to erase every
+ *   contact shadow while leaving long ones intact, so objects resting on a
+ *   surface cast nothing at all.
+ *
+ * `texel` is `1 / shadowMapSize`; `softness` widens the tap spread in texels.
+ * The map must be cleared to 1 so texels the light never drew read as maximally
+ * far and stay lit — `renderer.drawTo(map, draw, { clear: [1, 1, 1, 1] })` —
+ * and created with `{ depth: true }`, or it records the last surface drawn
+ * rather than the nearest one.
+ */
+export function shadowFactor(
+  shadowMap: Sampler2D,
+  lightViewProj: Mat4,
+  worldPos: Vec3,
+  normal: Vec3,
+  lightPos: Vec3,
+  range: number,
+  texel: number,
+  softness: number,
+  bias: number,
+): number;
+export function shadowFactor(): number {
+  return gpuOnly('shadowFactor');
 }
 
 /**

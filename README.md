@@ -2,56 +2,22 @@
 
 Write TypeScript.  Lift Shaders.  Ship Shredded.
 
-BroMetal is LLVM-inspired compiler infrastructure for GPU programming that transforms TypeScript into highly optimized GPU shaders. It compiles a typed TypeScript DSL to WebGL2 GLSL **and** WGSL, and ships dual WebGL2/WebGPU runtimes to go with it — buffers, uniforms, program linking, and the render loop are all handled for you.
+Shaders written as typed TypeScript, compiled ahead of time to GLSL **and** WGSL,
+with dual WebGL2/WebGPU runtimes to drive them. No shader compiler ships to the
+browser — the runtime is ~23 KB minified, 8.5 KB gzipped.
 
-**[brometal.dev](https://brometal.dev)** · **[npm](https://www.npmjs.com/package/brometal)** · **[Discord](https://discord.gg/fNbTnAQqyg)** — questions, showcase, and release chat welcome.
+**[brometal.dev](https://brometal.dev)** · **[npm](https://www.npmjs.com/package/brometal)** · **[Discord](https://discord.gg/fNbTnAQqyg)**
 
-> **Pre-1.0:** BroMetal is evolving fast. Minor versions may include breaking changes — every one is documented in [CHANGELOG.md](CHANGELOG.md). The `shader()` DSL and `brometal/shader-functions` surfaces are stable-by-intent; runtime APIs may still shift until 1.0.
-
-```mermaid
-flowchart TD
-    subgraph BUILD ["Build time — npx brometal"]
-        TS[TypeScript] --> Parser
-        Parser --> TC[Type Checker]
-        TC --> SA[GPU Semantic Analysis]
-        SA --> IR[GPU IR]
-        IR --> OPT[Optimization Passes]
-        OPT --> GLSL
-        OPT --> WGSL
-    end
-    subgraph RUN ["Runtime — browser"]
-        WebGL
-        WebGPU
-    end
-    GLSL --> WebGL
-    WGSL --> WebGPU
-    style BUILD fill:none,stroke:#888,stroke-width:1.5px
-    style RUN fill:none,stroke:#888,stroke-width:1.5px
-```
-
-Everything above the line happens once, on your machine — the browser receives finished shader text and the runtime — about 23 KB minified, 8.5 KB gzipped — never the compiler.
-
-## WebGPU + WebGL from one source
-
-Every shader compiles to **both** GLSL ES 3.00 and WGSL by default (`npx brometal dev --targets=webgl2,webgpu` to control it — shader text is tiny, so shipping both costs single-digit KB). At runtime:
-
-```ts
-const renderer = await createRenderer(canvas);          // WebGPU when available, WebGL2 otherwise
-const program = createProgram(renderer, cubeShader);    // same API on both backends
-// transparency: createProgram(renderer, s, { blend: 'alpha' | 'additive' })
-```
-
-`createRenderer` probes for a working WebGPU adapter and falls back to WebGL2 — same typed program API, same draw loop, no app changes. Pass `backend: 'webgl2' | 'webgpu'` to pin one. The compiler handles the platform differences: WGSL uniform blocks with correct alignment offsets, texture/sampler binding pairs, and the GL→WebGPU clip-space remap are all baked in at build time, so CPU-side matrices work identically on both.
+> **Pre-1.0.** Minor versions may break; every change is in [CHANGELOG.md](CHANGELOG.md).
+> The `shader()` DSL and `brometal/shader-functions` are stable-by-intent.
 
 ## Quick start
-
-Install from npm:
 
 ```bash
 npm install brometal
 ```
 
-Write a shader as plain TypeScript in a `*.shader.ts` file:
+**1. Write a shader** as plain TypeScript in a `*.shader.ts` file:
 
 ```ts
 // src/shaders/cube.shader.ts
@@ -73,20 +39,23 @@ export default shader({
 });
 ```
 
-Compile it:
+**2. Compile it.** This step is not optional:
 
 ```bash
-npx brometal dev    # compile all *.shader.ts and watch for changes
-npx brometal prod   # one-shot optimized build (constant folding + minified GLSL)
+npx brometal dev     # compile every *.shader.ts, then watch for changes
+npx brometal prod    # one-shot optimized build
 ```
 
-Each `name.shader.ts` compiles to a sibling `name.shader.gen.ts` — a dependency-free module containing the GLSL plus typed interface metadata. Your app imports the generated module and never bundles the compiler:
+Each `name.shader.ts` produces a sibling `name.shader.gen.ts` — a dependency-free
+module holding the finished GLSL and WGSL plus typed interface metadata.
+
+**3. Import the generated module** — never the source:
 
 ```ts
 import { createRenderer, createProgram, mat4 } from 'brometal';
-import cubeShader from './shaders/cube.shader.gen';
+import cubeShader from './shaders/cube.shader.gen';   // .gen, not .shader
 
-const renderer = await createRenderer(canvas);   // WebGPU when available, WebGL2 otherwise
+const renderer = await createRenderer(canvas);   // WebGPU if available, else WebGL2
 const program = createProgram(renderer, cubeShader);
 
 program.attributes.aPosition.set(positions);   // Float32Array
@@ -98,6 +67,42 @@ renderer.loop((t) => {
   program.draw();
 });
 ```
+
+> **If you edit a shader and nothing changes on screen, you did not recompile.**
+> Nothing at runtime reads `.shader.ts`. This is the single most common problem
+> people hit — leave `npx brometal dev` running in a second terminal.
+
+## Where to look next
+
+- **[`examples/`](examples/)** in this package — every example from the website,
+  as real source. The `shaders/` folder there is the fastest way to learn the DSL,
+  and it is what an AI coding agent should read before writing BroMetal code.
+- **[`AGENTS.md`](AGENTS.md)** — the DSL rules, and the failure modes that are
+  silent. Worth reading before your first non-trivial shader.
+- **[brometal.dev/examples](https://brometal.dev/examples)** — the same examples,
+  running.
+
+## Why not three.js?
+
+Different tool for a different job. three.js is a scene graph with materials,
+loaders and a renderer; BroMetal is a shader compiler with a thin runtime. Reach
+for three.js when you want a scene assembled for you. Reach for BroMetal when the
+shader *is* the thing you are building.
+
+| | BroMetal | three.js |
+|---|---|---|
+| Shaders | Typed TypeScript, checked at build time | GLSL/TSL strings |
+| Shader compilation | Ahead of time, on your machine | In the browser, at startup |
+| Runtime size | ~23 KB min / 8.5 KB gzip | ~600 KB min |
+| Backends | GLSL + WGSL from one source | WebGL and WebGPU renderers |
+| Scene graph | None — you own the draw loop | Yes |
+
+The practical difference is where errors surface. A typo in a GLSL string is a
+console message at runtime, or a black screen with no message at all. In BroMetal
+it fails the build, with a file, line and column.
+
+Compiling ahead of time also means a page with many shaders starts instantly
+rather than pausing while the driver works through them.
 
 ## Sizing the canvas
 
@@ -301,6 +306,54 @@ Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/
 
 Anything outside the subset fails compilation with a precise, actionable error.
 
+## WebGPU + WebGL from one source
+
+Every shader compiles to **both** GLSL ES 3.00 and WGSL by default
+(`npx brometal dev --targets=webgl2,webgpu` to control it — shader text is tiny,
+so shipping both costs single-digit KB).
+
+```ts
+const renderer = await createRenderer(canvas);          // WebGPU when available, WebGL2 otherwise
+const program = createProgram(renderer, cubeShader);    // same API on both backends
+// transparency: createProgram(renderer, s, { blend: 'alpha' | 'additive' })
+```
+
+`createRenderer` probes for a working WebGPU adapter and falls back to WebGL2 —
+same typed program API, same draw loop, no app changes. Pass
+`backend: 'webgl2' | 'webgpu'` to pin one.
+
+The compiler absorbs the platform differences at build time: WGSL uniform blocks
+with correct alignment offsets, texture/sampler binding pairs, and the
+GL→WebGPU clip-space remap. CPU-side matrices work identically on both.
+
+Some features are WebGPU-only because WebGL2 has no equivalent — compute shaders
+and storage buffers, chiefly. A shader using them drops the GLSL target with a
+warning rather than failing the build.
+
+```mermaid
+flowchart TD
+    subgraph BUILD ["Build time — npx brometal"]
+        TS[TypeScript] --> Parser
+        Parser --> TC[Type Checker]
+        TC --> SA[GPU Semantic Analysis]
+        SA --> IR[GPU IR]
+        IR --> OPT[Optimization Passes]
+        OPT --> GLSL
+        OPT --> WGSL
+    end
+    subgraph RUN ["Runtime — browser"]
+        WebGL
+        WebGPU
+    end
+    GLSL --> WebGL
+    WGSL --> WebGPU
+    style BUILD fill:none,stroke:#888,stroke-width:1.5px
+    style RUN fill:none,stroke:#888,stroke-width:1.5px
+```
+
+Everything above the line happens once, on your machine. The browser receives
+finished shader text and the runtime — never the compiler.
+
 ## Compiled, not configured
 
 BroMetal's spirit is to decide everything it can at compile time, so the runtime executes a precomputed plan:
@@ -326,3 +379,4 @@ npm run build       # compile the package (tsc)
 npm test            # vitest: compiler goldens, analyzer errors, optimizer, math, CLI
 npm run typecheck   # strict tsc across package + example
 ```
+

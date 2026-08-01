@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const cameraCubeShader: CompiledShader<{ aPosition: 'vec3'; aColor: 'vec3' }, Record<string, never>, { uViewProj: 'mat4'; uModel: 'mat4' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aColor;
 uniform mat4 uViewProj;
@@ -15,6 +17,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 in vec3 vColor;
 out vec4 fragColor;
 void main() {
@@ -51,6 +54,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uViewProj: 'mat4', uModel: 'mat4' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aColor","type":"vec3","location":1,"size":3,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uModel","type":"mat4","kind":"m4fv","size":16,"offset":64}],"uniformBlockSize":128},
+
 };
 
 export default cameraCubeShader;

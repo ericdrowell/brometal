@@ -4,8 +4,18 @@ export function foldConstants(ir: ShaderIr): ShaderIr {
   return {
     ...ir,
     helpers: ir.helpers.map((helper) => ({ ...helper, statements: helper.statements.map(foldStmt) })),
-    vertex: { ...ir.vertex, statements: ir.vertex.statements.map(foldStmt) },
-    fragment: { ...ir.fragment, statements: ir.fragment.statements.map(foldStmt) },
+    vertex:
+      ir.vertex === undefined
+        ? undefined
+        : { ...ir.vertex, statements: ir.vertex.statements.map(foldStmt) },
+    fragment:
+      ir.fragment === undefined
+        ? undefined
+        : { ...ir.fragment, statements: ir.fragment.statements.map(foldStmt) },
+    compute:
+      ir.compute === undefined
+        ? undefined
+        : { ...ir.compute, statements: ir.compute.statements.map(foldStmt) },
   };
 }
 
@@ -17,6 +27,8 @@ function foldStmt(statement: IrStmt): IrStmt {
       return { ...statement, expr: foldExpr(statement.expr) };
     case 'return':
       return { ...statement, expr: foldExpr(statement.expr) };
+    case 'storageWrite':
+      return { ...statement, index: foldExpr(statement.index), value: foldExpr(statement.value) };
     case 'if': {
       const folded: IrStmt = {
         kind: 'if',
@@ -91,9 +103,14 @@ function evaluate(op: string, a: number, b: number): number | undefined {
  * both stages and the vertex assignments feeding them are dropped.
  */
 export function pruneDeadVaryings(ir: ShaderIr): ShaderIr {
+  // Compute-only shaders have no varyings to prune.
+  if (ir.vertex === undefined || ir.fragment === undefined) {
+    return ir;
+  }
+  const vertexStage = ir.vertex;
   const dead = new Set(
     Object.keys(ir.varyings).filter(
-      (name) => !ir.vertex.usedVaryings.has(name) && !ir.fragment.usedVaryings.has(name),
+      (name) => !vertexStage.usedVaryings.has(name) && !ir.fragment!.usedVaryings.has(name),
     ),
   );
   if (dead.size === 0) {
@@ -103,7 +120,7 @@ export function pruneDeadVaryings(ir: ShaderIr): ShaderIr {
   return {
     ...ir,
     varyings,
-    vertex: { ...ir.vertex, statements: dropAssignments(ir.vertex.statements, dead) },
+    vertex: { ...vertexStage, statements: dropAssignments(vertexStage.statements, dead) },
   };
 }
 

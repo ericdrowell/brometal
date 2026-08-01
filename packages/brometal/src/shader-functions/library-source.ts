@@ -730,6 +730,38 @@ export const SHADER_LIBRARY: Record<string, LibraryEntry> = {
   return vel.scale(step(threshold, length(vel)));
 }`,
   },
+  shadowDepth: {
+    deps: [],
+    source: `function shadowDepth(worldPos: Vec3, lightPos: Vec3, range: number): number {
+  return distance(worldPos, lightPos) / range;
+}`,
+  },
+  shadowFactor: {
+    deps: ['shadowDepth'],
+    source: `function shadowFactor(shadowMap: Sampler2D, lightViewProj: Mat4, worldPos: Vec3, normal: Vec3, lightPos: Vec3, range: number, texel: number, softness: number, bias: number): number {
+  const toLight = normalize(lightPos.sub(worldPos));
+  const facing = max(dot(normalize(normal), toLight), 0);
+  const slope = 1 + 2 * (1 - facing);
+  const lookup = worldPos.add(normalize(normal).scale(bias * slope));
+  // Bound to a local first: targetUv divides xy by w, so passing the product
+  // directly would emit the whole mat4 multiply twice.
+  const clip = lightViewProj.mul(vec4(lookup, 1));
+  const uv = targetUv(clip);
+  // Deliberately routed through shadowDepth, so the value the depth pass writes
+  // and the value compared against it can never drift apart. The bias is in
+  // world units and is normalised here — subtracting it after the divide would
+  // scale it by range and quietly erase every contact shadow.
+  const reference = shadowDepth(lookup, lightPos, range) - (bias * slope) / range;
+  let visible = 0;
+  for (let y = -1; y < 2; y += 1) {
+    for (let x = -1; x < 2; x += 1) {
+      const tap = uv.add(vec2(x, y).scale(texel * softness));
+      visible += step(reference, texture(shadowMap, tap).x);
+    }
+  }
+  return visible / 9;
+}`,
+  },
   boxContactNormal: {
     deps: [],
     source: `function boxContactNormal(pos: Vec3, radius: number, halfExtent: Vec3, tolerance: number): Vec3 {

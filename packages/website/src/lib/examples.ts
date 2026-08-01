@@ -105,10 +105,16 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
           'Elastic ripples rolling across a surface — easing functions driving per-vertex animation on the GPU.',
       },
       {
-        slug: 'ocean',
-        name: 'Ocean',
+        slug: 'night-ocean',
+        name: 'Night Ocean',
         description:
-          'A moonlit ocean — Gerstner waves in the vertex shader, fbm micro-ripples, fresnel, and specular glint per pixel.',
+          'A moonlit ocean — Gerstner waves in the vertex shader, fbm micro-ripples, fresnel, and a specular glint per pixel.',
+      },
+      {
+        slug: 'day-ocean',
+        name: 'Day Ocean',
+        description:
+          'Shallow tropical water in daylight — eight Gerstner waves with an exact analytic normal, a refracted seabed with per-channel absorption, caustics, and foam that keys off steepness rather than height.',
       },
       {
         slug: 'brocraft',

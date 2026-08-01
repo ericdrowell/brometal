@@ -1,4 +1,4 @@
-import type { Sampler2D, Vec2, Vec3, Vec4 } from './types.js';
+import type { Sampler2D, Sampler3D, Storage, Vec2, Vec3, Vec4 } from './types.js';
 
 function gpuOnly(name: string): never {
   throw new Error(
@@ -29,7 +29,26 @@ export function vec4(): Vec4 {
   return gpuOnly('vec4');
 }
 
+/** Write `value` at `index`. Only legal inside compute(); a statement, not an expression. */
+export function storageWrite<T>(buffer: Storage<T>, index: number, value: T): void;
+export function storageWrite(): void {
+  gpuOnly('storageWrite');
+}
+
+/** Element `index` of a storage buffer. The return type is the buffer's element type. */
+export function storageRead<T>(buffer: Storage<T>, index: number): T;
+export function storageRead(): unknown {
+  return gpuOnly('storageRead');
+}
+
+/** How many elements the buffer holds — WGSL's arrayLength. */
+export function storageLength(buffer: Storage<unknown>): number;
+export function storageLength(): number {
+  return gpuOnly('storageLength');
+}
+
 export function texture(sampler: Sampler2D, uv: Vec2): Vec4;
+export function texture(sampler: Sampler3D, uvw: Vec3): Vec4;
 export function texture(): Vec4 {
   return gpuOnly('texture');
 }

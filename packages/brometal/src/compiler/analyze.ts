@@ -11,7 +11,7 @@ import {
   type ShaderFn,
 } from './parse.js';
 
-type Stage = 'vertex' | 'fragment' | 'helper';
+type Stage = 'vertex' | 'fragment' | 'compute' | 'helper';
 
 type RecordRole = 'attributes' | 'instanceAttributes' | 'uniforms' | 'varyings';
 
@@ -43,7 +43,13 @@ const SWIZZLE_INDEX: Record<string, number> = { x: 0, y: 1, z: 2, w: 3 };
 
 interface IntrinsicRule {
   signature: string;
-  check(args: IrExpr[]): IrType | null;
+  /**
+   * `ctx` is here for storageRead, whose return type is the buffer's element
+   * type and so cannot be derived from the argument types alone. Every other
+   * rule ignores it — TypeScript lets an implementation take fewer parameters
+   * than its signature, so the existing table needs no changes.
+   */
+  check(args: IrExpr[], ctx: StageContext): IrType | null;
 }
 
 function isVec(type: IrType): boolean {
@@ -93,10 +99,28 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
         ? args[0]!.type
         : null,
   },
+  storageRead: {
+    signature: 'storageRead(buffer, index) expects a storage buffer and a float',
+    check: (args, ctx) => {
+      if (args.length !== 2 || args[0]!.type !== 'storage' || args[1]!.type !== 'float') return null;
+      const buffer = args[0]!;
+      if (buffer.kind !== 'ident') return null;
+      return (ctx.storageElements[buffer.name] as IrType | undefined) ?? null;
+    },
+  },
+  storageLength: {
+    signature: 'storageLength(buffer) expects a storage buffer',
+    check: (args) => (args.length === 1 && args[0]!.type === 'storage' ? 'float' : null),
+  },
   texture: {
-    signature: 'texture(sampler, uv) expects a sampler2D and a vec2',
+    signature:
+      'texture(sampler, uv) expects a sampler2D with a vec2, or a sampler3D with a vec3',
     check: (args) =>
-      args.length === 2 && args[0]!.type === 'sampler2D' && args[1]!.type === 'vec2' ? 'vec4' : null,
+      args.length === 2 &&
+      ((args[0]!.type === 'sampler2D' && args[1]!.type === 'vec2') ||
+        (args[0]!.type === 'sampler3D' && args[1]!.type === 'vec3'))
+        ? 'vec4'
+        : null,
   },
   targetUv: {
     signature: 'targetUv(clipPosition) expects a vec4',
@@ -180,6 +204,10 @@ class Scope {
 
 interface StageContext {
   stage: Stage;
+  /** compute() may write to storage; every other stage is read-only. */
+  isCompute?: boolean;
+  /** Storage buffer name -> element type, for storageRead's return type. */
+  storageElements: GpuRecord;
   /** Human label for messages: vertex(), fragment(), or helper 'name'. */
   ownerLabel: string;
   returnType: IrType;
@@ -194,6 +222,8 @@ interface StageContext {
   usedVaryings: Set<string>;
   usedHelpers: Set<string>;
   assignedVaryings: Set<string>;
+  /** Buffers this stage writes, so the emitter can pick read_write. */
+  storageWritten?: Set<string>;
 }
 
 const EMPTY_RECORDS: Record<RecordRole, GpuRecord> = {
@@ -282,13 +312,36 @@ export function analyzeShader(parsed: ParsedShaderModule): ShaderIr {
     return ir;
   });
 
-  const vertex = analyzeStage('vertex', parsed.vertexFn, parsed.sourceFile, records, helperSignatures);
-  const fragment = analyzeStage('fragment', parsed.fragmentFn, parsed.sourceFile, records, helperSignatures);
+  const storageWritten = new Set<string>();
+  const vertex =
+    parsed.vertexFn === undefined
+      ? undefined
+      : analyzeStage('vertex', parsed.vertexFn, parsed.sourceFile, records, helperSignatures, parsed.storageElements);
+  const fragment =
+    parsed.fragmentFn === undefined
+      ? undefined
+      : analyzeStage('fragment', parsed.fragmentFn, parsed.sourceFile, records, helperSignatures, parsed.storageElements);
+  const compute =
+    parsed.computeFn === undefined
+      ? undefined
+      : analyzeStage(
+          'compute',
+          parsed.computeFn,
+          parsed.sourceFile,
+          records,
+          helperSignatures,
+          parsed.storageElements,
+          storageWritten,
+        );
 
   return {
+    compute,
+    storageWritten: [...storageWritten],
+    workgroupSize: parsed.workgroupSize,
     attributes: parsed.attributes,
     instanceAttributes: parsed.instanceAttributes,
     uniforms: parsed.uniforms,
+    storageElements: parsed.storageElements,
     varyings: parsed.varyings,
     helpers,
     vertex,
@@ -303,6 +356,8 @@ function analyzeHelper(
 ): ShaderIr['helpers'][number] {
   const ctx: StageContext = {
     stage: 'helper',
+    // Helpers take no storage parameters, so there is nothing to resolve.
+    storageElements: {},
     ownerLabel: `helper '${helper.name}'`,
     returnType: helper.returnType,
     returnDescription: `its declared return type`,
@@ -342,17 +397,24 @@ function analyzeHelper(
 }
 
 function analyzeStage(
-  stage: 'vertex' | 'fragment',
+  stage: 'vertex' | 'fragment' | 'compute',
   fn: ShaderFn,
   sourceFile: ts.SourceFile,
   records: Record<RecordRole, GpuRecord>,
   helpers: Map<string, HelperSignature>,
+  storageElements: GpuRecord = {},
+  storageWritten?: Set<string>,
 ): StageIr {
   const ctx: StageContext = {
     stage,
+    storageElements,
+    storageWritten,
     ownerLabel: `${stage}()`,
     returnType: 'vec4',
     returnDescription: stage === 'vertex' ? 'clip-space position' : 'output color',
+    // compute() writes to storage instead of returning, so it is the one stage
+    // with no return value to describe.
+    isCompute: stage === 'compute',
     sourceFile,
     records,
     interfaceNames: new Set([
@@ -370,24 +432,45 @@ function analyzeStage(
     assignedVaryings: new Set(),
   };
 
-  const roles: ParamRole[] = stage === 'vertex' ? ['vertexInputs', 'uniforms', 'varyings'] : ['uniforms', 'varyings'];
-  if (fn.parameters.length > roles.length) {
+  // compute() takes (uniforms, id); the id is not a record, so it is bound
+  // separately below rather than through a param role.
+  const roles: ParamRole[] =
+    stage === 'vertex'
+      ? ['vertexInputs', 'uniforms', 'varyings']
+      : stage === 'compute'
+        ? ['uniforms']
+        : ['uniforms', 'varyings'];
+  const maxParams = stage === 'compute' ? roles.length + 1 : roles.length;
+  let idParam: string | undefined;
+  if (fn.parameters.length > maxParams) {
     throw errorAt(
       sourceFile,
-      fn.parameters[roles.length]!,
+      fn.parameters[maxParams]!,
       `${stage}() takes at most ${roles.length} parameters (${roles.map((role) => PARAM_ROLE_LABELS[role]).join(', ')})`,
     );
   }
 
   const scope = new Scope();
   fn.parameters.forEach((param, index) => {
+    if (stage === 'compute' && index === roles.length) {
+      if (!ts.isIdentifier(param.name)) {
+        throw errorAt(sourceFile, param, `compute()'s id parameter must be a plain name`);
+      }
+      idParam = param.name.text;
+      scope.declare(idParam, { kind: 'local', type: 'vec3', mutable: false });
+      return;
+    }
     bindParameter(ctx, scope, param, roles[index]!);
   });
 
   const statements = lowerBody(ctx, scope, fn);
 
-  if (statements.length === 0 || statements[statements.length - 1]!.kind !== 'return') {
-    throw errorAt(sourceFile, fn, `${stage}() must end with a return statement (a vec4)`);
+  if (stage !== 'compute') {
+    if (statements.length === 0 || statements[statements.length - 1]!.kind !== 'return') {
+      throw errorAt(sourceFile, fn, `${stage}() must end with a return statement (a vec4)`);
+    }
+  } else if (statements.some((statement) => statement.kind === 'return')) {
+    throw errorAt(sourceFile, fn, `compute() returns nothing — write results with storageWrite()`);
   }
 
   if (stage === 'vertex') {
@@ -404,6 +487,7 @@ function analyzeStage(
 
   return {
     statements,
+    idParam,
     usedAttributes: ctx.usedAttributes,
     usedInstanceAttributes: ctx.usedInstanceAttributes,
     usedUniforms: ctx.usedUniforms,
@@ -610,7 +694,7 @@ function lowerDecl(ctx: StageContext, scope: Scope, statement: ts.VariableStatem
   if (expr.type === 'bool') {
     throw errorAt(ctx.sourceFile, declaration, `bool variables are not supported — inline the condition`);
   }
-  if (expr.type === 'sampler2D') {
+  if (expr.type === 'sampler2D' || expr.type === 'sampler3D') {
     throw errorAt(
       ctx.sourceFile,
       declaration,
@@ -635,6 +719,45 @@ function lowerMutation(
   expr: ts.Expression,
   options: { topLevel: boolean },
 ): IrStmt {
+  // storageWrite is the only call allowed in statement position — it is the
+  // sole way a stage produces output other than by returning.
+  if (
+    ts.isCallExpression(expr) &&
+    ts.isIdentifier(expr.expression) &&
+    expr.expression.text === 'storageWrite'
+  ) {
+    if (ctx.isCompute !== true) {
+      throw errorAt(
+        ctx.sourceFile,
+        expr,
+        `storageWrite() is only allowed in compute() — vertex and fragment stages cannot write to storage`,
+      );
+    }
+    const args = expr.arguments.map((arg) => lowerExpr(ctx, scope, arg));
+    if (args.length !== 3 || args[0]!.type !== 'storage' || args[1]!.type !== 'float') {
+      throw errorAt(
+        ctx.sourceFile,
+        expr,
+        `storageWrite(buffer, index, value) expects a storage buffer, a float index, and a value`,
+      );
+    }
+    const buffer = args[0]!;
+    if (buffer.kind !== 'ident') {
+      throw errorAt(ctx.sourceFile, expr, `storageWrite() needs a storage uniform as its first argument`);
+    }
+    const element = ctx.storageElements[buffer.name];
+    if (element !== args[2]!.type) {
+      throw errorAt(
+        ctx.sourceFile,
+        expr,
+        `storageWrite() into '${buffer.name}' expects a ${element}, got ${args[2]!.type}`,
+      );
+    }
+    ctx.usedUniforms.add(buffer.name);
+    ctx.storageWritten?.add(buffer.name);
+    return { kind: 'storageWrite', buffer: buffer.name, index: args[1]!, value: args[2]! };
+  }
+
   if (ts.isPostfixUnaryExpression(expr) && ts.isIdentifier(expr.operand)) {
     const op = expr.operator === ts.SyntaxKind.PlusPlusToken ? '+' : '-';
     const binding = requireMutableFloat(ctx, scope, expr.operand, `${op}${op}`);
@@ -982,7 +1105,7 @@ function lowerCall(ctx: StageContext, scope: Scope, node: ts.CallExpression): Ir
 
   const intrinsic = INTRINSICS[callee];
   if (intrinsic !== undefined) {
-    const result = intrinsic.check(args);
+    const result = intrinsic.check(args, ctx);
     if (result === null) {
       throw errorAt(
         ctx.sourceFile,

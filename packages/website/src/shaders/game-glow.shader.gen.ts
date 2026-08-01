@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const gameGlowShader: CompiledShader<{ aPosition: 'vec3' }, { iOffset: 'vec3'; iScale: 'float'; iAlpha: 'float' }, { uViewProj: 'mat4'; uColor: 'vec3' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 iOffset;
 layout(location = 2) in float iScale;
@@ -16,6 +18,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 uniform vec3 uColor;
 in float vAlpha;
 out vec4 fragColor;
@@ -55,6 +58,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: { iOffset: 'vec3', iScale: 'float', iAlpha: 'float' },
   uniforms: { uViewProj: 'mat4', uColor: 'vec3' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"iOffset","type":"vec3","location":1,"size":3,"divisor":1},{"name":"iScale","type":"float","location":2,"size":1,"divisor":1},{"name":"iAlpha","type":"float","location":3,"size":1,"divisor":1}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uColor","type":"vec3","kind":"3fv","size":3,"offset":64}],"uniformBlockSize":80},
+
 };
 
 export default gameGlowShader;

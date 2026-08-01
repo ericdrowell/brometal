@@ -14,6 +14,8 @@ const COMPONENT_COUNTS: Record<GpuType, number> = {
   vec4: 4,
   mat4: 16,
   sampler2D: 1,
+  sampler3D: 1,
+  storage: 1,
 };
 
 const UNIFORM_KINDS: Record<GpuType, UniformKind> = {
@@ -23,6 +25,8 @@ const UNIFORM_KINDS: Record<GpuType, UniformKind> = {
   vec4: '4fv',
   mat4: 'm4fv',
   sampler2D: '1i',
+  sampler3D: '1i',
+  storage: '1i',
 };
 
 /**
@@ -59,7 +63,7 @@ export function buildLayout(ir: ShaderIr): ShaderLayout {
       kind: UNIFORM_KINDS[type],
       size: COMPONENT_COUNTS[type],
     };
-    if (type === 'sampler2D') {
+    if (type === 'sampler2D' || type === 'sampler3D' || type === 'storage') {
       entry.unit = nextUnit++;
     } else {
       const [align, byteSize] = WGSL_ALIGN[type]!;
@@ -75,9 +79,12 @@ export function buildLayout(ir: ShaderIr): ShaderLayout {
   // present), then texture/sampler pairs in declaration order.
   let nextBinding = uniformBlockSize > 0 ? 1 : 0;
   for (const entry of uniforms) {
-    if (entry.type === 'sampler2D') {
+    if (entry.type === 'sampler2D' || entry.type === 'sampler3D') {
       entry.textureBinding = nextBinding++;
       entry.samplerBinding = nextBinding++;
+    } else if (entry.type === 'storage') {
+      // One binding, not two — a storage buffer has no sampler.
+      entry.textureBinding = nextBinding++;
     }
   }
 

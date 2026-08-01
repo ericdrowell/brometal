@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const ballsGlassShader: CompiledShader<{ aPosition: 'vec3'; aNormal: 'vec3' }, Record<string, never>, { uViewProj: 'mat4'; uBounds: 'vec3'; uViewPos: 'vec3'; uLightPos: 'vec3'; uSkyTint: 'vec3'; uHorizon: 'vec3'; uGlassTint: 'vec3'; uEdge: 'float'; uGlare: 'float'; uScene: 'sampler2D'; uReach: 'float'; uThickness: 'float'; uMirror: 'float' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 uniform mat4 uViewProj;
@@ -20,6 +22,9 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler3D;
 uniform mat4 uViewProj;
 uniform vec3 uViewPos;
 uniform vec3 uLightPos;
@@ -271,6 +276,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uViewProj: 'mat4', uBounds: 'vec3', uViewPos: 'vec3', uLightPos: 'vec3', uSkyTint: 'vec3', uHorizon: 'vec3', uGlassTint: 'vec3', uEdge: 'float', uGlare: 'float', uScene: 'sampler2D', uReach: 'float', uThickness: 'float', uMirror: 'float' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aNormal","type":"vec3","location":1,"size":3,"divisor":0}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uBounds","type":"vec3","kind":"3fv","size":3,"offset":64},{"name":"uViewPos","type":"vec3","kind":"3fv","size":3,"offset":80},{"name":"uLightPos","type":"vec3","kind":"3fv","size":3,"offset":96},{"name":"uSkyTint","type":"vec3","kind":"3fv","size":3,"offset":112},{"name":"uHorizon","type":"vec3","kind":"3fv","size":3,"offset":128},{"name":"uGlassTint","type":"vec3","kind":"3fv","size":3,"offset":144},{"name":"uEdge","type":"float","kind":"1f","size":1,"offset":156},{"name":"uGlare","type":"float","kind":"1f","size":1,"offset":160},{"name":"uScene","type":"sampler2D","kind":"1i","size":1,"unit":0,"textureBinding":1,"samplerBinding":2},{"name":"uReach","type":"float","kind":"1f","size":1,"offset":164},{"name":"uThickness","type":"float","kind":"1f","size":1,"offset":168},{"name":"uMirror","type":"float","kind":"1f","size":1,"offset":172}],"uniformBlockSize":176},
+
 };
 
 export default ballsGlassShader;

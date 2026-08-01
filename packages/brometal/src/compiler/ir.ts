@@ -1,6 +1,15 @@
 import type { GpuRecord } from '../dsl/types.js';
 
-export type IrType = 'float' | 'vec2' | 'vec3' | 'vec4' | 'mat4' | 'sampler2D' | 'bool';
+export type IrType =
+  | 'float'
+  | 'vec2'
+  | 'vec3'
+  | 'vec4'
+  | 'mat4'
+  | 'sampler2D'
+  | 'sampler3D'
+  | 'storage'
+  | 'bool';
 
 export type IrBinaryOp =
   | '+'
@@ -35,6 +44,7 @@ export type IrStmt =
       update: IrStmt;
       body: IrStmt[];
     }
+  | { kind: 'storageWrite'; buffer: string; index: IrExpr; value: IrExpr }
   | { kind: 'return'; expr: IrExpr };
 
 export interface HelperParam {
@@ -53,6 +63,8 @@ export interface HelperIr {
 
 export interface StageIr {
   statements: IrStmt[];
+  /** compute() only: the local name bound to the global invocation id. */
+  idParam?: string;
   usedAttributes: Set<string>;
   usedInstanceAttributes: Set<string>;
   usedUniforms: Set<string>;
@@ -62,10 +74,18 @@ export interface StageIr {
 
 export interface ShaderIr {
   attributes: GpuRecord;
+  /** Storage buffer name -> element type. The names also appear in `uniforms`. */
+  storageElements: GpuRecord;
   instanceAttributes: GpuRecord;
   uniforms: GpuRecord;
   varyings: GpuRecord;
   helpers: HelperIr[];
-  vertex: StageIr;
-  fragment: StageIr;
+  /** Absent on compute-only shaders, which draw nothing. */
+  vertex?: StageIr;
+  fragment?: StageIr;
+  /** Present only for shaders declaring a compute() stage. WebGPU only. */
+  compute?: StageIr;
+  /** Buffers written by compute — these need var<storage, read_write>. */
+  storageWritten: string[];
+  workgroupSize: readonly [number, number, number];
 }

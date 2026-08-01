@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const ballsBackdropShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTop: 'vec3'; uBottom: 'vec3'; uGlow: 'vec3' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUv;
 out vec2 vUv;
@@ -13,6 +15,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 uniform vec3 uTop;
 uniform vec3 uBottom;
 uniform vec3 uGlow;
@@ -57,6 +60,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uTop: 'vec3', uBottom: 'vec3', uGlow: 'vec3' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0}],"uniforms":[{"name":"uTop","type":"vec3","kind":"3fv","size":3,"offset":0},{"name":"uBottom","type":"vec3","kind":"3fv","size":3,"offset":16},{"name":"uGlow","type":"vec3","kind":"3fv","size":3,"offset":32}],"uniformBlockSize":48},
+
 };
 
 export default ballsBackdropShader;

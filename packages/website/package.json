@@ -5,6 +5,8 @@
   "scripts": {
     "predev": "node scripts/generate-version.mjs",
     "dev": "next dev -p 3005",
+    "dev:website": "npm run dev",
+    "dev:watch": "node ../brometal/dist/cli/index.js dev & SHADERS=$!; trap 'kill $SHADERS 2>/dev/null' EXIT INT TERM; next dev -p 3005",
     "prebuild": "rm -rf .next && node scripts/generate-version.mjs",
     "build": "next build",
     "start": "next start -p 3005",

@@ -31,7 +31,20 @@ export interface EmitOptions {
 }
 
 export function emitGlsl(ir: ShaderIr, layout: ShaderLayout, options: EmitOptions): GlslSources {
-  return { vertexSrc: emitVertex(ir, layout), fragmentSrc: emitFragment(ir, options) };
+  // WebGL2 is GLSL ES 3.00, which has no shader storage buffers at all — SSBOs
+  // arrived in ES 3.10 and WebGL2 never exposed them. There is no fallback to
+  // emit, so this has to fail loudly rather than produce a shader that links and
+  // reads zeros.
+  if (ir.vertex === undefined || ir.fragment === undefined) {
+    throw new Error('BroMetal: a compute-only shader has no GLSL form — WebGL2 has no compute stage');
+  }
+  const storageNames = Object.keys(ir.storageElements);
+  if (storageNames.length > 0) {
+    throw new Error(
+      `BroMetal: storage buffers (${storageNames.join(', ')}) are WebGPU-only — WebGL2 has no SSBOs`,
+    );
+  }
+  return { vertexSrc: emitVertex(ir, layout, options), fragmentSrc: emitFragment(ir, options) };
 }
 
 /** Expands a stage's directly-called helpers to include everything they call. */
@@ -51,6 +64,54 @@ export function helperClosure(ir: ShaderIr, roots: Iterable<string>): Set<string
   return result;
 }
 
+/**
+ * Whether the code currently being emitted lands in the vertex shader.
+ *
+ * GLSL ES 3.00 computes `texture()`'s mip level from screen-space derivatives,
+ * which do not exist in a vertex shader — the level is undefined there, and
+ * drivers are free to return whatever they like. In practice a vertex-stage
+ * fetch comes back empty, which surfaces as geometry that simply never moves:
+ * no error, no warning, just a flat mesh. Vertex-stage sampling therefore has
+ * to name its level explicitly. `emit-wgsl` has the same split for a different
+ * reason (uniformity rather than derivatives).
+ *
+ * Helpers are emitted once per stage, so the same helper correctly keeps
+ * mipmapped sampling in the fragment shader and takes level 0 in the vertex one.
+ */
+let emittingVertex = false;
+
+/**
+ * Precision declarations, emitted for *both* stages.
+ *
+ * GLSL ES 3.00 defaults `sampler2D` to `lowp` unless told otherwise, in either
+ * stage. A lowp sampler quantises everything it returns, which is invisible for
+ * a colour texture and destroys a texture used as data — a displacement map read
+ * through one comes back flattened, so a GPU-driven mesh renders nearly static
+ * while the identical WGSL path (f32 throughout, no precision qualifiers) looks
+ * correct. three.js declares `precision highp sampler2D` for exactly this reason.
+ *
+ * The vertex stage previously had no precision block at all; only fragment
+ * declared `float`, and neither declared samplers.
+ */
+function precisionHeader(options: EmitOptions, usesSampler: boolean): string[] {
+  const lines = [`precision ${options.precision} float;`, `precision ${options.precision} int;`];
+  // Only when the stage actually samples — a shader with no textures has no
+  // reason to name a sampler precision.
+  if (usesSampler) {
+    lines.push(`precision ${options.precision} sampler2D;`);
+    lines.push(`precision ${options.precision} sampler3D;`);
+  }
+  return lines;
+}
+
+/** Whether any uniform this stage uses is a sampler. */
+function stageUsesSampler(ir: ShaderIr, used: Set<string>): boolean {
+  for (const [name, type] of Object.entries(ir.uniforms)) {
+    if ((type === 'sampler2D' || type === 'sampler3D') && used.has(name)) return true;
+  }
+  return false;
+}
+
 function emitHelperFunctions(lines: string[], ir: ShaderIr, roots: Set<string>): void {
   const closure = helperClosure(ir, roots);
   for (const helper of ir.helpers) {
@@ -62,42 +123,50 @@ function emitHelperFunctions(lines: string[], ir: ShaderIr, roots: Set<string>):
   }
 }
 
-function emitVertex(ir: ShaderIr, layout: ShaderLayout): string {
-  const lines: string[] = ['#version 300 es'];
+function emitVertex(ir: ShaderIr, layout: ShaderLayout, options: EmitOptions): string {
+  emittingVertex = true;
+  const lines: string[] = [
+    '#version 300 es',
+    ...precisionHeader(options, stageUsesSampler(ir, ir.vertex!.usedUniforms)),
+  ];
   for (const entry of layout.attributes) {
     lines.push(`layout(location = ${entry.location}) in ${entry.type} ${entry.name};`);
   }
   for (const [name, type] of Object.entries(ir.uniforms)) {
-    if (ir.vertex.usedUniforms.has(name)) {
+    if (ir.vertex!.usedUniforms.has(name)) {
       lines.push(`uniform ${type} ${name};`);
     }
   }
   for (const [name, type] of Object.entries(ir.varyings)) {
     lines.push(`out ${type} ${name};`);
   }
-  emitHelperFunctions(lines, ir, ir.vertex.usedHelpers);
+  emitHelperFunctions(lines, ir, ir.vertex!.usedHelpers);
   lines.push('void main() {');
-  emitStatements(lines, ir.vertex.statements, 'gl_Position', 1);
+  emitStatements(lines, ir.vertex!.statements, 'gl_Position', 1);
   lines.push('}');
   return lines.join('\n') + '\n';
 }
 
 function emitFragment(ir: ShaderIr, options: EmitOptions): string {
-  const lines: string[] = ['#version 300 es', `precision ${options.precision} float;`];
+  emittingVertex = false;
+  const lines: string[] = [
+    '#version 300 es',
+    ...precisionHeader(options, stageUsesSampler(ir, ir.fragment!.usedUniforms)),
+  ];
   for (const [name, type] of Object.entries(ir.uniforms)) {
-    if (ir.fragment.usedUniforms.has(name)) {
+    if (ir.fragment!.usedUniforms.has(name)) {
       lines.push(`uniform ${type} ${name};`);
     }
   }
   for (const [name, type] of Object.entries(ir.varyings)) {
-    if (ir.fragment.usedVaryings.has(name)) {
+    if (ir.fragment!.usedVaryings.has(name)) {
       lines.push(`in ${type} ${name};`);
     }
   }
   lines.push('out vec4 fragColor;');
-  emitHelperFunctions(lines, ir, ir.fragment.usedHelpers);
+  emitHelperFunctions(lines, ir, ir.fragment!.usedHelpers);
   lines.push('void main() {');
-  emitStatements(lines, ir.fragment.statements, 'fragColor', 1);
+  emitStatements(lines, ir.fragment!.statements, 'fragColor', 1);
   lines.push('}');
   return lines.join('\n') + '\n';
 }
@@ -174,7 +243,12 @@ function emitExpr(expr: IrExpr, parentPrecedence: number): string {
         const clip = emitExpr(expr.args[0]!, 0);
         return `((${clip}).xy / (${clip}).w * 0.5 + 0.5)`;
       }
-      return `${expr.callee}(${expr.args.map((arg) => emitExpr(arg, 0)).join(', ')})`;
+      const rendered = expr.args.map((arg) => emitExpr(arg, 0));
+      if (expr.callee === 'texture' && emittingVertex) {
+        // No derivatives in the vertex stage, so the level must be explicit.
+        return `textureLod(${rendered.join(', ')}, 0.0)`;
+      }
+      return `${expr.callee}(${rendered.join(', ')})`;
     }
     case 'unary': {
       const rendered = `${expr.op}${emitExpr(expr.operand, UNARY_PRECEDENCE)}`;

@@ -33,6 +33,11 @@ export interface BroMetalProgram<
   readonly uniforms: { [K in keyof U]: UniformHandle<U[K]> };
   setIndices(data: Uint16Array | Uint32Array): void;
   draw(): void;
+  /**
+   * Run the compute stage. WebGPU only, and only for shaders declaring
+   * compute(). Counts are workgroups, not threads.
+   */
+  dispatch(x: number, y?: number, z?: number): void;
   dispose(): void;
 }
 
@@ -96,14 +101,14 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
             warnOnce(`uniform '${entry.name}' is unused in the compiled shader; ignoring set()`);
             return;
           }
-          const texture = value as unknown as { glTexture?: WebGLTexture };
+          const texture = value as unknown as { glTexture?: WebGLTexture; glTarget?: number };
           if (texture === null || typeof texture !== 'object' || texture.glTexture === undefined) {
             throw new Error(
               `BroMetal: uniform '${entry.name}' (sampler2D) expects a texture from createTexture()/loadTexture()`,
             );
           }
           gl.activeTexture(gl.TEXTURE0 + unit);
-          gl.bindTexture(gl.TEXTURE_2D, texture.glTexture);
+          gl.bindTexture(texture.glTarget ?? gl.TEXTURE_2D, texture.glTexture);
         },
       } as UniformHandle<U[keyof U & string]>;
       continue;
@@ -138,6 +143,11 @@ export function createProgram<A extends GpuRecord, I extends GpuRecord, U extend
       }
       bindVaoCached(gl, vao);
       uploadIndices(gl, indexState, data);
+    },
+    dispatch(): void {
+      throw new Error(
+        'BroMetal: compute shaders are WebGPU-only — WebGL2 has no compute stage at all',
+      );
     },
     draw(): void {
       const vertexCount = resolveCount(

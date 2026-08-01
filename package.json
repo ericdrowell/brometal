@@ -7,9 +7,12 @@
   "scripts": {
     "build": "npm run build -w brometal",
     "test": "npm run test -w brometal",
+    "sync:examples": "node scripts/sync-examples.mjs",
     "release": "npm test && npm run typecheck && npm run build && node scripts/release.mjs",
     "typecheck": "npm run typecheck -w brometal && npm run typecheck -w website",
+    "shaders": "npm run shaders -w website",
     "dev:website": "npm run dev -w website",
+    "dev:website:watch": "npm run dev:watch -w website",
     "prod:website": "npm run prod -w website"
   }
 }

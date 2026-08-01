@@ -200,14 +200,65 @@ a:hover {
   line-height: 1.7;
 }
 
-.faq-more {
-  margin: 28px 0 0;
-  text-align: center;
-  color: #a6adc4;
-  font-size: 15px;
+.changelog-release + .changelog-release {
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 1px solid #232538;
 }
 
-.faq-more a {
+/* Same palette as the FAQ: near-white for the thing you scan for, muted for the
+   prose, and a small uppercase label for the grouping. */
+.changelog-release h2 {
+  margin: 0;
+  color: #e8eaf2;
+}
+
+/* The date sits under the version rather than beside it: the version is what
+   you scan for, and a parenthetical on the same line competes with it. */
+.changelog-date {
+  margin: 4px 0 0;
+  color: #6f7794;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.changelog-release h3 {
+  margin: 20px 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8f96ad;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.changelog-release li {
+  color: #a6adc4;
+  font-size: 15px;
+  line-height: 1.7;
+  margin-bottom: 10px;
+}
+
+/* Each entry leads with a bold summary — that is the scannable part, so it gets
+   the heading colour rather than the body colour. */
+.changelog-release li strong {
+  color: #e8eaf2;
+  font-weight: 600;
+}
+
+.changelog-release code {
+  color: #c8cfe4;
+}
+
+.home-footer {
+  margin: 56px 0 0;
+  padding-top: 24px;
+  border-top: 1px solid #232538;
+  text-align: center;
+  color: #6f7794;
+  font-size: 14px;
+}
+
+.home-footer a {
   color: #8b9cff;
 }
 

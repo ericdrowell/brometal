@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const fnWorleyEdge2Shader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUv;
 out vec2 vUv;
@@ -13,6 +15,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 uniform float uTime;
 uniform float uAspect;
 in vec2 vUv;
@@ -107,6 +110,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uTime: 'float', uAspect: 'float' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0}],"uniforms":[{"name":"uTime","type":"float","kind":"1f","size":1,"offset":0},{"name":"uAspect","type":"float","kind":"1f","size":1,"offset":4}],"uniformBlockSize":16},
+
 };
 
 export default fnWorleyEdge2Shader;

@@ -1,10 +1,13 @@
 import type { GpuType, UniformLayoutEntry } from '../dsl/types.js';
 import type { BroMetalTexture } from './texture.js';
+import type { BroMetalStorageBuffer } from './storage.js';
 
 export type UniformValue<T extends GpuType> = T extends 'float'
   ? number
-  : T extends 'sampler2D'
-    ? BroMetalTexture
+  : T extends 'storage'
+    ? BroMetalStorageBuffer
+    : T extends 'sampler2D' | 'sampler3D'
+      ? BroMetalTexture
     : Float32Array | readonly number[];
 
 /**

@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const shadowDepthShader: CompiledShader<{ aPosition: 'vec3' }, { iOffset: 'vec3'; iScale: 'vec3'; iSpin: 'float' }, { uLightViewProj: 'mat4'; uLightPos: 'vec3'; uTime: 'float'; uRange: 'float' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 iOffset;
 layout(location = 2) in vec3 iScale;
@@ -18,14 +20,18 @@ vec3 rotate3(vec3 p, vec3 axis, float angle) {
   float s = sin(angle);
   return p * c + cross(a, p) * s + a * (dot(a, p) * (1.0 - c));
 }
+float shadowDepth(vec3 worldPos, vec3 lightPos, float range) {
+  return distance(worldPos, lightPos) / range;
+}
 void main() {
   vec3 world = rotate3(aPosition * iScale, vec3(0.0, 1.0, 0.0), iSpin * uTime) + iOffset;
-  vDistance = distance(world, uLightPos) / uRange;
+  vDistance = shadowDepth(world, uLightPos, uRange);
   gl_Position = uLightViewProj * vec4(world, 1.0);
 }
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 in float vDistance;
 out vec4 fragColor;
 void main() {
@@ -55,11 +61,14 @@ fn rotate3(p : vec3f, axis : vec3f, angle : f32) -> vec3f {
   let s = sin(angle);
   return p * c + cross(a, p) * s + a * (dot(a, p) * (1.0 - c));
 }
+fn shadowDepth(worldPos : vec3f, lightPos : vec3f, range : f32) -> f32 {
+  return distance(worldPos, lightPos) / range;
+}
 @vertex
 fn vs_main(bm_in : BmVSIn) -> BmVSOut {
   var bm_out : BmVSOut;
   let world = rotate3(bm_in.aPosition * bm_in.iScale, vec3f(0.0, 1.0, 0.0), bm_in.iSpin * bm_u.uTime) + bm_in.iOffset;
-  bm_out.vDistance = distance(world, bm_u.uLightPos) / bm_u.uRange;
+  bm_out.vDistance = shadowDepth(world, bm_u.uLightPos, bm_u.uRange);
   bm_out.bm_position = bm_u.uLightViewProj * vec4f(world, 1.0);
   bm_out.bm_position.z = (bm_out.bm_position.z + bm_out.bm_position.w) * 0.5;
   return bm_out;
@@ -73,6 +82,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: { iOffset: 'vec3', iScale: 'vec3', iSpin: 'float' },
   uniforms: { uLightViewProj: 'mat4', uLightPos: 'vec3', uTime: 'float', uRange: 'float' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"iOffset","type":"vec3","location":1,"size":3,"divisor":1},{"name":"iScale","type":"vec3","location":2,"size":3,"divisor":1},{"name":"iSpin","type":"float","location":3,"size":1,"divisor":1}],"uniforms":[{"name":"uLightViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uLightPos","type":"vec3","kind":"3fv","size":3,"offset":64},{"name":"uTime","type":"float","kind":"1f","size":1,"offset":76},{"name":"uRange","type":"float","kind":"1f","size":1,"offset":80}],"uniformBlockSize":96},
+
 };
 
 export default shadowDepthShader;

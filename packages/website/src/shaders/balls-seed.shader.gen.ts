@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const ballsSeedShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uCount: 'float'; uBounds: 'vec3'; uRadius: 'float'; uSpread: 'float' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUv;
 out vec2 vUv;
@@ -13,6 +15,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 uniform float uCount;
 uniform vec3 uBounds;
 uniform float uRadius;
@@ -87,6 +90,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uCount: 'float', uBounds: 'vec3', uRadius: 'float', uSpread: 'float' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0}],"uniforms":[{"name":"uCount","type":"float","kind":"1f","size":1,"offset":0},{"name":"uBounds","type":"vec3","kind":"3fv","size":3,"offset":16},{"name":"uRadius","type":"float","kind":"1f","size":1,"offset":28},{"name":"uSpread","type":"float","kind":"1f","size":1,"offset":32}],"uniformBlockSize":48},
+
 };
 
 export default ballsSeedShader;

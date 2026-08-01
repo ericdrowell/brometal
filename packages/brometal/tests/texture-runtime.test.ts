@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createTexture } from '../src/runtime/texture.js';
+import { createTexture, createTexture3D } from '../src/runtime/texture.js';
 import type { Renderer } from '../src/runtime/context.js';
 
 const ANISO_EXT = {
@@ -22,6 +22,9 @@ function stubRenderer(supportsAniso = true): { renderer: Renderer; calls: Record
     };
   const gl = {
     TEXTURE_2D: 0x0de1,
+    TEXTURE_3D: 0x806f,
+    TEXTURE_WRAP_R: 0x8072,
+    texImage3D: record('texImage3D'),
     RGBA: 0x1908,
     UNSIGNED_BYTE: 0x1401,
     REPEAT: 0x2901,
@@ -77,5 +80,34 @@ describe('texture anisotropy', () => {
     createTexture(renderer, SOURCE, { filter: 'nearest', anisotropy: 16 });
     expect(calls.some((c) => c.method === 'generateMipmap')).toBe(false);
     expect(calls.some((c) => c.method === 'texParameterf')).toBe(false);
+  });
+});
+
+describe('3D textures', () => {
+  it('rejects volume data whose length does not match its dimensions', () => {
+    const { renderer } = stubRenderer();
+    // 2x2x2 RGBA needs 32 bytes; hand it 16 and it should say so rather than
+    // uploading a half-filled volume that reads as garbage on the GPU.
+    expect(() =>
+      createTexture3D(renderer, { width: 2, height: 2, depth: 2, data: new Uint8Array(16) }),
+    ).toThrow(/16 bytes but 2x2x2 RGBA needs 32/);
+  });
+
+  it('uploads through TEXTURE_3D and reports that target back', () => {
+    const { renderer, calls } = stubRenderer();
+    const texture = createTexture3D(renderer, {
+      width: 2,
+      height: 2,
+      depth: 2,
+      data: new Uint8Array(32),
+    });
+    // The target has to travel with the texture: program.ts binds whatever it
+    // reports, and binding a volume to TEXTURE_2D silently samples nothing.
+    expect(texture.glTarget).toBe(0x806f);
+    expect(calls.some((call) => call.method === 'texImage3D')).toBe(true);
+    const wrapR = calls.find(
+      (call) => call.method === 'texParameteri' && call.args[1] === 0x8072,
+    );
+    expect(wrapR).toBeDefined();
   });
 });

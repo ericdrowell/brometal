@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const gameReticleShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, { iCenter: 'vec3'; iSize: 'float'; iAlpha: 'float' }, { uViewProj: 'mat4'; uColor: 'vec3' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aUv;
 layout(location = 2) in vec3 iCenter;
@@ -19,6 +21,7 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
 uniform vec3 uColor;
 in vec2 vUv;
 in float vAlpha;
@@ -84,6 +87,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: { iCenter: 'vec3', iSize: 'float', iAlpha: 'float' },
   uniforms: { uViewProj: 'mat4', uColor: 'vec3' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aUv","type":"vec2","location":1,"size":2,"divisor":0},{"name":"iCenter","type":"vec3","location":2,"size":3,"divisor":1},{"name":"iSize","type":"float","location":3,"size":1,"divisor":1},{"name":"iAlpha","type":"float","location":4,"size":1,"divisor":1}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uColor","type":"vec3","kind":"3fv","size":3,"offset":64}],"uniformBlockSize":80},
+
 };
 
 export default gameReticleShader;

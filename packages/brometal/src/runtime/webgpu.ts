@@ -2,7 +2,8 @@
 import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
 import type { AttributeHandle, BroMetalProgram, UniformHandle } from './program.js';
 import type { DrawToOptions, Renderer, RendererOptions } from './context.js';
-import type { BroMetalTexture, TextureOptions } from './texture.js';
+import type { BroMetalTexture, TextureOptions, VolumeSource } from './texture.js';
+import type { BroMetalStorageBuffer } from './storage.js';
 import type { UniformValue } from './uniforms.js';
 import type { RenderTarget } from './render-target.js';
 import { resizeToDisplaySize } from './canvas.js';
@@ -300,28 +301,45 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
   if (compiled.layout.uniformBlockSize > 0) {
     bglEntries.push({
       binding: 0,
-      visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+      visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
       // Dynamic offset: each draw binds its own 256-aligned slot of a shared
       // buffer, so multiple draws per frame keep their own uniform values.
       buffer: { type: 'uniform', hasDynamicOffset: true },
     });
   }
   for (const entry of compiled.layout.uniforms) {
-    if (entry.type === 'sampler2D') {
+    if (entry.type === 'sampler2D' || entry.type === 'sampler3D') {
       bglEntries.push({
         binding: entry.textureBinding!,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-        texture: { sampleType: 'float', viewDimension: '2d' },
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+        texture: { sampleType: 'float', viewDimension: entry.type === 'sampler3D' ? '3d' : '2d' },
       });
       bglEntries.push({
         binding: entry.samplerBinding!,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
         sampler: { type: 'filtering' },
+      });
+    } else if (entry.type === 'storage') {
+      // A buffer the compute stage writes must bind as 'storage'; the rest stay
+      // read-only so the driver can still optimise them.
+      const written = compiled.storageWritten?.includes(entry.name) === true;
+      bglEntries.push({
+        binding: entry.textureBinding!,
+        // WebGPU forbids a writable storage buffer from being visible to the
+        // vertex stage — read-only ones are fine anywhere. Granting all three
+        // unconditionally makes the whole bind group layout invalid, which then
+        // invalidates the pipeline, the bind group, and the submit, with the
+        // real cause four messages up the chain.
+        visibility: written
+          ? GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT
+          : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+        buffer: { type: written ? 'storage' : 'read-only-storage' },
       });
     }
   }
   const bindGroupLayout = device.createBindGroupLayout({ entries: bglEntries });
 
+  let computePipeline: GPUComputePipeline | null = null;
   const pipelines = new Map<string, GPURenderPipeline>();
   const pipelineFor = (
     targetFormat: GPUTextureFormat,
@@ -406,6 +424,36 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
   let currentOffset = 0;
   let lastFrame = -1;
 
+  /**
+   * Move pending uniform values into the ring buffer and record the offset.
+   *
+   * Both draw() and dispatch() need this. It used to live inside draw(), which
+   * meant a compute pass ran against whatever the buffer happened to hold —
+   * zeros, on the first dispatch — and the symptom was a compute shader that
+   * silently read every uniform as 0 rather than any kind of error.
+   */
+  const flushUniforms = (): void => {
+    if (!uniformsDirty || uniformBuffer === null) {
+      return;
+    }
+    slot++;
+    if (slot >= slotCapacity) {
+      // Grow the ring. The old buffer is NOT destroyed here — draws already
+      // recorded this frame still reference it through the previous bind
+      // group; it is released once nothing points at it.
+      slotCapacity *= 2;
+      uniformBuffer = device.createBuffer({
+        size: slotStride * slotCapacity,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+      bindGroup = null;
+      slot = 0;
+    }
+    currentOffset = slot * slotStride;
+    device.queue.writeBuffer(uniformBuffer, currentOffset, uniformData as unknown as BufferSource);
+    uniformsDirty = false;
+  };
+
   // Samplers start bound to a 1px placeholder so draws never see a hole.
   const placeholderTexture = device.createTexture({
     size: [1, 1],
@@ -418,12 +466,41 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
     { bytesPerRow: 4 },
     [1, 1],
   );
+  const placeholderSampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
   const placeholderBinding: GpuTextureBinding = {
     view: placeholderTexture.createView(),
-    sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear' }),
+    sampler: placeholderSampler,
   };
 
+  // A 2D view cannot fill a slot the layout declared as 3d — WebGPU rejects the
+  // bind group outright rather than ignoring it — so an unset sampler3D needs a
+  // volume of its own to fall back on.
+  const placeholderVolume = device.createTexture({
+    size: { width: 1, height: 1, depthOrArrayLayers: 1 },
+    dimension: '3d',
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture(
+    { texture: placeholderVolume },
+    new Uint8Array([160, 160, 170, 255]),
+    { bytesPerRow: 4, rowsPerImage: 1 },
+    { width: 1, height: 1, depthOrArrayLayers: 1 },
+  );
+  const placeholderVolumeBinding: GpuTextureBinding = {
+    view: placeholderVolume.createView({ dimension: '3d' }),
+    sampler: placeholderSampler,
+  };
+
+  // An unbound storage slot still has to resolve to a real buffer, same as the
+  // texture placeholders — WebGPU validates the whole bind group or none of it.
+  const placeholderStorage = device.createBuffer({
+    size: 16,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+
   const textureBindings = new Map<string, GpuTextureBinding>();
+  const storageBindings = new Map<string, GPUBuffer>();
   let bindGroup: GPUBindGroup | null = null;
 
   const buildBindGroup = (): GPUBindGroup => {
@@ -435,10 +512,14 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       });
     }
     for (const entry of compiled.layout.uniforms) {
-      if (entry.type === 'sampler2D') {
-        const binding = textureBindings.get(entry.name) ?? placeholderBinding;
+      if (entry.type === 'sampler2D' || entry.type === 'sampler3D') {
+        const fallback = entry.type === 'sampler3D' ? placeholderVolumeBinding : placeholderBinding;
+        const binding = textureBindings.get(entry.name) ?? fallback;
         entries.push({ binding: entry.textureBinding!, resource: binding.view });
         entries.push({ binding: entry.samplerBinding!, resource: binding.sampler });
+      } else if (entry.type === 'storage') {
+        const buffer = storageBindings.get(entry.name) ?? placeholderStorage;
+        entries.push({ binding: entry.textureBinding!, resource: { buffer } });
       }
     }
     return device.createBindGroup({ layout: bindGroupLayout, entries });
@@ -486,13 +567,28 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
 
   const uniforms = {} as { [K in keyof U]: UniformHandle<U[K]> };
   for (const entry of compiled.layout.uniforms) {
-    if (entry.type === 'sampler2D') {
+    if (entry.type === 'storage') {
+      uniforms[entry.name as keyof U] = {
+        set(value: UniformValue<U[keyof U]>): void {
+          const buffer = (value as unknown as { __wgpuBuffer?: GPUBuffer }).__wgpuBuffer;
+          if (buffer === undefined) {
+            throw new Error(
+              `BroMetal: uniform '${entry.name}' (storage) expects a buffer from createStorageBuffer()`,
+            );
+          }
+          storageBindings.set(entry.name, buffer);
+          bindGroup = null;
+        },
+      } as UniformHandle<U[keyof U & string]>;
+      continue;
+    }
+    if (entry.type === 'sampler2D' || entry.type === 'sampler3D') {
       uniforms[entry.name as keyof U] = {
         set(value: UniformValue<U[keyof U]>): void {
           const binding = (value as unknown as { __wgpu?: GpuTextureBinding }).__wgpu;
           if (binding === undefined) {
             throw new Error(
-              `BroMetal: uniform '${entry.name}' (sampler2D) expects a texture created from this WebGPU renderer`,
+              `BroMetal: uniform '${entry.name}' (${entry.type}) expects a texture created from this WebGPU renderer`,
             );
           }
           textureBindings.set(entry.name, binding);
@@ -563,6 +659,34 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       indexCount = data.length;
       indexFormat = data instanceof Uint16Array ? 'uint16' : 'uint32';
     },
+    dispatch(x: number, y = 1, z = 1): void {
+      if (compiled.hasCompute !== true) {
+        throw new Error('BroMetal: dispatch() needs a shader with a compute() stage');
+      }
+      flushUniforms();
+      if (computePipeline === null) {
+        computePipeline = device.createComputePipeline({
+          layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+          compute: { module, entryPoint: 'cs_main' },
+        });
+      }
+      if (bindGroup === null) {
+        bindGroup = buildBindGroup();
+      }
+      // Its own encoder: a compute pass cannot be nested inside the render pass
+      // renderer.loop() has open, and dispatch is expected to work outside the
+      // loop entirely (seeding a buffer once at startup, for instance).
+      const encoder = device.createCommandEncoder();
+      const pass = encoder.beginComputePass();
+      pass.setPipeline(computePipeline);
+      // The uniform block is bound with a dynamic offset, so the offset array is
+      // not optional — omitting it fails validation at encode time with a count
+      // mismatch rather than anything mentioning uniforms.
+      pass.setBindGroup(0, bindGroup, uniformBuffer === null ? [] : [currentOffset]);
+      pass.dispatchWorkgroups(Math.max(1, Math.ceil(x)), Math.max(1, Math.ceil(y)), Math.max(1, Math.ceil(z)));
+      pass.end();
+      device.queue.submit([encoder.finish()]);
+    },
     draw(): void {
       const pass = internals.pass;
       if (pass === null) {
@@ -583,24 +707,7 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
         slot = -1;
         uniformsDirty = true;
       }
-      if (uniformsDirty && uniformBuffer !== null) {
-        slot++;
-        if (slot >= slotCapacity) {
-          // Grow the ring. The old buffer is NOT destroyed here — draws already
-          // recorded this frame still reference it through the previous bind
-          // group; it is released once nothing points at it.
-          slotCapacity *= 2;
-          uniformBuffer = device.createBuffer({
-            size: slotStride * slotCapacity,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-          });
-          bindGroup = null;
-          slot = 0;
-        }
-        currentOffset = slot * slotStride;
-        device.queue.writeBuffer(uniformBuffer, currentOffset, uniformData as unknown as BufferSource);
-        uniformsDirty = false;
-      }
+      flushUniforms();
       if (bindGroup === null) {
         bindGroup = buildBindGroup();
       }
@@ -762,6 +869,75 @@ export function createWebgpuRenderTarget(
   };
   target.__wgpu = { texture, view, depthView: depthTexture?.createView() ?? null };
   return target;
+}
+
+/**
+ * A volume texture. Data is tightly packed RGBA8, slice after slice — the same
+ * order `writeTexture` expects, so no per-slice upload loop is needed.
+ */
+/** A read-only storage buffer, uploaded once from a typed array. */
+export function createWebgpuStorageBuffer(
+  renderer: Renderer,
+  data: Float32Array<ArrayBuffer>,
+): BroMetalStorageBuffer {
+  const { device } = webgpuInternals(renderer);
+  const buffer = device.createBuffer({
+    size: Math.max(data.byteLength, 16),
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(buffer, 0, data);
+  const handle: BroMetalStorageBuffer & { __wgpuBuffer?: GPUBuffer } = {
+    write(next: Float32Array<ArrayBuffer>): void {
+      device.queue.writeBuffer(buffer, 0, next);
+    },
+    dispose(): void {
+      buffer.destroy();
+    },
+  };
+  handle.__wgpuBuffer = buffer;
+  return handle;
+}
+
+export function createWebgpuTexture3D(
+  renderer: Renderer,
+  volume: VolumeSource,
+  options: TextureOptions,
+): BroMetalTexture {
+  const { device } = webgpuInternals(renderer);
+  const { width, height, depth, data } = volume;
+  const gpuTexture = device.createTexture({
+    size: { width, height, depthOrArrayLayers: depth },
+    dimension: '3d',
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture(
+    { texture: gpuTexture },
+    data,
+    { bytesPerRow: width * 4, rowsPerImage: height },
+    { width, height, depthOrArrayLayers: depth },
+  );
+  const filter: GPUFilterMode = options.filter === 'nearest' ? 'nearest' : 'linear';
+  const address: GPUAddressMode = options.wrap === 'clamp' ? 'clamp-to-edge' : 'repeat';
+  const binding: GpuTextureBinding = {
+    view: gpuTexture.createView({ dimension: '3d' }),
+    // All three axes wrap: a noise volume tiled through space needs W as much
+    // as U and V.
+    sampler: device.createSampler({
+      magFilter: filter,
+      minFilter: filter,
+      addressModeU: address,
+      addressModeV: address,
+      addressModeW: address,
+    }),
+  };
+  const texture: BroMetalTexture & { __wgpu?: GpuTextureBinding } = {
+    dispose(): void {
+      gpuTexture.destroy();
+    },
+  };
+  texture.__wgpu = binding;
+  return texture;
 }
 
 export function createWebgpuTexture(

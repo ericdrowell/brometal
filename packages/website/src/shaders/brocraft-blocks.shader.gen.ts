@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const brocraftBlocksShader: CompiledShader<{ aPosition: 'vec3'; aNormal: 'vec3' }, { iCell: 'vec3' }, { uViewProj: 'mat4'; uOrigin: 'vec2'; uRadius: 'float'; uLayers: 'float'; uSea: 'float'; uAmp: 'float'; uViewPos: 'vec3'; uSunDir: 'vec3'; uSunColor: 'vec3'; uSkyTint: 'vec3'; uGroundTint: 'vec3'; uHorizon: 'vec3'; uZenith: 'vec3'; uFogStart: 'float'; uFogEnd: 'float'; uGrass: 'sampler2D'; uDirt: 'sampler2D'; uStone: 'sampler2D'; uSand: 'sampler2D' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec3 iCell;
@@ -116,6 +118,9 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler3D;
 uniform float uSea;
 uniform vec3 uViewPos;
 uniform vec3 uSunDir;
@@ -474,6 +479,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: { iCell: 'vec3' },
   uniforms: { uViewProj: 'mat4', uOrigin: 'vec2', uRadius: 'float', uLayers: 'float', uSea: 'float', uAmp: 'float', uViewPos: 'vec3', uSunDir: 'vec3', uSunColor: 'vec3', uSkyTint: 'vec3', uGroundTint: 'vec3', uHorizon: 'vec3', uZenith: 'vec3', uFogStart: 'float', uFogEnd: 'float', uGrass: 'sampler2D', uDirt: 'sampler2D', uStone: 'sampler2D', uSand: 'sampler2D' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0},{"name":"aNormal","type":"vec3","location":1,"size":3,"divisor":0},{"name":"iCell","type":"vec3","location":2,"size":3,"divisor":1}],"uniforms":[{"name":"uViewProj","type":"mat4","kind":"m4fv","size":16,"offset":0},{"name":"uOrigin","type":"vec2","kind":"2fv","size":2,"offset":64},{"name":"uRadius","type":"float","kind":"1f","size":1,"offset":72},{"name":"uLayers","type":"float","kind":"1f","size":1,"offset":76},{"name":"uSea","type":"float","kind":"1f","size":1,"offset":80},{"name":"uAmp","type":"float","kind":"1f","size":1,"offset":84},{"name":"uViewPos","type":"vec3","kind":"3fv","size":3,"offset":96},{"name":"uSunDir","type":"vec3","kind":"3fv","size":3,"offset":112},{"name":"uSunColor","type":"vec3","kind":"3fv","size":3,"offset":128},{"name":"uSkyTint","type":"vec3","kind":"3fv","size":3,"offset":144},{"name":"uGroundTint","type":"vec3","kind":"3fv","size":3,"offset":160},{"name":"uHorizon","type":"vec3","kind":"3fv","size":3,"offset":176},{"name":"uZenith","type":"vec3","kind":"3fv","size":3,"offset":192},{"name":"uFogStart","type":"float","kind":"1f","size":1,"offset":204},{"name":"uFogEnd","type":"float","kind":"1f","size":1,"offset":208},{"name":"uGrass","type":"sampler2D","kind":"1i","size":1,"unit":0,"textureBinding":1,"samplerBinding":2},{"name":"uDirt","type":"sampler2D","kind":"1i","size":1,"unit":1,"textureBinding":3,"samplerBinding":4},{"name":"uStone","type":"sampler2D","kind":"1i","size":1,"unit":2,"textureBinding":5,"samplerBinding":6},{"name":"uSand","type":"sampler2D","kind":"1i","size":1,"unit":3,"textureBinding":7,"samplerBinding":8}],"uniformBlockSize":224},
+
 };
 
 export default brocraftBlocksShader;

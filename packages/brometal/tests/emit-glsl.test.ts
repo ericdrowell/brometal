@@ -10,6 +10,8 @@ describe('GLSL emission', () => {
   it('compiles the cube shader to the expected vertex GLSL', () => {
     expect(compile(CUBE_SHADER).vertexSrc).toBe(
       `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aColor;
 uniform mat4 uMvp;
@@ -26,6 +28,7 @@ void main() {
     expect(compile(CUBE_SHADER).fragmentSrc).toBe(
       `#version 300 es
 precision highp float;
+precision highp int;
 in vec3 vColor;
 out vec4 fragColor;
 void main() {
@@ -39,6 +42,7 @@ void main() {
     expect(compile(LIGHTING_SHADER).fragmentSrc).toBe(
       `#version 300 es
 precision highp float;
+precision highp int;
 uniform vec3 uLightDir;
 uniform float uAmbient;
 in vec3 vNormal;
@@ -58,6 +62,8 @@ void main() {
   it('compiles if/else, comparisons, unary minus, and float promotion', () => {
     expect(compile(BRANCHING_SHADER).vertexSrc).toBe(
       `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec2 aPosition;
 uniform float uThreshold;
 out float vFade;
@@ -78,6 +84,8 @@ void main() {
   it('declares instance attributes as vertex inputs and computes rotation on the GPU', () => {
     expect(compile(INSTANCED_SHADER).vertexSrc).toBe(
       `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aColor;
 layout(location = 2) in vec3 iOffset;

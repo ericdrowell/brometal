@@ -3,6 +3,8 @@ import type { CompiledShader } from 'brometal';
 
 const shadowPreviewShader: CompiledShader<{ aPosition: 'vec3' }, Record<string, never>, { uMap: 'sampler2D'; uRect: 'vec4' }> = {
   vertexSrc: `#version 300 es
+precision highp float;
+precision highp int;
 layout(location = 0) in vec3 aPosition;
 uniform vec4 uRect;
 out vec2 vUv;
@@ -13,6 +15,9 @@ void main() {
 `,
   fragmentSrc: `#version 300 es
 precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler3D;
 uniform sampler2D uMap;
 in vec2 vUv;
 out vec4 fragColor;
@@ -60,6 +65,7 @@ fn fs_main(bm_in : BmVSOut) -> @location(0) vec4f {
   instanceAttributes: {},
   uniforms: { uMap: 'sampler2D', uRect: 'vec4' },
   layout: {"attributes":[{"name":"aPosition","type":"vec3","location":0,"size":3,"divisor":0}],"uniforms":[{"name":"uMap","type":"sampler2D","kind":"1i","size":1,"unit":0,"textureBinding":1,"samplerBinding":2},{"name":"uRect","type":"vec4","kind":"4fv","size":4,"offset":0}],"uniformBlockSize":16},
+
 };
 
 export default shadowPreviewShader;

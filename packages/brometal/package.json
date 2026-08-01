@@ -50,7 +50,11 @@
     "brometal": "dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CHANGELOG.md",
+    "examples"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/gen-shaders.mjs && tsc -p tsconfig.json",

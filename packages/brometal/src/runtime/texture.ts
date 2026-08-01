@@ -1,5 +1,5 @@
 import type { Renderer } from './context.js';
-import { createWebgpuTexture } from './webgpu.js';
+import { createWebgpuTexture, createWebgpuTexture3D } from './webgpu.js';
 
 export interface TextureOptions {
   /** Flip the image vertically on upload so UV (0,0) is the bottom-left. Default true. */
@@ -20,7 +20,84 @@ export interface TextureOptions {
 export interface BroMetalTexture {
   /** Present on WebGL2-backed textures. */
   readonly glTexture?: WebGLTexture;
+  /**
+   * WebGL2 bind target. Absent means TEXTURE_2D; a volume carries TEXTURE_3D.
+   * Binding a 3D texture to the 2D target silently reads nothing, so the target
+   * has to travel with the texture rather than being assumed at the call site.
+   */
+  readonly glTarget?: number;
   dispose(): void;
+}
+
+/**
+ * Tightly packed RGBA8 volume data, slice after slice.
+ *
+ * The buffer is pinned to ArrayBuffer rather than left as ArrayBufferLike:
+ * WebGPU's upload path will not accept a SharedArrayBuffer view, and the wider
+ * type makes that a call-site error instead of a compile-time one.
+ */
+export interface VolumeSource {
+  width: number;
+  height: number;
+  depth: number;
+  data: Uint8Array<ArrayBuffer>;
+}
+
+/**
+ * A 3D texture, for fields that vary through space rather than across a
+ * surface — cloud density, precomputed scattering, flow volumes.
+ */
+export function createTexture3D(
+  renderer: Renderer,
+  volume: VolumeSource,
+  options: TextureOptions = {},
+): BroMetalTexture {
+  const expected = volume.width * volume.height * volume.depth * 4;
+  if (volume.data.length !== expected) {
+    throw new Error(
+      `BroMetal: volume data is ${volume.data.length} bytes but ${volume.width}x${volume.height}x${volume.depth} RGBA needs ${expected}`,
+    );
+  }
+  if (renderer.backend === 'webgpu') {
+    return createWebgpuTexture3D(renderer, volume, options);
+  }
+  const gl = renderer.gl;
+  if (gl === undefined) {
+    throw new Error('BroMetal: renderer has no WebGL2 context');
+  }
+  const glTexture = gl.createTexture();
+  if (glTexture === null) {
+    throw new Error('BroMetal: failed to create a 3D texture');
+  }
+  gl.bindTexture(gl.TEXTURE_3D, glTexture);
+  gl.texImage3D(
+    gl.TEXTURE_3D,
+    0,
+    gl.RGBA,
+    volume.width,
+    volume.height,
+    volume.depth,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    volume.data,
+  );
+  const wrap = options.wrap === 'clamp' ? gl.CLAMP_TO_EDGE : gl.REPEAT;
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, wrap);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, wrap);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, wrap);
+  const filter = options.filter === 'nearest' ? gl.NEAREST : gl.LINEAR;
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.bindTexture(gl.TEXTURE_3D, null);
+
+  return {
+    glTexture,
+    glTarget: gl.TEXTURE_3D,
+    dispose(): void {
+      gl.deleteTexture(glTexture);
+    },
+  };
 }
 
 export function createTexture(
