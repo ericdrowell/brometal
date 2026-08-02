@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createCube,
@@ -12,14 +12,15 @@ import {
   loadGlb,
   loadTexture,
   mat4,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import modelShader from '@/shaders/model.shader.gen';
-import rocksShader from '@/shaders/game-rocks.shader.gen';
-import glowShader from '@/shaders/game-glow.shader.gen';
-import starsShader from '@/shaders/game-stars.shader.gen';
-import laserShader from '@/shaders/game-laser.shader.gen';
-import reticleShader from '@/shaders/game-reticle.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import modelShader from "@/shaders/model.shader.gen";
+import rocksShader from "@/shaders/game-rocks.shader.gen";
+import glowShader from "@/shaders/game-glow.shader.gen";
+import starsShader from "@/shaders/game-stars.shader.gen";
+import laserShader from "@/shaders/game-laser.shader.gen";
+import reticleShader from "@/shaders/game-reticle.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 const ASTEROIDS = 33;
 const WRAP = 210;
@@ -32,6 +33,8 @@ export default function StarBroDemo() {
   const { stats, tick } = useFrameStats();
   const [started, setStarted] = useState(false);
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -40,8 +43,12 @@ export default function StarBroDemo() {
 
     void (async () => {
       const [renderer, ship] = await Promise.all([
-        createRenderer(canvas, { clearColor: [0, 0, 0, 1], cull: 'back' }),
-        loadGlb('/models/spitfire.glb'),
+        createRenderer(canvas, {
+          onError: report,
+          clearColor: [0, 0, 0, 1],
+          cull: "back",
+        }),
+        loadGlb("/models/spitfire.glb"),
       ]);
       if (cancelled) {
         renderer.destroy();
@@ -69,7 +76,9 @@ export default function StarBroDemo() {
       shipProgram.setIndices(mesh.indices!);
       const skin = ship.images[mesh.imageIndex!]!;
       const bitmap = await createImageBitmap(
-        new Blob([skin.data.slice() as unknown as BlobPart], { type: skin.mimeType }),
+        new Blob([skin.data.slice() as unknown as BlobPart], {
+          type: skin.mimeType,
+        }),
       );
       const shipTexture = createTexture(renderer, bitmap, { flipY: false });
       shipProgram.uniforms.uTex.set(shipTexture);
@@ -78,11 +87,18 @@ export default function StarBroDemo() {
       // Asteroid field: instanced spheres sculpted into lumpy rocks by radial
       // fbm3 noise in the vertex shader, wrapped on the GPU.
       const rocksProgram = createProgram(renderer, rocksShader);
-      const rock = createSphere({ radius: 1, widthSegments: 24, heightSegments: 16 });
+      const rock = createSphere({
+        radius: 1,
+        widthSegments: 24,
+        heightSegments: 16,
+      });
       rocksProgram.attributes.aPosition.set(rock.positions);
       rocksProgram.attributes.aUv.set(rock.uvs);
       rocksProgram.setIndices(rock.indices);
-      const rockTexture = await loadTexture(renderer, '/textures/gravel043.jpg');
+      const rockTexture = await loadTexture(
+        renderer,
+        "/textures/gravel043.jpg",
+      );
       rocksProgram.uniforms.uTex.set(rockTexture);
       const offsets = new Float32Array(ASTEROIDS * 3);
       const scales = new Float32Array(ASTEROIDS);
@@ -95,8 +111,12 @@ export default function StarBroDemo() {
       for (let i = 0; i < ASTEROIDS; i++) {
         // Log-normal bell curve: most rocks cluster near 1.6, some run a bit
         // smaller, and the right tail keeps the occasional 5+ unit giant.
-        const gauss = (Math.random() + Math.random() + Math.random() - 1.5) / 0.5;
-        const scale = Math.min(7.8, Math.max(0.6, 1.6 * Math.exp(0.55 * gauss)));
+        const gauss =
+          (Math.random() + Math.random() + Math.random() - 1.5) / 0.5;
+        const scale = Math.min(
+          7.8,
+          Math.max(0.6, 1.6 * Math.exp(0.55 * gauss)),
+        );
         const radius = scale * 1.3;
         let x = 0;
         let y = 0;
@@ -111,7 +131,10 @@ export default function StarBroDemo() {
             const wrappedZ = Math.min(dz, WRAP - dz);
             const dx = x - p.x;
             const dy = y - p.y;
-            return Math.sqrt(dx * dx + dy * dy + wrappedZ * wrappedZ) > radius + p.r + BUFFER;
+            return (
+              Math.sqrt(dx * dx + dy * dy + wrappedZ * wrappedZ) >
+              radius + p.r + BUFFER
+            );
           });
           if (clear) break;
         }
@@ -134,8 +157,14 @@ export default function StarBroDemo() {
       // Distant starfield: stationary pinprick dots behind the whole rock
       // corridor, so even the farthest silhouettes have stars to occlude.
       const DOTS = 700;
-      const dotsProgram = createProgram(renderer, glowShader, { blend: 'additive' });
-      const dot = createSphere({ radius: 1, widthSegments: 6, heightSegments: 4 });
+      const dotsProgram = createProgram(renderer, glowShader, {
+        blend: "additive",
+      });
+      const dot = createSphere({
+        radius: 1,
+        widthSegments: 6,
+        heightSegments: 4,
+      });
       dotsProgram.attributes.aPosition.set(dot.positions);
       dotsProgram.setIndices(dot.indices);
       dotsProgram.uniforms.uColor.set([0.85, 0.88, 1]);
@@ -155,7 +184,9 @@ export default function StarBroDemo() {
 
       // Warp tunnel: instanced star streaks in a tube around the corridor,
       // additive-blended and much faster than the rocks.
-      const starsProgram = createProgram(renderer, starsShader, { blend: 'additive' });
+      const starsProgram = createProgram(renderer, starsShader, {
+        blend: "additive",
+      });
       const streak = createCube({ width: 1, height: 1, depth: 1 });
       starsProgram.attributes.aPosition.set(streak.positions);
       starsProgram.setIndices(streak.indices);
@@ -180,12 +211,23 @@ export default function StarBroDemo() {
       starsProgram.uniforms.uColor.set([1, 1, 1]);
 
       // Engine glow: additive-blended instanced blobs trailing the ship.
-      const glowProgram = createProgram(renderer, glowShader, { blend: 'additive' });
-      const blob = createSphere({ radius: 1, widthSegments: 8, heightSegments: 6 });
+      const glowProgram = createProgram(renderer, glowShader, {
+        blend: "additive",
+      });
+      const blob = createSphere({
+        radius: 1,
+        widthSegments: 8,
+        heightSegments: 6,
+      });
       glowProgram.attributes.aPosition.set(blob.positions);
       glowProgram.setIndices(blob.indices);
       glowProgram.uniforms.uColor.set([0.45, 0.7, 1]);
-      const trail = Array.from({ length: PARTICLES }, () => ({ x: 0, y: 0, z: 2, age: Math.random() }));
+      const trail = Array.from({ length: PARTICLES }, () => ({
+        x: 0,
+        y: 0,
+        z: 2,
+        age: Math.random(),
+      }));
       const trailOffsets = new Float32Array(PARTICLES * 3);
       const trailScales = new Float32Array(PARTICLES);
       const trailAlphas = new Float32Array(PARTICLES);
@@ -193,7 +235,9 @@ export default function StarBroDemo() {
       // Laser bolts: a small ring buffer of instanced beams; each shot just
       // stamps start/direction/birth-time and the shader does the rest.
       const LASERS = 16;
-      const laserProgram = createProgram(renderer, laserShader, { blend: 'additive' });
+      const laserProgram = createProgram(renderer, laserShader, {
+        blend: "additive",
+      });
       laserProgram.attributes.aPosition.set(blob.positions);
       laserProgram.setIndices(blob.indices);
       const laserStarts = new Float32Array(LASERS * 3);
@@ -204,15 +248,21 @@ export default function StarBroDemo() {
       laserProgram.instanceAttributes.iBirth.set(laserBirths);
 
       // Star Fox aiming reticles: two SDF square outlines along the aim ray.
-      const reticleProgram = createProgram(renderer, reticleShader, { blend: 'additive' });
+      const reticleProgram = createProgram(renderer, reticleShader, {
+        blend: "additive",
+      });
       const reticleQuad = createPlane({ width: 2, height: 2 });
       reticleProgram.attributes.aPosition.set(reticleQuad.positions);
       reticleProgram.attributes.aUv.set(reticleQuad.uvs);
       reticleProgram.setIndices(reticleQuad.indices);
       reticleProgram.uniforms.uColor.set([0.5, 0.72, 1]);
       const reticleCenters = new Float32Array(2 * 3);
-      reticleProgram.instanceAttributes.iSize.set(new Float32Array([0.55, 0.34]));
-      reticleProgram.instanceAttributes.iAlpha.set(new Float32Array([0.4, 0.7]));
+      reticleProgram.instanceAttributes.iSize.set(
+        new Float32Array([0.55, 0.34]),
+      );
+      reticleProgram.instanceAttributes.iAlpha.set(
+        new Float32Array([0.4, 0.7]),
+      );
       reticleProgram.instanceAttributes.iCenter.set(reticleCenters);
 
       const camera = createCamera({ position: [0, 1.1, 4.2] });
@@ -229,8 +279,14 @@ export default function StarBroDemo() {
       let playing = false;
       const onPointerMove = (event: PointerEvent): void => {
         if (!playing) return;
-        targetX = Math.max(-REACH_X, Math.min(REACH_X, targetX + event.movementX * AIM_SENS));
-        targetY = Math.max(-REACH_Y, Math.min(REACH_Y, targetY - event.movementY * AIM_SENS));
+        targetX = Math.max(
+          -REACH_X,
+          Math.min(REACH_X, targetX + event.movementX * AIM_SENS),
+        );
+        targetY = Math.max(
+          -REACH_Y,
+          Math.min(REACH_Y, targetY - event.movementY * AIM_SENS),
+        );
       };
       const onClick = (): void => void canvas.requestPointerLock();
       const onLockChange = (): void => {
@@ -243,9 +299,9 @@ export default function StarBroDemo() {
           targetY = 0;
         }
       };
-      window.addEventListener('pointermove', onPointerMove);
-      canvas.addEventListener('click', onClick);
-      document.addEventListener('pointerlockchange', onLockChange);
+      window.addEventListener("pointermove", onPointerMove);
+      canvas.addEventListener("click", onClick);
+      document.addEventListener("pointerlockchange", onLockChange);
 
       let shipX = 0;
       let shipY = 0;
@@ -291,7 +347,7 @@ export default function StarBroDemo() {
         laserProgram.instanceAttributes.iDir.set(laserDirs);
         laserProgram.instanceAttributes.iBirth.set(laserBirths);
       };
-      canvas.addEventListener('pointerdown', onPointerDown);
+      canvas.addEventListener("pointerdown", onPointerDown);
 
       const stop = renderer.loop((t) => {
         tick(t);
@@ -311,13 +367,21 @@ export default function StarBroDemo() {
         const aimPitch = Math.atan2(targetY * CROSSHAIR, AIM_DEPTH);
         mat4.translation(shipX, shipY, 0, model);
         mat4.multiply(model, mat4.rotationY(aimYaw, yawM), model);
-        mat4.multiply(model, mat4.rotationX(0.08 + aimPitch + vy * 0.03, pitchM), model);
+        mat4.multiply(
+          model,
+          mat4.rotationX(0.08 + aimPitch + vy * 0.03, pitchM),
+          model,
+        );
         mat4.multiply(model, mat4.rotationZ(-vx * 0.09, bankM), model);
 
         // Chase cam: sit low and close behind the ship, just slightly above,
         // with the ship centered in frame.
         camera.setPosition(shipX * 0.7, shipY * 0.7 + 0.9, 5.5);
-        shipProgram.uniforms.uViewPos.set([shipX * 0.7, shipY * 0.7 + 0.9, 5.5]);
+        shipProgram.uniforms.uViewPos.set([
+          shipX * 0.7,
+          shipY * 0.7 + 0.9,
+          5.5,
+        ]);
         camera.lookAt(shipX, shipY - 0.65, -4);
         const viewProj = camera.viewProjection(renderer.aspect);
 
@@ -364,12 +428,19 @@ export default function StarBroDemo() {
 
         laserProgram.uniforms.uViewProj.set(viewProj);
         laserProgram.uniforms.uTime.set(t);
-        laserProgram.uniforms.uViewPos.set([shipX * 0.7, shipY * 0.7 + 0.9, 5.5]);
+        laserProgram.uniforms.uViewPos.set([
+          shipX * 0.7,
+          shipY * 0.7 + 0.9,
+          5.5,
+        ]);
         laserProgram.draw();
 
         // Two reticles on the ship→crosshair line of sight: near at 45%,
         // far at the crosshair itself.
-        for (const [slot, k] of [[0, 0.45], [1, 1]] as const) {
+        for (const [slot, k] of [
+          [0, 0.45],
+          [1, 1],
+        ] as const) {
           reticleCenters[slot * 3] = shipX + targetX * CROSSHAIR * k;
           reticleCenters[slot * 3 + 1] = shipY + targetY * CROSSHAIR * k;
           reticleCenters[slot * 3 + 2] = -AIM_DEPTH * k;
@@ -381,10 +452,10 @@ export default function StarBroDemo() {
 
       cleanup = () => {
         stop();
-        window.removeEventListener('pointermove', onPointerMove);
-        canvas.removeEventListener('click', onClick);
-        document.removeEventListener('pointerlockchange', onLockChange);
-        canvas.removeEventListener('pointerdown', onPointerDown);
+        window.removeEventListener("pointermove", onPointerMove);
+        canvas.removeEventListener("click", onClick);
+        document.removeEventListener("pointerlockchange", onLockChange);
+        canvas.removeEventListener("pointerdown", onPointerDown);
         shipTexture.dispose();
         rockTexture.dispose();
         shipProgram.dispose();
@@ -396,7 +467,7 @@ export default function StarBroDemo() {
         reticleProgram.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -413,7 +484,10 @@ export default function StarBroDemo() {
           <span>Move the mouse to fly · click to fire · Esc release</span>
         </div>
       ) : null}
-      <DemoStats stats={stats}>Instanced asteroids, shader lasers, follow camera</DemoStats>
+      <DemoStats stats={stats}>
+        Instanced asteroids, shader lasers, follow camera
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

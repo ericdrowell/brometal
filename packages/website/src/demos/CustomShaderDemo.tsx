@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { createPlane, createProgram, createRenderer } from 'brometal';
-import customShader from '@/shaders/custom.shader.gen';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
+import { useEffect, useRef, useState } from "react";
+import { createPlane, createProgram, createRenderer } from "brometal";
+import customShader from "@/shaders/custom.shader.gen";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 const FRAGMENT_SOURCE = `function palette(t: number): Vec3 {
   return vec3(
@@ -33,6 +34,8 @@ export default function CustomShaderDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -40,7 +43,10 @@ export default function CustomShaderDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1] });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.07, 0.07, 0.1, 1],
+      });
       if (cancelled) {
         renderer.destroy();
         return;
@@ -65,7 +71,7 @@ export default function CustomShaderDemo() {
         program.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -79,13 +85,16 @@ export default function CustomShaderDemo() {
       <div className="code-panel panel">
         <h1>Custom Shader</h1>
         <p className="code-note">
-          Plain TypeScript — a helper function, <code>let</code> accumulators, and a{' '}
-          <code>for</code> loop — compiled to WGSL at build time. No engine, no materials: this
-          page is one quad and your code.
+          Plain TypeScript — a helper function, <code>let</code> accumulators,
+          and a <code>for</code> loop — compiled to WGSL at build time. No
+          engine, no materials: this page is one quad and your code.
         </p>
         <pre>{FRAGMENT_SOURCE}</pre>
       </div>
-      <DemoStats stats={stats}>Compiled to WGSL at build time, not in the browser</DemoStats>
+      <DemoStats stats={stats}>
+        Compiled to WGSL at build time, not in the browser
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

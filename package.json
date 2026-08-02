@@ -14,7 +14,8 @@
     "shaders": "npm run shaders -w website",
     "dev:website": "npm run dev -w website",
     "dev:website:watch": "npm run dev:watch -w website",
-    "prod:website": "npm run prod -w website"
+    "prod:website": "npm run prod -w website",
+    "test:no-webgpu": "node scripts/no-webgpu.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.61.1"

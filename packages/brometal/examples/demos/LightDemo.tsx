@@ -1,16 +1,19 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { createCamera, createProgram, createRenderer, mat4 } from 'brometal';
-import lightShader from '../shaders/light-cube.shader.gen';
-import { colors, indices, normals, positions } from '@/lib/cube-geometry';
-import DemoStats, { useFrameStats } from './_site/DemoStats';
+import { useEffect, useRef, useState } from "react";
+import { createCamera, createProgram, createRenderer, mat4 } from "brometal";
+import lightShader from "@/shaders/light-cube.shader.gen";
+import { colors, indices, normals, positions } from "@/lib/cube-geometry";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 export default function LightDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
   const lightRef = useRef(new Float32Array([4, 3, 6]));
   const [light, setLight] = useState<[number, number, number]>([4, 3, 6]);
+
+  const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -20,40 +23,48 @@ export default function LightDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-    const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1], cull: 'back' });
-    if (cancelled) {
-      renderer.destroy();
-      return;
-    }
-    const program = createProgram(renderer, lightShader);
-    program.attributes.aPosition.set(positions);
-    program.attributes.aNormal.set(normals);
-    program.attributes.aColor.set(colors);
-    program.setIndices(indices);
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.07, 0.07, 0.1, 1],
+        cull: "back",
+      });
+      if (cancelled) {
+        renderer.destroy();
+        return;
+      }
+      const program = createProgram(renderer, lightShader);
+      program.attributes.aPosition.set(positions);
+      program.attributes.aNormal.set(normals);
+      program.attributes.aColor.set(colors);
+      program.setIndices(indices);
 
-    const cameraPos: [number, number, number] = [0, 0, 6];
-    const camera = createCamera({ position: cameraPos });
-    program.uniforms.uViewPos.set(cameraPos);
+      const cameraPos: [number, number, number] = [0, 0, 6];
+      const camera = createCamera({ position: cameraPos });
+      program.uniforms.uViewPos.set(cameraPos);
 
-    const model = mat4.scratch();
-    const tilt = mat4.scratch();
+      const model = mat4.scratch();
+      const tilt = mat4.scratch();
 
-    const stop = renderer.loop((t) => {
-      tick(t);
-      mat4.multiply(mat4.rotationY(t * 0.5, model), mat4.rotationX(t * 0.3, tilt), model);
+      const stop = renderer.loop((t) => {
+        tick(t);
+        mat4.multiply(
+          mat4.rotationY(t * 0.5, model),
+          mat4.rotationX(t * 0.3, tilt),
+          model,
+        );
 
-      program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
-      program.uniforms.uModel.set(model);
-      program.uniforms.uLightPos.set(lightRef.current);
-      program.draw();
-    });
+        program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
+        program.uniforms.uModel.set(model);
+        program.uniforms.uLightPos.set(lightRef.current);
+        program.draw();
+      });
 
-    cleanup = () => {
-      stop();
-      program.dispose();
-      renderer.destroy();
-    };
-    })();
+      cleanup = () => {
+        stop();
+        program.dispose();
+        renderer.destroy();
+      };
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -68,7 +79,7 @@ export default function LightDemo() {
     lightRef.current[index] = value;
   };
 
-  const axes = ['X', 'Y', 'Z'] as const;
+  const axes = ["X", "Y", "Z"] as const;
 
   return (
     <>
@@ -87,14 +98,21 @@ export default function LightDemo() {
                 max={10}
                 step={0.1}
                 value={light[index]}
-                onChange={(event) => onLightChange(index, Number(event.target.value))}
+                onChange={(event) =>
+                  onLightChange(index, Number(event.target.value))
+                }
               />
-              <output htmlFor={`light-${axis}`}>{light[index]!.toFixed(1)}</output>
+              <output htmlFor={`light-${axis}`}>
+                {light[index]!.toFixed(1)}
+              </output>
             </div>
           ))}
         </div>
       </div>
-      <DemoStats stats={stats}>Blinn-Phong shading, one movable point light</DemoStats>
+      <DemoStats stats={stats}>
+        Blinn-Phong shading, one movable point light
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

@@ -53,6 +53,8 @@ export {
   vec4,
 } from './dsl/builtins.js';
 export { createRenderer } from './runtime/context.js';
+export { BroMetalError, errorTitle, isBroMetalError } from './runtime/errors.js';
+export type { BroMetalErrorCode, ErrorHandler } from './runtime/errors.js';
 export type { DrawToOptions, Renderer, RendererBackend, RendererOptions } from './runtime/context.js';
 export { createProgram } from './runtime/program.js';
 export type {

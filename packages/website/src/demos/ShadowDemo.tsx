@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createCube,
@@ -12,11 +12,12 @@ import {
   createTorusKnot,
   type Geometry,
   type RenderTarget,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import depthShader from '@/shaders/shadow-depth.shader.gen';
-import sceneShader from '@/shaders/shadow-scene.shader.gen';
-import previewShader from '@/shaders/shadow-preview.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import depthShader from "@/shaders/shadow-depth.shader.gen";
+import sceneShader from "@/shaders/shadow-scene.shader.gen";
+import previewShader from "@/shaders/shadow-preview.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 /**
  * How far the light can see. Both passes divide world distance by this, so it
@@ -31,19 +32,41 @@ type Instance = readonly number[];
 const GROUND: Instance = [0, -0.2, 0, 40, 0.4, 40, 0, 0.52, 0.54, 0.6];
 
 /** Six props in a ring, alternating box and sphere, at staggered heights. */
-function ring(kind: 'box' | 'ball'): Instance[] {
+function ring(kind: "box" | "ball"): Instance[] {
   const out: Instance[] = [];
   for (let i = 0; i < 6; i++) {
-    if ((i % 2 === 0) !== (kind === 'box')) continue;
+    if ((i % 2 === 0) !== (kind === "box")) continue;
     const angle = (i / 6) * Math.PI * 2;
     const radius = 5.4;
     const hue = i / 6;
     const [r, g, b] = hsl(hue, 0.62, 0.56);
     const lift = 0.9 + (i % 3) * 0.75;
     out.push(
-      kind === 'box'
-        ? [Math.cos(angle) * radius, lift, Math.sin(angle) * radius, 1.5, 1.5, 1.5, 0.35 + i * 0.1, r, g, b]
-        : [Math.cos(angle) * radius, lift + 0.3, Math.sin(angle) * radius, 1, 1, 1, 0, r, g, b],
+      kind === "box"
+        ? [
+            Math.cos(angle) * radius,
+            lift,
+            Math.sin(angle) * radius,
+            1.5,
+            1.5,
+            1.5,
+            0.35 + i * 0.1,
+            r,
+            g,
+            b,
+          ]
+        : [
+            Math.cos(angle) * radius,
+            lift + 0.3,
+            Math.sin(angle) * radius,
+            1,
+            1,
+            1,
+            0,
+            r,
+            g,
+            b,
+          ],
     );
   }
   return out;
@@ -94,6 +117,8 @@ export default function ShadowDemo() {
   const mapSizeRef = useRef(mapSize);
   const showMapRef = useRef(showMap);
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -102,10 +127,11 @@ export default function ShadowDemo() {
 
     void (async () => {
       const renderer = await createRenderer(canvas, {
+        onError: report,
         clearColor: [0.043, 0.047, 0.063, 1],
         // Every mesh here is closed, and culling back faces halves what the
         // shadow pass has to rasterize.
-        cull: 'back',
+        cull: "back",
       });
       if (cancelled) {
         renderer.destroy();
@@ -113,13 +139,24 @@ export default function ShadowDemo() {
       }
 
       const cube = createCube({ width: 1, height: 1, depth: 1 });
-      const sphere = createSphere({ radius: 0.85, widthSegments: 40, heightSegments: 28 });
-      const knot = createTorusKnot({ radius: 1.5, tube: 0.45, tubularSegments: 220, radialSegments: 26 });
+      const sphere = createSphere({
+        radius: 0.85,
+        widthSegments: 40,
+        heightSegments: 28,
+      });
+      const knot = createTorusKnot({
+        radius: 1.5,
+        tube: 0.45,
+        tubularSegments: 220,
+        radialSegments: 26,
+      });
       const quad = createPlane({ width: 2, height: 2 });
 
-      const boxes = ring('box');
-      const balls = ring('ball');
-      const knotInstance: Instance[] = [[0, 2.5, 0, 1, 1, 1, 0.5, 0.86, 0.72, 0.36]];
+      const boxes = ring("box");
+      const balls = ring("ball");
+      const knotInstance: Instance[] = [
+        [0, 2.5, 0, 1, 1, 1, 0.5, 0.86, 0.72, 0.36],
+      ];
 
       /** Wires a geometry plus an instance set into the lit pass. */
       const buildScene = (geometry: Geometry, instances: Instance[]) => {
@@ -175,18 +212,31 @@ export default function ShadowDemo() {
       });
       let builtSize = mapSizeRef.current;
 
-      const camera = createCamera({ position: [0, 6, 16], fovY: 0.72, near: 0.5, far: 90 });
+      const camera = createCamera({
+        position: [0, 6, 16],
+        fovY: 0.72,
+        near: 0.5,
+        far: 90,
+      });
       // Wide enough that a low light's long shadows stay inside the map. Anything
       // that falls outside reads as lit, so a too-narrow cone truncates shadows
       // mid-stretch rather than degrading gracefully.
-      const lightCamera = createCamera({ fovY: 1.32, near: 1.5, far: LIGHT_RANGE });
+      const lightCamera = createCamera({
+        fovY: 1.32,
+        near: 1.5,
+        far: LIGHT_RANGE,
+      });
 
       const stop = renderer.loop((t) => {
         tick(t);
         if (builtSize !== mapSizeRef.current) {
           builtSize = mapSizeRef.current;
           shadowMap.dispose();
-          shadowMap = createRenderTarget(renderer, { width: builtSize, height: builtSize, depth: true });
+          shadowMap = createRenderTarget(renderer, {
+            width: builtSize,
+            height: builtSize,
+            depth: true,
+          });
         }
 
         const lightAngle = t * 0.28;
@@ -271,7 +321,7 @@ export default function ShadowDemo() {
         }
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -286,10 +336,11 @@ export default function ShadowDemo() {
         <div className="panel">
           <h1>Shadow</h1>
           <p className="panel-note">
-            Shadow mapping in two passes. The scene is drawn from the light into a depth-tested
-            render target, each fragment recording its distance to the light; the lit pass projects
-            every point back into that map and asks whether anything closer was already there. Nine
-            taps per fragment soften the edge. The inset is the map itself.
+            Shadow mapping in two passes. The scene is drawn from the light into
+            a depth-tested render target, each fragment recording its distance
+            to the light; the lit pass projects every point back into that map
+            and asks whether anything closer was already there. Nine taps per
+            fragment soften the edge. The inset is the map itself.
           </p>
           <div className="row">
             <label htmlFor="height">Light Height</label>
@@ -352,11 +403,14 @@ export default function ShadowDemo() {
               });
             }}
           >
-            {showMap ? 'Hide Map' : 'Show Map'}
+            {showMap ? "Hide Map" : "Show Map"}
           </button>
         </div>
       </div>
-      <DemoStats stats={stats}>2 passes · depth-tested shadow map · 9-tap PCF</DemoStats>
+      <DemoStats stats={stats}>
+        2 passes · depth-tested shadow map · 9-tap PCF
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

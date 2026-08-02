@@ -657,3 +657,54 @@ a:hover {
   color: #e8eaf2;
   font-size: 15px;
 }
+
+/* Failure toast for the demos. Errors are fatal here — nothing will draw after
+   one — so it stays put until dismissed rather than fading on a timer. */
+.error-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 14px 44px 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 138, 128, 0.32);
+  background: rgba(28, 16, 20, 0.94);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.error-toast-title {
+  color: #ff8a80;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+}
+
+.error-toast-body {
+  margin: 0;
+  color: #d4d8e6;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.error-toast-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #a6adc4;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.error-toast-close:hover {
+  color: #e8eaf2;
+  background: rgba(255, 255, 255, 0.08);
+}

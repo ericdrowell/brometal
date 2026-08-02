@@ -1,19 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createPlane,
   createProgram,
   createRenderer,
   mat4,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import oceanShader from '@/shaders/ocean.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import oceanShader from "@/shaders/ocean.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 export default function NightOceanDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
+
+  const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -23,14 +26,22 @@ export default function NightOceanDemo() {
 
     void (async () => {
       // Sky matches the fragment's sky color so the ocean edge melts into it.
-      const renderer = await createRenderer(canvas, { clearColor: [0.09, 0.11, 0.2, 1] });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.09, 0.11, 0.2, 1],
+      });
       if (cancelled) {
         renderer.destroy();
         return;
       }
 
       const program = createProgram(renderer, oceanShader);
-      const plane = createPlane({ width: 40, height: 40, widthSegments: 220, heightSegments: 220 });
+      const plane = createPlane({
+        width: 40,
+        height: 40,
+        widthSegments: 220,
+        heightSegments: 220,
+      });
       program.attributes.aPosition.set(plane.positions);
       program.attributes.aUv.set(plane.uvs);
       program.setIndices(plane.indices);
@@ -40,7 +51,10 @@ export default function NightOceanDemo() {
       const len = Math.hypot(...sun);
       program.uniforms.uSunDir.set([sun[0] / len, sun[1] / len, sun[2] / len]);
 
-      const model = mat4.multiply(mat4.translation(0, -1.1, -6), mat4.rotationX(-Math.PI / 2));
+      const model = mat4.multiply(
+        mat4.translation(0, -1.1, -6),
+        mat4.rotationX(-Math.PI / 2),
+      );
       const cameraPos: [number, number, number] = [0, 1.4, 7.5];
       program.uniforms.uViewPos.set(cameraPos);
       const camera = createCamera({ position: cameraPos, far: 120 });
@@ -59,7 +73,7 @@ export default function NightOceanDemo() {
         program.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -74,13 +88,17 @@ export default function NightOceanDemo() {
         <div className="panel">
           <h1>Night Ocean</h1>
           <p className="panel-note">
-            Four Gerstner waves move ~48k vertices in the vertex shader; the fragment adds fbm
-            micro-ripples, fresnel sky reflection, and a moonlight glint. All motion is GPU-side —
-            the CPU uploads one float per frame.
+            Four Gerstner waves move ~48k vertices in the vertex shader; the
+            fragment adds fbm micro-ripples, fresnel sky reflection, and a
+            moonlight glint. All motion is GPU-side — the CPU uploads one float
+            per frame.
           </p>
         </div>
       </div>
-      <DemoStats stats={stats}>Gerstner waves with fresnel and specular glint</DemoStats>
+      <DemoStats stats={stats}>
+        Gerstner waves with fresnel and specular glint
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

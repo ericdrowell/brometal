@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createProgram,
@@ -11,27 +11,28 @@ import {
   type BroMetalProgram,
   type BroMetalTexture,
   type Renderer,
-} from 'brometal';
-import litShader from '../shaders/textured-cube.shader.gen';
-import { indices, normals, positions, uvs } from '@/lib/cube-geometry';
-import DemoStats, { useFrameStats } from './_site/DemoStats';
+} from "brometal";
+import litShader from "@/shaders/textured-cube.shader.gen";
+import { indices, normals, positions, uvs } from "@/lib/cube-geometry";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 const TEXTURES = [
-  'wood095',
-  'bricks104',
-  'metal063',
-  'tiles141',
-  'marble012',
-  'rock064',
-  'grass005',
-  'gravel043',
-  'fabric081c',
+  "wood095",
+  "bricks104",
+  "metal063",
+  "tiles141",
+  "marble012",
+  "rock064",
+  "grass005",
+  "gravel043",
+  "fabric081c",
 ];
 
 type LitProgram = BroMetalProgram<
-  (typeof litShader)['attributes'],
-  (typeof litShader)['instanceAttributes'],
-  (typeof litShader)['uniforms']
+  (typeof litShader)["attributes"],
+  (typeof litShader)["instanceAttributes"],
+  (typeof litShader)["uniforms"]
 >;
 
 export default function TexturesDemo() {
@@ -45,6 +46,8 @@ export default function TexturesDemo() {
   const [selected, setSelected] = useState(TEXTURES[0]!);
   const [light, setLight] = useState<[number, number, number]>([4, 3, 6]);
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -52,7 +55,11 @@ export default function TexturesDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1], cull: 'back' });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.07, 0.07, 0.1, 1],
+        cull: "back",
+      });
       if (cancelled) {
         renderer.destroy();
         return;
@@ -70,7 +77,11 @@ export default function TexturesDemo() {
       const camera = createCamera({ position: cameraPos });
       program.uniforms.uViewPos.set(cameraPos);
 
-      const placeholder = new ImageData(new Uint8ClampedArray([160, 160, 170, 255]), 1, 1);
+      const placeholder = new ImageData(
+        new Uint8ClampedArray([160, 160, 170, 255]),
+        1,
+        1,
+      );
       const placeholderTexture = createTexture(renderer, placeholder);
       program.uniforms.uTex.set(placeholderTexture);
       selectTexture(renderer, selectedRef.current);
@@ -80,7 +91,11 @@ export default function TexturesDemo() {
 
       const stop = renderer.loop((t) => {
         tick(t);
-        mat4.multiply(mat4.rotationY(t * 0.5, model), mat4.rotationX(t * 0.3, tilt), model);
+        mat4.multiply(
+          mat4.rotationY(t * 0.5, model),
+          mat4.rotationX(t * 0.3, tilt),
+          model,
+        );
 
         program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
         program.uniforms.uModel.set(model);
@@ -97,7 +112,7 @@ export default function TexturesDemo() {
         rendererRef.current = null;
         textureCacheRef.current.clear();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -139,7 +154,7 @@ export default function TexturesDemo() {
     lightRef.current[index] = value;
   };
 
-  const axes = ['X', 'Y', 'Z'] as const;
+  const axes = ["X", "Y", "Z"] as const;
 
   return (
     <>
@@ -158,9 +173,13 @@ export default function TexturesDemo() {
                 max={10}
                 step={0.1}
                 value={light[index]}
-                onChange={(event) => onLightChange(index, Number(event.target.value))}
+                onChange={(event) =>
+                  onLightChange(index, Number(event.target.value))
+                }
               />
-              <output htmlFor={`light-${axis}`}>{light[index]!.toFixed(1)}</output>
+              <output htmlFor={`light-${axis}`}>
+                {light[index]!.toFixed(1)}
+              </output>
             </div>
           ))}
         </div>
@@ -173,7 +192,7 @@ export default function TexturesDemo() {
                 type="button"
                 title={name}
                 data-texture={name}
-                className={selected === name ? 'selected' : undefined}
+                className={selected === name ? "selected" : undefined}
                 onClick={() => onTileClick(name)}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -183,7 +202,10 @@ export default function TexturesDemo() {
           </div>
         </div>
       </div>
-      <DemoStats stats={stats}>Mipmapped CC0 texture, lit per fragment</DemoStats>
+      <DemoStats stats={stats}>
+        Mipmapped CC0 texture, lit per fragment
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

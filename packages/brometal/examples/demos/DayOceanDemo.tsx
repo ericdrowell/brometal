@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createPlane,
@@ -9,15 +9,18 @@ import {
   createRenderTarget,
   createSphere,
   mat4,
-} from 'brometal';
-import DemoStats, { useFrameStats } from './_site/DemoStats';
-import surfaceShader from '../shaders/water-surface.shader.gen';
-import skyShader from '../shaders/water-sky.shader.gen';
-import skydomeShader from '../shaders/water-skydome.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import surfaceShader from "@/shaders/water-surface.shader.gen";
+import skyShader from "@/shaders/water-sky.shader.gen";
+import skydomeShader from "@/shaders/water-skydome.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 export default function DayOceanDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
+
+  const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,6 +31,7 @@ export default function DayOceanDemo() {
     void (async () => {
       const horizon: [number, number, number] = [0.62, 0.74, 0.86];
       const renderer = await createRenderer(canvas, {
+        onError: report,
         clearColor: [horizon[0], horizon[1], horizon[2], 1],
       });
       if (cancelled) {
@@ -36,14 +40,22 @@ export default function DayOceanDemo() {
       }
 
       // The sky is raymarched into an equirectangular map by a fullscreen quad.
-      const quad = createPlane({ width: 2, height: 2, widthSegments: 1, heightSegments: 1 });
+      const quad = createPlane({
+        width: 2,
+        height: 2,
+        widthSegments: 1,
+        heightSegments: 1,
+      });
       const sky = createProgram(renderer, skyShader);
       sky.attributes.aPosition.set(quad.positions);
       sky.attributes.aUv.set(quad.uvs);
       sky.setIndices(quad.indices);
       // Deliberately small: clouds are raymarched per texel, and the water only
       // ever reads this through a rough reflection.
-      const skyTarget = createRenderTarget(renderer, { width: 512, height: 256 });
+      const skyTarget = createRenderTarget(renderer, {
+        width: 512,
+        height: 256,
+      });
 
       // The ocean grid is built in XZ so the shader's world-space maths lines up
       // with it directly. createPlane lays a grid out in XY, so the horizontal
@@ -95,7 +107,11 @@ export default function DayOceanDemo() {
 
       // The dome carries the sky map: drawn around the camera each frame, large
       // enough to sit behind the ocean but inside the far plane.
-      const dome = createSphere({ radius: 2200, widthSegments: 48, heightSegments: 24 });
+      const dome = createSphere({
+        radius: 2200,
+        widthSegments: 48,
+        heightSegments: 24,
+      });
       const skydome = createProgram(renderer, skydomeShader);
       skydome.attributes.aPosition.set(dome.positions);
       skydome.setIndices(dome.indices);
@@ -142,7 +158,7 @@ export default function DayOceanDemo() {
         skyTarget.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -157,20 +173,25 @@ export default function DayOceanDemo() {
         <div className="panel">
           <h1>Day Ocean</h1>
           <p className="panel-note">
-            Shallow tropical water. Eight Gerstner waves displace the surface in the vertex shader
-            and give it an exact normal — the surface is a closed-form function of position, so
-            the normal comes from two real tangents rather than from differencing a height map.
-            The fragment refracts the view down to a lit seabed and attenuates what returns per
-            colour channel: red is absorbed roughly ten times faster than blue-green, and that
-            ratio alone is where the turquoise comes from. Foam keys off steepness rather than
-            height, so it breaks on tilted faces instead of capping every crest. A slow noise
-            scales the whole wave sum, giving patches of calmer and rougher water — without it
-            eight waves still read as one uniform field. Every shader was compiled at build time,
-            so the page starts immediately.
+            Shallow tropical water. Eight Gerstner waves displace the surface in
+            the vertex shader and give it an exact normal — the surface is a
+            closed-form function of position, so the normal comes from two real
+            tangents rather than from differencing a height map. The fragment
+            refracts the view down to a lit seabed and attenuates what returns
+            per colour channel: red is absorbed roughly ten times faster than
+            blue-green, and that ratio alone is where the turquoise comes from.
+            Foam keys off steepness rather than height, so it breaks on tilted
+            faces instead of capping every crest. A slow noise scales the whole
+            wave sum, giving patches of calmer and rougher water — without it
+            eight waves still read as one uniform field. Every shader was
+            compiled at build time, so the page starts immediately.
           </p>
         </div>
       </div>
-      <DemoStats stats={stats}>Gerstner ocean with a refracted, lit seabed</DemoStats>
+      <DemoStats stats={stats}>
+        Gerstner ocean with a refracted, lit seabed
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

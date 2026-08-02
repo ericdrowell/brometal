@@ -1,5 +1,6 @@
 /// <reference types="@webgpu/types" />
 import type { RenderTarget } from './render-target.js';
+import { BroMetalError, type ErrorHandler } from './errors.js';
 
 /**
  * BroMetal targets WebGPU only. The type stays a union of one so
@@ -19,6 +20,17 @@ export interface RendererOptions {
   cull?: 'back' | 'none';
   /** GPU selection hint on dual-GPU machines. Defaults to 'high-performance'. */
   powerPreference?: GPUPowerPreference;
+  /**
+   * Called when the GPU fails *after* the renderer exists — a lost device, or a
+   * pipeline that failed validation.
+   *
+   * Worth wiring even if you do nothing but log. These failures are invisible
+   * otherwise: WebGPU reports them asynchronously, so an invalid pipeline draws
+   * nothing and a lost device stops producing frames, both without an exception
+   * anywhere. Without a handler the runtime warns to the console once, which is
+   * a diagnostic of last resort rather than a feature.
+   */
+  onError?: ErrorHandler;
 }
 
 export interface Renderer {
@@ -53,7 +65,8 @@ export async function createRenderer(
   options: RendererOptions = {},
 ): Promise<Renderer> {
   if (typeof navigator === 'undefined' || navigator.gpu === undefined) {
-    throw new Error(
+    throw new BroMetalError(
+      'webgpu-unavailable',
       'BroMetal: this browser does not support WebGPU. BroMetal requires it — shaders are compiled to WGSL and compute passes have no WebGL equivalent. Chrome, Edge and Safari 26+ ship it; Firefox needs 141+.',
     );
   }

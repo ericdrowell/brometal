@@ -1,15 +1,16 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createPlane,
   createProgram,
   createRenderer,
   mat4,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import rippleShader from '@/shaders/ripple.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import rippleShader from "@/shaders/ripple.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 interface RippleParams {
   speed: number;
@@ -25,6 +26,8 @@ export default function RippleDemo() {
   const paramsRef = useRef<RippleParams>({ ...DEFAULTS });
   const [params, setParams] = useState<RippleParams>({ ...DEFAULTS });
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -32,21 +35,32 @@ export default function RippleDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const renderer = await createRenderer(canvas, { clearColor: [0.06, 0.06, 0.1, 1] });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.06, 0.06, 0.1, 1],
+      });
       if (cancelled) {
         renderer.destroy();
         return;
       }
 
       const program = createProgram(renderer, rippleShader);
-      const plane = createPlane({ width: 4, height: 4, widthSegments: 256, heightSegments: 256 });
+      const plane = createPlane({
+        width: 4,
+        height: 4,
+        widthSegments: 256,
+        heightSegments: 256,
+      });
       program.attributes.aPosition.set(plane.positions);
       program.attributes.aUv.set(plane.uvs);
       program.setIndices(plane.indices);
       program.uniforms.uLightDir.set([0.45, 0.75, 0.5]);
       const cameraPos: [number, number, number] = [0, 3.4, 4.2];
 
-      const model = mat4.multiply(mat4.translation(0, -0.7, -0.2), mat4.rotationX(-Math.PI / 2));
+      const model = mat4.multiply(
+        mat4.translation(0, -0.7, -0.2),
+        mat4.rotationX(-Math.PI / 2),
+      );
       const camera = createCamera({ position: cameraPos });
       camera.lookAt(0, -0.7, -0.2);
 
@@ -74,7 +88,7 @@ export default function RippleDemo() {
         program.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -116,15 +130,19 @@ export default function RippleDemo() {
         <div className="panel">
           <h1>Ripples</h1>
           <p className="panel-note">
-            Every vertex&apos;s height is <code>easeInOutCubic</code> of the wave phase, shaded by
-            height and slope — 65k eased animations, three floats per frame.
+            Every vertex&apos;s height is <code>easeInOutCubic</code> of the
+            wave phase, shaded by height and slope — 65k eased animations, three
+            floats per frame.
           </p>
-          {slider('speed', 'Speed', 0.1, 2, 0.05)}
-          {slider('spacing', 'Spacing', 1, 8, 0.1)}
-          {slider('height', 'Amplitude', 0, 1.2, 0.05)}
+          {slider("speed", "Speed", 0.1, 2, 0.05)}
+          {slider("spacing", "Spacing", 1, 8, 0.1)}
+          {slider("height", "Amplitude", 0, 1.2, 0.05)}
         </div>
       </div>
-      <DemoStats stats={stats}>Eased elastic rings, evaluated per vertex</DemoStats>
+      <DemoStats stats={stats}>
+        Eased elastic rings, evaluated per vertex
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

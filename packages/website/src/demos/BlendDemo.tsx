@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createCube,
@@ -9,24 +9,39 @@ import {
   createSphere,
   mat4,
   type BlendMode,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import litShader from '@/shaders/game-lit.shader.gen';
-import glowShader from '@/shaders/game-glow.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import litShader from "@/shaders/game-lit.shader.gen";
+import glowShader from "@/shaders/game-glow.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 const ORBS = 10;
 
 const MODES: { mode: BlendMode; label: string; note: string }[] = [
-  { mode: 'none', label: 'None', note: 'Opaque — orbs occlude like solid geometry.' },
-  { mode: 'alpha', label: 'Alpha', note: 'Classic transparency — see the cube through the orbs.' },
-  { mode: 'additive', label: 'Additive', note: 'Light accumulation — overlaps get brighter, like glows.' },
+  {
+    mode: "none",
+    label: "None",
+    note: "Opaque — orbs occlude like solid geometry.",
+  },
+  {
+    mode: "alpha",
+    label: "Alpha",
+    note: "Classic transparency — see the cube through the orbs.",
+  },
+  {
+    mode: "additive",
+    label: "Additive",
+    note: "Light accumulation — overlaps get brighter, like glows.",
+  },
 ];
 
 export default function BlendDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
-  const activeRef = useRef<BlendMode>('alpha');
-  const [active, setActive] = useState<BlendMode>('alpha');
+  const activeRef = useRef<BlendMode>("alpha");
+  const [active, setActive] = useState<BlendMode>("alpha");
+
+  const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -35,7 +50,11 @@ export default function BlendDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const renderer = await createRenderer(canvas, { clearColor: [0.06, 0.06, 0.1, 1], cull: 'back' });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.06, 0.06, 0.1, 1],
+        cull: "back",
+      });
       if (cancelled) {
         renderer.destroy();
         return;
@@ -74,7 +93,11 @@ export default function BlendDemo() {
         tick(t);
         const viewProj = camera.viewProjection(renderer.aspect);
 
-        mat4.multiply(mat4.rotationY(t * 0.4, model), mat4.rotationX(0.4, tilt), model);
+        mat4.multiply(
+          mat4.rotationY(t * 0.4, model),
+          mat4.rotationX(0.4, tilt),
+          model,
+        );
         cubeProgram.uniforms.uViewProj.set(viewProj);
         cubeProgram.uniforms.uModel.set(model);
         cubeProgram.draw();
@@ -103,7 +126,7 @@ export default function BlendDemo() {
         }
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -123,7 +146,7 @@ export default function BlendDemo() {
         <div className="panel">
           <h1>Blend</h1>
           <p className="panel-note">
-            The orbs use one shader and three programs — only the{' '}
+            The orbs use one shader and three programs — only the{" "}
             <code>{`createProgram(..., { blend })`}</code> option differs.
           </p>
           <div className="geo-tiles blend-tiles">
@@ -132,17 +155,20 @@ export default function BlendDemo() {
                 key={mode}
                 type="button"
                 data-blend={mode}
-                className={active === mode ? 'selected' : undefined}
+                className={active === mode ? "selected" : undefined}
                 onClick={() => onSelect(mode)}
               >
                 <span>{label}</span>
               </button>
             ))}
           </div>
-          <p className="panel-note uses-note">{MODES.find((m) => m.mode === active)?.note}</p>
+          <p className="panel-note uses-note">
+            {MODES.find((m) => m.mode === active)?.note}
+          </p>
         </div>
       </div>
       <DemoStats stats={stats}>Three blend modes from one shader</DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

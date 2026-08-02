@@ -4,6 +4,7 @@ import type { AttributeHandle, BroMetalProgram, UniformHandle } from './program.
 import type { DrawToOptions, Renderer, RendererOptions } from './context.js';
 import type { BroMetalTexture, TextureOptions, VolumeSource } from './texture.js';
 import type { BroMetalStorageBuffer } from './storage.js';
+import { BroMetalError, type ErrorHandler } from './errors.js';
 import { checkUniformValue, type UniformValue } from './uniforms.js';
 import type { RenderTarget } from './render-target.js';
 import { resizeToDisplaySize } from './canvas.js';
@@ -50,6 +51,28 @@ export interface WebgpuInternals {
 
 const INTERNALS = new WeakMap<Renderer, WebgpuInternals>();
 
+/**
+ * Routes an async GPU failure to the application's handler.
+ *
+ * With no handler the runtime warns once and then stays quiet: repeating is
+ * pointless, because a lost device raises no further events and a bad pipeline
+ * re-raises every frame, which would bury the console at 60 Hz.
+ */
+function makeReporter(handler: ErrorHandler | undefined): (error: BroMetalError) => void {
+  let warned = false;
+  return (error) => {
+    if (handler !== undefined) {
+      handler(error);
+      return;
+    }
+    if (warned) return;
+    warned = true;
+    console.warn(
+      `${error.message}\n\nPass { onError } to createRenderer to handle this in your application.`,
+    );
+  };
+}
+
 export function webgpuInternals(renderer: Renderer): WebgpuInternals {
   const internals = INTERNALS.get(renderer);
   if (internals === undefined) {
@@ -64,19 +87,62 @@ export async function createWebgpuRenderer(
 ): Promise<Renderer> {
   const gpu = (navigator as Navigator & { gpu?: GPU }).gpu;
   if (gpu === undefined) {
-    throw new Error('BroMetal: WebGPU is not available in this browser');
+    throw new BroMetalError(
+      'webgpu-unavailable',
+      'BroMetal: WebGPU is not available in this browser',
+    );
   }
   const adapter = await gpu.requestAdapter({
     powerPreference: options.powerPreference === 'low-power' ? 'low-power' : 'high-performance',
   });
+  // Distinct from a missing navigator.gpu, and far more confusing to hit: the
+  // API is present and the browser looks capable, but no adapter is granted.
+  // Blocklisted drivers, virtual machines, remote desktop sessions and
+  // "use hardware acceleration" being off all land here.
   if (adapter === null) {
-    throw new Error('BroMetal: WebGPU adapter request was refused');
+    throw new BroMetalError(
+      'gpu-adapter-unavailable',
+      'BroMetal: no WebGPU adapter is available. The browser supports WebGPU but the system did not grant a GPU — this is usual in virtual machines and remote desktop sessions, or when hardware acceleration is disabled in the browser settings.',
+    );
   }
-  const device = await adapter.requestDevice();
+  let device: GPUDevice;
+  try {
+    device = await adapter.requestDevice();
+  } catch (cause) {
+    throw new BroMetalError(
+      'gpu-device-unavailable',
+      'BroMetal: the WebGPU adapter refused a device.',
+      { cause },
+    );
+  }
   const context = canvas.getContext('webgpu');
   if (context === null) {
-    throw new Error('BroMetal: could not create a WebGPU canvas context');
+    throw new BroMetalError(
+      'canvas-context-unavailable',
+      'BroMetal: could not create a WebGPU canvas context. The canvas may already be bound to a different context type.',
+    );
   }
+
+  const report = makeReporter(options.onError);
+  // Both of these are the difference between a diagnosable failure and a canvas
+  // that simply stops. Neither surfaces as an exception on any call of ours.
+  device.addEventListener('uncapturederror', (event) => {
+    const detail = (event as GPUUncapturedErrorEvent).error;
+    report(
+      new BroMetalError('gpu-error', `BroMetal: ${detail.message}`, { cause: detail }),
+    );
+  });
+  void device.lost.then((info) => {
+    // 'destroyed' is what renderer.destroy() causes, so it is not a fault.
+    if (info.reason === 'destroyed') return;
+    report(
+      new BroMetalError(
+        'gpu-device-lost',
+        `BroMetal: the GPU device was lost (${info.reason || 'unknown'}) — ${info.message}. Nothing further will draw.`,
+        { cause: info },
+      ),
+    );
+  });
   const format = gpu.getPreferredCanvasFormat();
   context.configure({ device, format, alphaMode: 'opaque' });
 

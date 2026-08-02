@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createProgram,
@@ -8,13 +8,16 @@ import {
   createTexture,
   loadGlb,
   mat4,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import modelShader from '@/shaders/model.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import modelShader from "@/shaders/model.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 export default function ModelDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
+
+  const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -24,8 +27,12 @@ export default function ModelDemo() {
 
     void (async () => {
       const [renderer, model] = await Promise.all([
-        createRenderer(canvas, { clearColor: [0.06, 0.06, 0.1, 1], cull: 'back' }),
-        loadGlb('/models/spitfire.glb'),
+        createRenderer(canvas, {
+          onError: report,
+          clearColor: [0.06, 0.06, 0.1, 1],
+          cull: "back",
+        }),
+        loadGlb("/models/spitfire.glb"),
       ]);
       if (cancelled) {
         renderer.destroy();
@@ -42,7 +49,11 @@ export default function ModelDemo() {
       // The glb embeds its painted texture; glTF UVs start at the top-left,
       // so upload without the default bottom-left flip.
       const image = model.images[mesh.imageIndex!]!;
-      const bitmap = await createImageBitmap(new Blob([image.data.slice() as unknown as BlobPart], { type: image.mimeType }));
+      const bitmap = await createImageBitmap(
+        new Blob([image.data.slice() as unknown as BlobPart], {
+          type: image.mimeType,
+        }),
+      );
       const texture = createTexture(renderer, bitmap, { flipY: false });
       program.uniforms.uTex.set(texture);
       program.uniforms.uLightDir.set([0.5, 0.8, 0.35]);
@@ -69,7 +80,7 @@ export default function ModelDemo() {
         program.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -84,12 +95,14 @@ export default function ModelDemo() {
         <div className="panel">
           <h1>Model</h1>
           <p className="panel-note">
-            A textured .glb loaded with <code>loadGlb</code> — parsed straight into attribute
-            arrays and a <code>createTexture</code> upload. Spitfire by Quaternius (CC0).
+            A textured .glb loaded with <code>loadGlb</code> — parsed straight
+            into attribute arrays and a <code>createTexture</code> upload.
+            Spitfire by Quaternius (CC0).
           </p>
         </div>
       </div>
       <DemoStats stats={stats}>glTF-Binary model loaded with loadGlb</DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

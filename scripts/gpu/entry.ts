@@ -13,6 +13,7 @@ import {
   createRenderTarget,
   createStorageBuffer,
   createPlane,
+  isBroMetalError,
 } from 'brometal';
 import computeShader from './fixtures/gpu-compute.shader.gen';
 import readbackShader from './fixtures/gpu-readback.shader.gen';
@@ -27,7 +28,7 @@ interface Check {
 
 declare global {
   interface Window {
-    __GPU_RESULTS__?: { backend: string; checks: Check[] };
+    __GPU_RESULTS__?: { backend: string; mode: 'webgpu' | 'fallback'; checks: Check[] };
   }
 }
 
@@ -53,14 +54,82 @@ function near(actual: number, expected: number, tolerance = 10): boolean {
   return Math.abs(actual - expected) <= tolerance;
 }
 
-async function run(): Promise<void> {
+/**
+ * What a browser without WebGPU must do: reject with an error the application
+ * can identify, and leave the canvas completely alone.
+ *
+ * The library renders nothing on failure on purpose — showing the problem is the
+ * application's job. What the runtime owes it is a failure that is catchable and
+ * tagged, so a consumer can tell "no WebGPU here" apart from "your GPU died".
+ *
+ * This runs under Playwright's WebKit, which exposes no `navigator.gpu` at all,
+ * so it stands in for a Safari that has not enabled WebGPU.
+ */
+async function runFallback(canvas: HTMLCanvasElement): Promise<Check[]> {
   const checks: Check[] = [];
+
+  let thrown: unknown = null;
+  try {
+    await createRenderer(canvas);
+  } catch (error) {
+    thrown = error;
+  }
+
+  checks.push({
+    name: 'createRenderer rejects rather than returning a dead renderer',
+    passed: thrown !== null,
+    detail: thrown === null ? 'it resolved' : String(thrown),
+  });
+
+  // The code is the part an application branches on, so it matters more than
+  // the message text.
+  checks.push({
+    name: 'the rejection is tagged webgpu-unavailable',
+    passed: isBroMetalError(thrown) && thrown.code === 'webgpu-unavailable',
+    detail: isBroMetalError(thrown) ? `code ${thrown.code}` : `not a BroMetalError: ${String(thrown)}`,
+  });
+
+  // Nothing may have been drawn: a library that paints its own error message
+  // takes a design decision away from the application, and would also claim the
+  // canvas's 2D context permanently.
+  let painted = 0;
+  const probe = document.createElement('canvas');
+  probe.width = canvas.width;
+  probe.height = canvas.height;
+  const ctx = probe.getContext('2d')!;
+  ctx.drawImage(canvas, 0, 0);
+  const { data } = ctx.getImageData(0, 0, probe.width, probe.height);
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i]! > 0) painted++;
+  }
+  checks.push({
+    name: 'the canvas is left untouched for the application to use',
+    passed: painted === 0,
+    detail: `${painted} non-transparent pixels`,
+  });
+
+  return checks;
+}
+
+async function run(): Promise<void> {
   const canvas = document.getElementById('stage') as HTMLCanvasElement;
+
+  if (navigator.gpu === undefined) {
+    window.__GPU_RESULTS__ = {
+      backend: 'none',
+      mode: 'fallback',
+      checks: await runFallback(canvas),
+    };
+    return;
+  }
+
+  const checks: Check[] = [];
   const renderer = await createRenderer(canvas, { clearColor: [0, 0, 0, 1] });
 
   if (renderer.backend !== 'webgpu') {
     window.__GPU_RESULTS__ = {
       backend: renderer.backend,
+      mode: 'webgpu',
       checks: [{ name: 'webgpu available', passed: false, detail: `got ${renderer.backend}` }],
     };
     return;
@@ -177,12 +246,13 @@ async function run(): Promise<void> {
     });
   }
 
-  window.__GPU_RESULTS__ = { backend: renderer.backend, checks };
+  window.__GPU_RESULTS__ = { backend: renderer.backend, mode: 'webgpu', checks };
 }
 
 void run().catch((error: unknown) => {
   window.__GPU_RESULTS__ = {
     backend: 'error',
+    mode: 'webgpu',
     checks: [{ name: 'harness', passed: false, detail: String(error) }],
   };
 });

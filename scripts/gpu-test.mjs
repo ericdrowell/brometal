@@ -72,67 +72,117 @@ const server = createServer((req, res) => {
 await new Promise((resolve) => server.listen(0, resolve));
 const url = `http://localhost:${server.address().port}/`;
 
-step('launching Chrome with WebGPU');
+step('launching browsers');
 let chromium;
+let webkit;
 try {
-  ({ chromium } = await import('playwright-core'));
+  ({ chromium, webkit } = await import('playwright-core'));
 } catch {
   console.error('✗ playwright-core is not installed — run `npm i -D playwright-core`');
   process.exit(1);
 }
 
-const browser = await chromium.launch({
-  channel: 'chrome',
-  headless: true,
-  args: [
-    '--enable-unsafe-webgpu',
-    '--enable-features=Vulkan,WebGPU',
-    '--use-angle=metal',
-    '--ignore-gpu-blocklist',
-    '--enable-gpu',
-  ],
-});
+// Two targets, asserting different things.
+//
+// Chrome runs the real GPU checks. Playwright's WebKit exposes no navigator.gpu
+// at all, so it cannot run them — but that makes it an exact stand-in for a
+// Safari without WebGPU, which is the case that was reaching users as a silent
+// black screen. It verifies the refusal and the on-canvas message instead.
+//
+// Caveat worth knowing: this does NOT cover Safari's WGSL validation, which is
+// stricter than Chrome's. Playwright cannot drive real Safari, and its WebKit
+// build has no WebGPU, so a Safari-only shader rejection stays invisible here.
+const TARGETS = [
+  {
+    name: 'Chrome',
+    expects: 'webgpu',
+    launch: () =>
+      chromium.launch({
+        channel: 'chrome',
+        headless: true,
+        args: [
+          '--enable-unsafe-webgpu',
+          '--enable-features=Vulkan,WebGPU',
+          '--use-angle=metal',
+          '--ignore-gpu-blocklist',
+          '--enable-gpu',
+        ],
+      }),
+  },
+  {
+    name: 'WebKit',
+    expects: 'fallback',
+    launch: () => webkit.launch({ headless: true }),
+  },
+];
 
-const page = await browser.newPage({ viewport: { width: 320, height: 120 } });
-const noise = [];
-page.on('console', (m) => noise.push(`[${m.type()}] ${m.text()}`));
-page.on('pageerror', (e) => noise.push(`[pageerror] ${e.message}`));
-
-await page.goto(url, { waitUntil: 'load', timeout: 60000 });
-const results = await page
-  .waitForFunction(() => window.__GPU_RESULTS__ !== undefined, null, { timeout: 30000 })
-  .then(() => page.evaluate(() => window.__GPU_RESULTS__))
-  .catch(() => null);
-
-await browser.close();
-server.close();
-
-if (results === null) {
-  console.error('\n✗ the page never reported results');
-  noise.forEach((line) => console.error(`  ${line}`));
-  process.exit(1);
-}
-
-console.log(`\nbackend: ${results.backend}\n`);
 let failed = 0;
-for (const check of results.checks) {
-  console.log(`  ${check.passed ? '✓' : '✗'} ${check.name}`);
-  if (!check.passed) {
-    console.log(`      ${check.detail}`);
+let ran = 0;
+
+for (const target of TARGETS) {
+  let browser;
+  try {
+    browser = await target.launch();
+  } catch (error) {
+    console.error(`\n✗ ${target.name} failed to launch: ${String(error).split('\n')[0]}`);
+    if (target.name === 'WebKit') {
+      console.error('  install it with `npx playwright-core install webkit`');
+    }
     failed++;
+    continue;
+  }
+
+  const page = await browser.newPage({ viewport: { width: 320, height: 120 } });
+  const noise = [];
+  page.on('console', (m) => noise.push(`[${m.type()}] ${m.text()}`));
+  page.on('pageerror', (e) => noise.push(`[pageerror] ${e.message}`));
+
+  await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+  const results = await page
+    .waitForFunction(() => window.__GPU_RESULTS__ !== undefined, null, { timeout: 30000 })
+    .then(() => page.evaluate(() => window.__GPU_RESULTS__))
+    .catch(() => null);
+
+  await browser.close();
+
+  console.log(`\n${target.name} — backend: ${results?.backend ?? 'unknown'}\n`);
+  if (results === null) {
+    console.error('  ✗ the page never reported results');
+    noise.forEach((line) => console.error(`    ${line}`));
+    failed++;
+    continue;
+  }
+
+  // A target that reports the wrong mode is a finding in itself: Chrome falling
+  // back means WebGPU broke, and WebKit reporting webgpu means this caveat is
+  // out of date and the suite should be extended.
+  if (results.mode !== target.expects) {
+    console.error(`  ✗ expected ${target.expects} mode, got ${results.mode}`);
+    failed++;
+  }
+
+  for (const check of results.checks) {
+    console.log(`  ${check.passed ? '✓' : '✗'} ${check.name}`);
+    ran++;
+    if (!check.passed) {
+      console.log(`      ${check.detail}`);
+      failed++;
+    }
+  }
+
+  // WebGPU validation failures surface as console warnings rather than
+  // exceptions, so they are worth showing whenever anything fails.
+  if (failed > 0 && noise.length > 0) {
+    console.log('\n  browser output:');
+    noise.forEach((line) => console.log(`    ${line}`));
   }
 }
 
-// WebGPU validation failures surface as console warnings rather than exceptions,
-// so they are worth showing whenever anything fails.
-if (failed > 0 && noise.length > 0) {
-  console.log('\n  browser output:');
-  noise.forEach((line) => console.log(`    ${line}`));
-}
+server.close();
 
 console.log(
   failed === 0
-    ? `\n✓ ${results.checks.length} GPU checks passed`
-    : `\n✗ ${failed} of ${results.checks.length} GPU checks failed`,
+    ? `\n✓ ${ran} checks passed across ${TARGETS.length} browsers`
+    : `\n✗ ${failed} failure(s) across ${TARGETS.length} browsers`,
 );
 process.exit(failed === 0 ? 0 : 1);

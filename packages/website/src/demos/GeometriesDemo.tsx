@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   createCamera,
   createCircle,
@@ -20,11 +20,12 @@ import {
   type BroMetalProgram,
   type Geometry,
   type Renderer,
-} from 'brometal';
-import litShader from '@/shaders/textured-cube.shader.gen';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
+} from "brometal";
+import litShader from "@/shaders/textured-cube.shader.gen";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
-const DEFAULT_TEXTURE = 'wood095';
+const DEFAULT_TEXTURE = "wood095";
 
 interface GeometryEntry {
   key: string;
@@ -33,18 +34,56 @@ interface GeometryEntry {
 }
 
 const GEOMETRIES: GeometryEntry[] = [
-  { key: 'cube', title: 'Cube', create: () => createCube() },
-  { key: 'sphere', title: 'Sphere', create: () => createSphere({ radius: 1.3 }) },
-  { key: 'plane', title: 'Plane', create: () => createPlane({ width: 2.6, height: 2.6 }) },
-  { key: 'cylinder', title: 'Cylinder', create: () => createCylinder({ radiusTop: 0.9, radiusBottom: 0.9, height: 2.2 }) },
-  { key: 'cone', title: 'Cone', create: () => createCone({ radius: 1.1, height: 2.2 }) },
-  { key: 'torus', title: 'Torus', create: () => createTorus({ radius: 1, tube: 0.45 }) },
-  { key: 'torus-knot', title: 'Torus Knot', create: () => createTorusKnot({ radius: 0.9, tube: 0.28 }) },
-  { key: 'circle', title: 'Circle', create: () => createCircle({ radius: 1.3 }) },
-  { key: 'ring', title: 'Ring', create: () => createRing({ innerRadius: 0.65, outerRadius: 1.3 }) },
+  { key: "cube", title: "Cube", create: () => createCube() },
+  {
+    key: "sphere",
+    title: "Sphere",
+    create: () => createSphere({ radius: 1.3 }),
+  },
+  {
+    key: "plane",
+    title: "Plane",
+    create: () => createPlane({ width: 2.6, height: 2.6 }),
+  },
+  {
+    key: "cylinder",
+    title: "Cylinder",
+    create: () =>
+      createCylinder({ radiusTop: 0.9, radiusBottom: 0.9, height: 2.2 }),
+  },
+  {
+    key: "cone",
+    title: "Cone",
+    create: () => createCone({ radius: 1.1, height: 2.2 }),
+  },
+  {
+    key: "torus",
+    title: "Torus",
+    create: () => createTorus({ radius: 1, tube: 0.45 }),
+  },
+  {
+    key: "torus-knot",
+    title: "Torus Knot",
+    create: () => createTorusKnot({ radius: 0.9, tube: 0.28 }),
+  },
+  {
+    key: "circle",
+    title: "Circle",
+    create: () => createCircle({ radius: 1.3 }),
+  },
+  {
+    key: "ring",
+    title: "Ring",
+    create: () => createRing({ innerRadius: 0.65, outerRadius: 1.3 }),
+  },
 ];
 
-const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinejoin: 'round' as const };
+const stroke = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.6,
+  strokeLinejoin: "round" as const,
+};
 
 const ICONS: Record<string, ReactNode> = {
   cube: (
@@ -83,10 +122,16 @@ const ICONS: Record<string, ReactNode> = {
       <ellipse cx="12" cy="11" rx="3.4" ry="1.6" />
     </svg>
   ),
-  'torus-knot': (
+  "torus-knot": (
     <svg viewBox="0 0 24 24" {...stroke}>
       <ellipse cx="12" cy="12" rx="8.5" ry="4.2" transform="rotate(28 12 12)" />
-      <ellipse cx="12" cy="12" rx="8.5" ry="4.2" transform="rotate(-28 12 12)" />
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="8.5"
+        ry="4.2"
+        transform="rotate(-28 12 12)"
+      />
     </svg>
   ),
   circle: (
@@ -103,9 +148,9 @@ const ICONS: Record<string, ReactNode> = {
 };
 
 type LitProgram = BroMetalProgram<
-  (typeof litShader)['attributes'],
-  (typeof litShader)['instanceAttributes'],
-  (typeof litShader)['uniforms']
+  (typeof litShader)["attributes"],
+  (typeof litShader)["instanceAttributes"],
+  (typeof litShader)["uniforms"]
 >;
 
 function applyGeometry(program: LitProgram, geometry: Geometry): void {
@@ -133,6 +178,8 @@ export default function GeometriesDemo() {
     return geometry;
   };
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -141,51 +188,62 @@ export default function GeometriesDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-    // No back-face culling: plane, circle, and ring are single-sided.
-    const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1] });
-    if (cancelled) {
-      renderer.destroy();
-      return;
-    }
-    rendererRef.current = renderer;
-    const program = createProgram(renderer, litShader);
-    programRef.current = program;
-    applyGeometry(program, getGeometry(GEOMETRIES[0]!.key));
+      // No back-face culling: plane, circle, and ring are single-sided.
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.07, 0.07, 0.1, 1],
+      });
+      if (cancelled) {
+        renderer.destroy();
+        return;
+      }
+      rendererRef.current = renderer;
+      const program = createProgram(renderer, litShader);
+      programRef.current = program;
+      applyGeometry(program, getGeometry(GEOMETRIES[0]!.key));
 
-    const cameraPos: [number, number, number] = [0, 0, 6];
-    const camera = createCamera({ position: cameraPos });
-    program.uniforms.uViewPos.set(cameraPos);
-    program.uniforms.uLightPos.set([4, 3, 6]);
+      const cameraPos: [number, number, number] = [0, 0, 6];
+      const camera = createCamera({ position: cameraPos });
+      program.uniforms.uViewPos.set(cameraPos);
+      program.uniforms.uLightPos.set([4, 3, 6]);
 
-    const placeholder = new ImageData(new Uint8ClampedArray([160, 160, 170, 255]), 1, 1);
-    const placeholderTexture = createTexture(renderer, placeholder);
-    program.uniforms.uTex.set(placeholderTexture);
-    loadTexture(renderer, `/textures/${DEFAULT_TEXTURE}.jpg`).then(
-      (loaded) => programRef.current?.uniforms.uTex.set(loaded),
-      (error: unknown) => console.error(error),
-    );
+      const placeholder = new ImageData(
+        new Uint8ClampedArray([160, 160, 170, 255]),
+        1,
+        1,
+      );
+      const placeholderTexture = createTexture(renderer, placeholder);
+      program.uniforms.uTex.set(placeholderTexture);
+      loadTexture(renderer, `/textures/${DEFAULT_TEXTURE}.jpg`).then(
+        (loaded) => programRef.current?.uniforms.uTex.set(loaded),
+        (error: unknown) => console.error(error),
+      );
 
-    const model = mat4.scratch();
-    const tilt = mat4.scratch();
+      const model = mat4.scratch();
+      const tilt = mat4.scratch();
 
-    const stop = renderer.loop((t) => {
-      tick(t);
-      mat4.multiply(mat4.rotationY(t * 0.5, model), mat4.rotationX(t * 0.3, tilt), model);
+      const stop = renderer.loop((t) => {
+        tick(t);
+        mat4.multiply(
+          mat4.rotationY(t * 0.5, model),
+          mat4.rotationX(t * 0.3, tilt),
+          model,
+        );
 
-      program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
-      program.uniforms.uModel.set(model);
-      program.draw();
-    });
+        program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
+        program.uniforms.uModel.set(model);
+        program.draw();
+      });
 
-    cleanup = () => {
-      stop();
-      placeholderTexture.dispose();
-      program.dispose();
-      renderer.destroy();
-      programRef.current = null;
-      rendererRef.current = null;
-    };
-    })();
+      cleanup = () => {
+        stop();
+        placeholderTexture.dispose();
+        program.dispose();
+        renderer.destroy();
+        programRef.current = null;
+        rendererRef.current = null;
+      };
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -214,7 +272,7 @@ export default function GeometriesDemo() {
                 key={entry.key}
                 type="button"
                 data-geometry={entry.key}
-                className={selected === entry.key ? 'selected' : undefined}
+                className={selected === entry.key ? "selected" : undefined}
                 onClick={() => onSelect(entry.key)}
               >
                 {ICONS[entry.key]}
@@ -225,6 +283,7 @@ export default function GeometriesDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Built-in geometry generators</DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

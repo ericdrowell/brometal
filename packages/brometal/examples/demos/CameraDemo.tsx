@@ -1,10 +1,17 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { createCamera, createProgram, createRenderer, mat4, type Camera } from 'brometal';
-import cubeShader from '../shaders/camera-cube.shader.gen';
-import { colors, indices, positions } from '@/lib/cube-geometry';
-import DemoStats, { useFrameStats } from './_site/DemoStats';
+import { useEffect, useRef, useState } from "react";
+import {
+  createCamera,
+  createProgram,
+  createRenderer,
+  mat4,
+  type Camera,
+} from "brometal";
+import cubeShader from "@/shaders/camera-cube.shader.gen";
+import { colors, indices, positions } from "@/lib/cube-geometry";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 interface CameraState {
   posX: number;
@@ -15,7 +22,14 @@ interface CameraState {
   rotZ: number;
 }
 
-const DEFAULTS: CameraState = { posX: 0, posY: 0, posZ: 6, rotX: 0, rotY: 0, rotZ: 0 };
+const DEFAULTS: CameraState = {
+  posX: 0,
+  posY: 0,
+  posZ: 6,
+  rotX: 0,
+  rotY: 0,
+  rotZ: 0,
+};
 
 const TO_RADIANS = Math.PI / 180;
 
@@ -25,6 +39,8 @@ export default function CameraDemo() {
   const cameraRef = useRef<Camera | null>(null);
   const [state, setState] = useState<CameraState>(DEFAULTS);
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -33,38 +49,48 @@ export default function CameraDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-    const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1], cull: 'back' });
-    if (cancelled) {
-      renderer.destroy();
-      return;
-    }
-    const program = createProgram(renderer, cubeShader);
-    program.attributes.aPosition.set(positions);
-    program.attributes.aColor.set(colors);
-    program.setIndices(indices);
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.07, 0.07, 0.1, 1],
+        cull: "back",
+      });
+      if (cancelled) {
+        renderer.destroy();
+        return;
+      }
+      const program = createProgram(renderer, cubeShader);
+      program.attributes.aPosition.set(positions);
+      program.attributes.aColor.set(colors);
+      program.setIndices(indices);
 
-    const camera = createCamera({ position: [DEFAULTS.posX, DEFAULTS.posY, DEFAULTS.posZ] });
-    cameraRef.current = camera;
+      const camera = createCamera({
+        position: [DEFAULTS.posX, DEFAULTS.posY, DEFAULTS.posZ],
+      });
+      cameraRef.current = camera;
 
-    const model = mat4.scratch();
-    const tilt = mat4.scratch();
+      const model = mat4.scratch();
+      const tilt = mat4.scratch();
 
-    const stop = renderer.loop((t) => {
-      tick(t);
-      mat4.multiply(mat4.rotationY(t * 0.9, model), mat4.rotationX(t * 0.6, tilt), model);
+      const stop = renderer.loop((t) => {
+        tick(t);
+        mat4.multiply(
+          mat4.rotationY(t * 0.9, model),
+          mat4.rotationX(t * 0.6, tilt),
+          model,
+        );
 
-      program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
-      program.uniforms.uModel.set(model);
-      program.draw();
-    });
+        program.uniforms.uViewProj.set(camera.viewProjection(renderer.aspect));
+        program.uniforms.uModel.set(model);
+        program.draw();
+      });
 
-    cleanup = () => {
-      stop();
-      program.dispose();
-      renderer.destroy();
-      cameraRef.current = null;
-    };
-    })();
+      cleanup = () => {
+        stop();
+        program.dispose();
+        renderer.destroy();
+        cameraRef.current = null;
+      };
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -77,7 +103,11 @@ export default function CameraDemo() {
     const camera = cameraRef.current;
     if (camera === null) return;
     camera.setPosition(next.posX, next.posY, next.posZ);
-    camera.setRotation(next.rotX * TO_RADIANS, next.rotY * TO_RADIANS, next.rotZ * TO_RADIANS);
+    camera.setRotation(
+      next.rotX * TO_RADIANS,
+      next.rotY * TO_RADIANS,
+      next.rotZ * TO_RADIANS,
+    );
   };
 
   const slider = (
@@ -97,7 +127,9 @@ export default function CameraDemo() {
         max={max}
         step={step}
         value={state[key]}
-        onChange={(event) => apply({ ...state, [key]: Number(event.target.value) })}
+        onChange={(event) =>
+          apply({ ...state, [key]: Number(event.target.value) })
+        }
       />
       <output htmlFor={key}>{format(state[key])}</output>
     </div>
@@ -113,19 +145,26 @@ export default function CameraDemo() {
         <div className="panel">
           <h1>Camera</h1>
           <h2>Position</h2>
-          {slider('posX', 'X', -10, 10, 0.1, position)}
-          {slider('posY', 'Y', -10, 10, 0.1, position)}
-          {slider('posZ', 'Z', -20, 20, 0.1, position)}
+          {slider("posX", "X", -10, 10, 0.1, position)}
+          {slider("posY", "Y", -10, 10, 0.1, position)}
+          {slider("posZ", "Z", -20, 20, 0.1, position)}
           <h2>Rotation</h2>
-          {slider('rotX', 'X', -180, 180, 1, degrees)}
-          {slider('rotY', 'Y', -180, 180, 1, degrees)}
-          {slider('rotZ', 'Z', -180, 180, 1, degrees)}
-          <button type="button" className="reset" onClick={() => apply(DEFAULTS)}>
+          {slider("rotX", "X", -180, 180, 1, degrees)}
+          {slider("rotY", "Y", -180, 180, 1, degrees)}
+          {slider("rotZ", "Z", -180, 180, 1, degrees)}
+          <button
+            type="button"
+            className="reset"
+            onClick={() => apply(DEFAULTS)}
+          >
             Reset camera
           </button>
         </div>
       </div>
-      <DemoStats stats={stats}>Cached view-projection — an unmoved camera costs no matrix math</DemoStats>
+      <DemoStats stats={stats}>
+        Cached view-projection — an unmoved camera costs no matrix math
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

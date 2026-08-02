@@ -1,21 +1,24 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createPlane,
   createProgram,
   createRenderer,
   mat4,
-} from 'brometal';
-import DemoStats, { useFrameStats } from './_site/DemoStats';
-import terrainShader from '../shaders/terrain.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import terrainShader from "@/shaders/terrain.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 export default function TerrainDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
   const ampRef = useRef(0.9);
   const [amp, setAmp] = useState(0.9);
+
+  const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -24,7 +27,10 @@ export default function TerrainDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const renderer = await createRenderer(canvas, { clearColor: [0.06, 0.06, 0.1, 1] });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.06, 0.06, 0.1, 1],
+      });
       if (cancelled) {
         renderer.destroy();
         return;
@@ -32,14 +38,22 @@ export default function TerrainDemo() {
 
       const program = createProgram(renderer, terrainShader);
       // A densely-tessellated plane: ~65k vertices for the vertex shader to move.
-      const plane = createPlane({ width: 9, height: 9, widthSegments: 256, heightSegments: 256 });
+      const plane = createPlane({
+        width: 9,
+        height: 9,
+        widthSegments: 256,
+        heightSegments: 256,
+      });
       program.attributes.aPosition.set(plane.positions);
       program.attributes.aUv.set(plane.uvs);
       program.setIndices(plane.indices);
       program.uniforms.uLightDir.set([0.45, 0.85, 0.3]);
 
       // Lay the XY plane flat (rotate -90° about X), slightly below the camera.
-      const model = mat4.multiply(mat4.translation(0, -0.9, -1), mat4.rotationX(-Math.PI / 2));
+      const model = mat4.multiply(
+        mat4.translation(0, -0.9, -1),
+        mat4.rotationX(-Math.PI / 2),
+      );
 
       const camera = createCamera({ position: [0, 1.7, 4.4] });
       camera.lookAt(0, -0.4, -2);
@@ -58,7 +72,7 @@ export default function TerrainDemo() {
         program.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -78,8 +92,9 @@ export default function TerrainDemo() {
         <div className="panel">
           <h1>Terrain</h1>
           <p className="panel-note">
-            A flat 256×256 plane, displaced by <code>gfbm2</code> noise <em>in the vertex shader</em> —
-            heights and normals computed per vertex, lit per pixel on the GPU.
+            A flat 256×256 plane, displaced by <code>gfbm2</code> noise{" "}
+            <em>in the vertex shader</em> — heights and normals computed per
+            vertex, lit per pixel on the GPU.
           </p>
           <div className="row">
             <label htmlFor="amp">Amplitude</label>
@@ -96,7 +111,10 @@ export default function TerrainDemo() {
           </div>
         </div>
       </div>
-      <DemoStats stats={stats}>Noise-displaced vertices, normals derived in the shader</DemoStats>
+      <DemoStats stats={stats}>
+        Noise-displaced vertices, normals derived in the shader
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

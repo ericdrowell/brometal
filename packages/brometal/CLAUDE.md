@@ -118,6 +118,24 @@ These produce a black screen or wrong output with **no error message**.
 - **Render targets are RGBA16F and sampled NEAREST, clamped.** They hold numbers,
   not pictures. Interpolation and tiling wrap must be done by hand.
 
+## Handling failure
+
+`createRenderer` rejects with a `BroMetalError` carrying a `code`. Pass
+`onError` for failures that happen after creation — a lost device or a pipeline
+that failed validation — which cannot be caught because they arrive frames later.
+
+```ts
+const renderer = await createRenderer(canvas, {
+  onError: (error) => show(error.code, error.message),
+});
+```
+
+Codes: `webgpu-unavailable`, `gpu-adapter-unavailable`,
+`gpu-device-unavailable`, `canvas-context-unavailable`, `gpu-device-lost`,
+`gpu-error`. `errorTitle(code)` renders one as a human sentence ("GPU adapter
+unavailable"). The library never draws its own error message — show it however
+the app wants.
+
 ## Compute
 
 Work dispatched over a grid rather than driven by geometry. A compute stage

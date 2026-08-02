@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createPlane,
   createProgram,
@@ -8,14 +8,19 @@ import {
   type BroMetalProgram,
   type GpuRecord,
   type Renderer,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import { FN_CATEGORY_ORDER, FN_EXAMPLES, type FnExample } from '@/lib/fn-catalog';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import {
+  FN_CATEGORY_ORDER,
+  FN_EXAMPLES,
+  type FnExample,
+} from "@/lib/fn-catalog";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 type QuadProgram = BroMetalProgram<
-  { aPosition: 'vec3'; aUv: 'vec2' },
+  { aPosition: "vec3"; aUv: "vec2" },
   GpuRecord,
-  { uTime: 'float'; uAspect: 'float' }
+  { uTime: "float"; uAspect: "float" }
 >;
 
 export default function ShaderFunctionsDemo() {
@@ -32,15 +37,21 @@ export default function ShaderFunctionsDemo() {
   const ensureProgram = (key: string): void => {
     const renderer = rendererRef.current;
     const quad = quadRef.current;
-    if (renderer === null || quad === null || programsRef.current.has(key)) return;
+    if (renderer === null || quad === null || programsRef.current.has(key))
+      return;
     const entry = FN_EXAMPLES.find((fn) => fn.key === key);
     if (entry === undefined) return;
-    const program = createProgram(renderer, entry.shader) as unknown as QuadProgram;
+    const program = createProgram(
+      renderer,
+      entry.shader,
+    ) as unknown as QuadProgram;
     program.attributes.aPosition.set(quad.positions);
     program.attributes.aUv.set(quad.uvs);
     program.setIndices(quad.indices);
     programsRef.current.set(key, program);
   };
+
+  const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -49,7 +60,10 @@ export default function ShaderFunctionsDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1] });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.07, 0.07, 0.1, 1],
+      });
       if (cancelled) {
         renderer.destroy();
         return;
@@ -76,7 +90,7 @@ export default function ShaderFunctionsDemo() {
         rendererRef.current = null;
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -106,8 +120,8 @@ export default function ShaderFunctionsDemo() {
         <div className="panel">
           <h1>Shader Functions</h1>
           <p className="panel-note">
-            A visual example for every one of the {FN_EXAMPLES.length} functions in{' '}
-            <code>brometal/shader-functions</code>.
+            A visual example for every one of the {FN_EXAMPLES.length} functions
+            in <code>brometal/shader-functions</code>.
           </p>
           <select
             className="effect-select"
@@ -126,13 +140,18 @@ export default function ShaderFunctionsDemo() {
           </select>
           {selectedEntry === undefined ? null : (
             <>
-              <p className="panel-note fn-signature">{selectedEntry.signature}</p>
+              <p className="panel-note fn-signature">
+                {selectedEntry.signature}
+              </p>
               <p className="panel-note">{selectedEntry.doc}</p>
             </>
           )}
         </div>
       </div>
-      <DemoStats stats={stats}>brometal/shader-functions — inlined at build time</DemoStats>
+      <DemoStats stats={stats}>
+        brometal/shader-functions — inlined at build time
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

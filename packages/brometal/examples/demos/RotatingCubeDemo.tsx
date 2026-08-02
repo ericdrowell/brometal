@@ -1,14 +1,17 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { createProgram, createRenderer, mat4 } from 'brometal';
-import cubeShader from '../shaders/color-cube.shader.gen';
-import { colors, indices, positions } from '@/lib/cube-geometry';
-import DemoStats, { useFrameStats } from './_site/DemoStats';
+import { useEffect, useRef, useState } from "react";
+import { createProgram, createRenderer, mat4 } from "brometal";
+import cubeShader from "@/shaders/color-cube.shader.gen";
+import { colors, indices, positions } from "@/lib/cube-geometry";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 export default function RotatingCubeDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
+
+  const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -17,7 +20,11 @@ export default function RotatingCubeDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1], cull: 'back' });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.07, 0.07, 0.1, 1],
+        cull: "back",
+      });
       if (cancelled) {
         renderer.destroy();
         return;
@@ -36,7 +43,11 @@ export default function RotatingCubeDemo() {
       const stop = renderer.loop((t) => {
         tick(t);
         mat4.perspective(Math.PI / 4, renderer.aspect, 0.1, 100, projection);
-        mat4.multiply(mat4.rotationY(t * 0.9, model), mat4.rotationX(t * 0.6, tilt), model);
+        mat4.multiply(
+          mat4.rotationY(t * 0.9, model),
+          mat4.rotationX(t * 0.6, tilt),
+          model,
+        );
         mat4.multiply(view, model, mvp);
         mat4.multiply(projection, mvp, mvp);
         program.uniforms.uMvp.set(mvp);
@@ -48,7 +59,7 @@ export default function RotatingCubeDemo() {
         program.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -60,6 +71,7 @@ export default function RotatingCubeDemo() {
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
       <DemoStats stats={stats}>One cube, one shader compiled to WGSL</DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

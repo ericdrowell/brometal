@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### Added
+- **Typed, catchable errors.** `BroMetalError` carries a `code` an application
+  can branch on: `webgpu-unavailable`, `adapter-unavailable`,
+  `device-unavailable`, `context-unavailable`, `device-lost`, `gpu-error`. The
+  distinction matters — a browser without WebGPU and a machine whose adapter
+  request was refused look identical on a canvas but need different advice.
+  `isBroMetalError` narrows an unknown caught value.
+- **`createRenderer(canvas, { onError })`.** Called when the GPU fails *after*
+  the renderer exists. Creation failures reject the promise and are caught
+  normally; these cannot be, because they happen frames later with no call of
+  yours on the stack. Wired to `device.lost` and the device's `uncapturederror`
+  event, neither of which was previously observed at all — so a lost device or a
+  pipeline that failed validation simply stopped drawing, with no exception
+  anywhere and nothing in the console. With no handler the runtime warns once and
+  then stays quiet, since a bad pipeline re-raises every frame.
+- **`adapter-unavailable` is now its own failure.** WebGPU present but no adapter
+  granted is common — virtual machines, remote desktop, blocklisted drivers,
+  hardware acceleration switched off — and it previously threw a message that
+  told the user nothing actionable.
+
+### Improved
+- **The library still renders nothing on failure.** No message is drawn into the
+  canvas and no DOM is touched; where and how to show a failure belongs to the
+  application, in its own design language. What the runtime owes it is a failure
+  that is catchable, distinguishable, and never silent.
+- **`npm run test:gpu` runs Chrome and WebKit.** Chrome covers the real WebGPU
+  path; Playwright's WebKit exposes no `navigator.gpu`, which makes it an exact
+  stand-in for a Safari without WebGPU and lets the rejection, its code, and the
+  canvas being left untouched all be asserted on a real browser. WebKit needs a
+  one-time `npx playwright-core install webkit`. This does not cover Safari's
+  stricter WGSL validation — Playwright cannot drive real Safari, and its WebKit
+  build has no WebGPU — so that remains a manual check.
+
 ## 0.14.0 (2026-08-02)
 
 ### Added

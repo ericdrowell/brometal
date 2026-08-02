@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createPlane,
   createProgram,
@@ -9,8 +9,9 @@ import {
   type BroMetalProgram,
   type CompiledShader,
   type GpuRecord,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 import {
   valueNoiseShader,
@@ -43,9 +44,9 @@ import {
   warpShader,
   worleyEdgesShader,
   toonShader,
-} from 'brometal/shaders';
+} from "brometal/shaders";
 
-const IMAGE_TEXTURE = 'bricks104';
+const IMAGE_TEXTURE = "bricks104";
 
 interface Entry {
   key: string;
@@ -62,58 +63,200 @@ interface Group {
 
 const GROUPS: Group[] = [
   {
-    title: 'Fundamentals',
+    title: "Fundamentals",
     entries: [
-      { key: 'value-noise', title: 'Value Noise', uses: 'vnoise2', shader: valueNoiseShader },
-      { key: 'fbm', title: 'FBM Clouds', uses: 'fbm2', shader: fbmShader },
-      { key: 'voronoi', title: 'Voronoi', uses: 'voronoi2 · hash22', shader: voronoiShader },
-      { key: 'palette', title: 'Cosine Palette', uses: 'cosinePalette', shader: paletteShader },
-      { key: 'hsv', title: 'HSV Wheel', uses: 'hsv2rgb · sdCircle · fillAA', shader: hsvShader },
-      { key: 'sdf', title: 'SDF Shapes', uses: 'sdCircle · sdBox2 · smoothUnion · fillAA', shader: sdfShader },
-      { key: 'easing', title: 'Easing Race', uses: 'easeOutBounce · easeOutElastic · easeInOutCubic', shader: easingShader },
-      { key: 'lighting', title: 'Lighting', uses: 'lambert · blinnPhongSpec · fresnel · hemisphereLight', shader: lightingShader },
-      { key: 'toon', title: 'Toon Shading', uses: 'toonShade · specGGX', shader: toonShader },
-      { key: 'tonemap', title: 'ACES Tonemap', uses: 'tonemapACES · gammaCorrect · fbm2', shader: tonemapShader },
+      {
+        key: "value-noise",
+        title: "Value Noise",
+        uses: "vnoise2",
+        shader: valueNoiseShader,
+      },
+      { key: "fbm", title: "FBM Clouds", uses: "fbm2", shader: fbmShader },
+      {
+        key: "voronoi",
+        title: "Voronoi",
+        uses: "voronoi2 · hash22",
+        shader: voronoiShader,
+      },
+      {
+        key: "palette",
+        title: "Cosine Palette",
+        uses: "cosinePalette",
+        shader: paletteShader,
+      },
+      {
+        key: "hsv",
+        title: "HSV Wheel",
+        uses: "hsv2rgb · sdCircle · fillAA",
+        shader: hsvShader,
+      },
+      {
+        key: "sdf",
+        title: "SDF Shapes",
+        uses: "sdCircle · sdBox2 · smoothUnion · fillAA",
+        shader: sdfShader,
+      },
+      {
+        key: "easing",
+        title: "Easing Race",
+        uses: "easeOutBounce · easeOutElastic · easeInOutCubic",
+        shader: easingShader,
+      },
+      {
+        key: "lighting",
+        title: "Lighting",
+        uses: "lambert · blinnPhongSpec · fresnel · hemisphereLight",
+        shader: lightingShader,
+      },
+      {
+        key: "toon",
+        title: "Toon Shading",
+        uses: "toonShade · specGGX",
+        shader: toonShader,
+      },
+      {
+        key: "tonemap",
+        title: "ACES Tonemap",
+        uses: "tonemapACES · gammaCorrect · fbm2",
+        shader: tonemapShader,
+      },
     ],
   },
   {
-    title: 'Patterns',
+    title: "Patterns",
     entries: [
-      { key: 'checker', title: 'Checkerboard', uses: 'rotate2', shader: checkerShader },
-      { key: 'rings', title: 'Rings', uses: 'fbm2 · cosinePalette', shader: ringsShader },
-      { key: 'kaleidoscope', title: 'Kaleidoscope', uses: 'fbm2 · cosinePalette', shader: kaleidoscopeShader },
-      { key: 'worley-edges', title: 'Worley Edges', uses: 'worleyEdge2', shader: worleyEdgesShader },
-      { key: 'tunnel', title: 'Tunnel', uses: 'rotate2', shader: tunnelShader },
+      {
+        key: "checker",
+        title: "Checkerboard",
+        uses: "rotate2",
+        shader: checkerShader,
+      },
+      {
+        key: "rings",
+        title: "Rings",
+        uses: "fbm2 · cosinePalette",
+        shader: ringsShader,
+      },
+      {
+        key: "kaleidoscope",
+        title: "Kaleidoscope",
+        uses: "fbm2 · cosinePalette",
+        shader: kaleidoscopeShader,
+      },
+      {
+        key: "worley-edges",
+        title: "Worley Edges",
+        uses: "worleyEdge2",
+        shader: worleyEdgesShader,
+      },
+      { key: "tunnel", title: "Tunnel", uses: "rotate2", shader: tunnelShader },
     ],
   },
   {
-    title: 'Animated',
+    title: "Animated",
     entries: [
-      { key: 'metaballs', title: 'Metaballs', uses: 'cosinePalette', shader: metaballsShader },
-      { key: 'starfield', title: 'Starfield', uses: 'hash22 · hash21', shader: starfieldShader },
-      { key: 'fire', title: 'Fire', uses: 'fbm2', shader: fireShader },
-      { key: 'caustics', title: 'Caustics', uses: 'voronoi2', shader: causticsShader },
-      { key: 'warp', title: 'Domain Warp', uses: 'warp2 · cosinePalette', shader: warpShader },
-      { key: 'electric', title: 'Lightning', uses: 'fbm2 · hash11', shader: electricShader },
+      {
+        key: "metaballs",
+        title: "Metaballs",
+        uses: "cosinePalette",
+        shader: metaballsShader,
+      },
+      {
+        key: "starfield",
+        title: "Starfield",
+        uses: "hash22 · hash21",
+        shader: starfieldShader,
+      },
+      { key: "fire", title: "Fire", uses: "fbm2", shader: fireShader },
+      {
+        key: "caustics",
+        title: "Caustics",
+        uses: "voronoi2",
+        shader: causticsShader,
+      },
+      {
+        key: "warp",
+        title: "Domain Warp",
+        uses: "warp2 · cosinePalette",
+        shader: warpShader,
+      },
+      {
+        key: "electric",
+        title: "Lightning",
+        uses: "fbm2 · hash11",
+        shader: electricShader,
+      },
     ],
   },
   {
-    title: 'Fractals & 3D',
+    title: "Fractals & 3D",
     entries: [
-      { key: 'julia', title: 'Julia Set', uses: 'cosinePalette', shader: juliaShader },
-      { key: 'raymarch', title: 'Raymarched Scene', uses: 'sdSphere3 · sdBox3 · sdTorus3 · smoothUnion · lambert · fresnel', shader: raymarchShader },
+      {
+        key: "julia",
+        title: "Julia Set",
+        uses: "cosinePalette",
+        shader: juliaShader,
+      },
+      {
+        key: "raymarch",
+        title: "Raymarched Scene",
+        uses: "sdSphere3 · sdBox3 · sdTorus3 · smoothUnion · lambert · fresnel",
+        shader: raymarchShader,
+      },
     ],
   },
   {
-    title: 'Image Effects',
+    title: "Image Effects",
     entries: [
-      { key: 'pixelate', title: 'Pixelate', uses: 'texture()', needsTexture: true, shader: pixelateShader },
-      { key: 'crt', title: 'CRT', uses: 'texture()', needsTexture: true, shader: crtShader },
-      { key: 'chromatic', title: 'Chromatic Aberration', uses: 'texture()', needsTexture: true, shader: chromaticShader },
-      { key: 'halftone', title: 'Halftone', uses: 'luminance · rotate2 · fillAA', needsTexture: true, shader: halftoneShader },
-      { key: 'edges', title: 'Edge Detect', uses: 'luminance', needsTexture: true, shader: edgesShader },
-      { key: 'glitch', title: 'Glitch', uses: 'hash11', needsTexture: true, shader: glitchShader },
-      { key: 'sepia', title: 'Sepia + Vignette', uses: 'luminance', needsTexture: true, shader: sepiaShader },
+      {
+        key: "pixelate",
+        title: "Pixelate",
+        uses: "texture()",
+        needsTexture: true,
+        shader: pixelateShader,
+      },
+      {
+        key: "crt",
+        title: "CRT",
+        uses: "texture()",
+        needsTexture: true,
+        shader: crtShader,
+      },
+      {
+        key: "chromatic",
+        title: "Chromatic Aberration",
+        uses: "texture()",
+        needsTexture: true,
+        shader: chromaticShader,
+      },
+      {
+        key: "halftone",
+        title: "Halftone",
+        uses: "luminance · rotate2 · fillAA",
+        needsTexture: true,
+        shader: halftoneShader,
+      },
+      {
+        key: "edges",
+        title: "Edge Detect",
+        uses: "luminance",
+        needsTexture: true,
+        shader: edgesShader,
+      },
+      {
+        key: "glitch",
+        title: "Glitch",
+        uses: "hash11",
+        needsTexture: true,
+        shader: glitchShader,
+      },
+      {
+        key: "sepia",
+        title: "Sepia + Vignette",
+        uses: "luminance",
+        needsTexture: true,
+        shader: sepiaShader,
+      },
     ],
   },
 ];
@@ -121,9 +264,9 @@ const GROUPS: Group[] = [
 const ALL_ENTRIES = GROUPS.flatMap((group) => group.entries);
 
 type QuadProgram = BroMetalProgram<
-  { aPosition: 'vec3'; aUv: 'vec2' },
+  { aPosition: "vec3"; aUv: "vec2" },
   GpuRecord,
-  { uTime: 'float'; uAspect: 'float' }
+  { uTime: "float"; uAspect: "float" }
 >;
 
 export default function ShaderLibraryDemo() {
@@ -132,6 +275,8 @@ export default function ShaderLibraryDemo() {
   const activeRef = useRef(ALL_ENTRIES[0]!.key);
   const [selected, setSelected] = useState(ALL_ENTRIES[0]!.key);
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -139,7 +284,10 @@ export default function ShaderLibraryDemo() {
     let cleanup: (() => void) | null = null;
 
     void (async () => {
-      const renderer = await createRenderer(canvas, { clearColor: [0.07, 0.07, 0.1, 1] });
+      const renderer = await createRenderer(canvas, {
+        onError: report,
+        clearColor: [0.07, 0.07, 0.1, 1],
+      });
       if (cancelled) {
         renderer.destroy();
         return;
@@ -147,7 +295,10 @@ export default function ShaderLibraryDemo() {
 
       const quad = createPlane({ width: 2, height: 2 });
       const programs = new Map<string, QuadProgram>();
-      const texture = await loadTexture(renderer, `/textures/${IMAGE_TEXTURE}.jpg`);
+      const texture = await loadTexture(
+        renderer,
+        `/textures/${IMAGE_TEXTURE}.jpg`,
+      );
       if (cancelled) {
         texture.dispose();
         renderer.destroy();
@@ -155,12 +306,17 @@ export default function ShaderLibraryDemo() {
       }
 
       for (const entry of ALL_ENTRIES) {
-        const program = createProgram(renderer, entry.shader) as unknown as QuadProgram;
+        const program = createProgram(
+          renderer,
+          entry.shader,
+        ) as unknown as QuadProgram;
         program.attributes.aPosition.set(quad.positions);
         program.attributes.aUv.set(quad.uvs);
         program.setIndices(quad.indices);
         if (entry.needsTexture === true) {
-          (program.uniforms as Record<string, { set(value: unknown): void }>).uTex!.set(texture);
+          (
+            program.uniforms as Record<string, { set(value: unknown): void }>
+          ).uTex!.set(texture);
         }
         programs.set(entry.key, program);
       }
@@ -183,7 +339,7 @@ export default function ShaderLibraryDemo() {
         texture.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -205,8 +361,9 @@ export default function ShaderLibraryDemo() {
         <div className="panel">
           <h1>Shader Library</h1>
           <p className="panel-note">
-            {ALL_ENTRIES.length} effects shipped prebuilt in <code>brometal/shaders</code> —
-            compiled at package build time, zero compilation in your app.
+            {ALL_ENTRIES.length} effects shipped prebuilt in{" "}
+            <code>brometal/shaders</code> — compiled at package build time, zero
+            compilation in your app.
           </p>
           <select
             className="effect-select"
@@ -226,7 +383,10 @@ export default function ShaderLibraryDemo() {
           <p className="panel-note uses-note">{selectedEntry?.uses}</p>
         </div>
       </div>
-      <DemoStats stats={stats}>brometal/shaders — precompiled, nothing compiled at runtime</DemoStats>
+      <DemoStats stats={stats}>
+        brometal/shaders — precompiled, nothing compiled at runtime
+      </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

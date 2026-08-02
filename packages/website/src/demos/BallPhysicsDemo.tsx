@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createCube,
@@ -10,15 +10,16 @@ import {
   createRenderer,
   createSphere,
   type RenderTarget,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import physicsShader from '@/shaders/balls-physics.shader.gen';
-import shadowShader from '@/shaders/balls-shadow.shader.gen';
-import floorShader from '@/shaders/balls-floor.shader.gen';
-import seedShader from '@/shaders/balls-seed.shader.gen';
-import ballsShader from '@/shaders/balls-render.shader.gen';
-import glassShader from '@/shaders/balls-glass.shader.gen';
-import backdropShader from '@/shaders/balls-backdrop.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import physicsShader from "@/shaders/balls-physics.shader.gen";
+import shadowShader from "@/shaders/balls-shadow.shader.gen";
+import floorShader from "@/shaders/balls-floor.shader.gen";
+import seedShader from "@/shaders/balls-seed.shader.gen";
+import ballsShader from "@/shaders/balls-render.shader.gen";
+import glassShader from "@/shaders/balls-glass.shader.gen";
+import backdropShader from "@/shaders/balls-backdrop.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 const MAX_BALLS = 320;
 const DEFAULT_BALLS = 160;
@@ -47,7 +48,6 @@ const SHADOW_SIZE = 1024;
  */
 const SCENE_SCALE = 0.5;
 
-
 export default function BallPhysicsDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
@@ -60,6 +60,8 @@ export default function BallPhysicsDemo() {
   const gravityRef = useRef(gravity);
   const shakeRef = useRef(0);
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -68,9 +70,10 @@ export default function BallPhysicsDemo() {
 
     void (async () => {
       const renderer = await createRenderer(canvas, {
+        onError: report,
         clearColor: [0.02, 0.02, 0.03, 1],
         // Glass needs both faces, so culling stays off for the whole scene.
-        cull: 'none',
+        cull: "none",
       });
       if (cancelled) {
         renderer.destroy();
@@ -78,15 +81,25 @@ export default function BallPhysicsDemo() {
       }
 
       const quad = createPlane({ width: 2, height: 2 });
-      const ball = createSphere({ radius: 1, widthSegments: 26, heightSegments: 18 });
+      const ball = createSphere({
+        radius: 1,
+        widthSegments: 26,
+        heightSegments: 18,
+      });
       const box = createCube({ width: 1, height: 1, depth: 1 });
 
       // ── State lives in a pair of float targets, N wide and 2 tall ─────────
       // Left half is position, right half velocity — laid out along X because
       // texture V points opposite ways on the two backends. One is read while
       // the other is written, then they swap; the CPU never sees a coordinate.
-      let read: RenderTarget = createRenderTarget(renderer, { width: countRef.current * 2, height: 1 });
-      let write: RenderTarget = createRenderTarget(renderer, { width: countRef.current * 2, height: 1 });
+      let read: RenderTarget = createRenderTarget(renderer, {
+        width: countRef.current * 2,
+        height: 1,
+      });
+      let write: RenderTarget = createRenderTarget(renderer, {
+        width: countRef.current * 2,
+        height: 1,
+      });
 
       // Depth-tested, unlike the state targets: the map has to keep the
       // nearest ball to the light, not the last one drawn.
@@ -153,7 +166,7 @@ export default function BallPhysicsDemo() {
       balls.uniforms.uSoftness.set(1.2);
       balls.uniforms.uBias.set(0.035);
 
-      const glass = createProgram(renderer, glassShader, { blend: 'alpha' });
+      const glass = createProgram(renderer, glassShader, { blend: "alpha" });
       glass.attributes.aPosition.set(box.positions);
       glass.attributes.aNormal.set(box.normals);
       glass.setIndices(box.indices);
@@ -195,7 +208,9 @@ export default function BallPhysicsDemo() {
         write = createRenderTarget(renderer, { width: n * 2, height: 1 });
         seed.uniforms.uCount.set(n);
         physics.uniforms.uCount.set(n);
-        const indices = new Float32Array(Array.from({ length: n }, (_, i) => i));
+        const indices = new Float32Array(
+          Array.from({ length: n }, (_, i) => i),
+        );
         balls.uniforms.uCount.set(n);
         balls.instanceAttributes.iIndex.set(indices);
         shadow.uniforms.uCount.set(n);
@@ -216,18 +231,32 @@ export default function BallPhysicsDemo() {
         const h = Math.max(2, Math.round(renderer.canvas.height * SCENE_SCALE));
         if (sceneTarget === null || w !== sceneW || h !== sceneH) {
           sceneTarget?.dispose();
-          sceneTarget = createRenderTarget(renderer, { width: w, height: h, depth: true });
+          sceneTarget = createRenderTarget(renderer, {
+            width: w,
+            height: h,
+            depth: true,
+          });
           sceneW = w;
           sceneH = h;
         }
         return sceneTarget;
       };
 
-      const camera = createCamera({ position: [0, 1.4, 7.2], fovY: 0.85, near: 0.3, far: 40 });
+      const camera = createCamera({
+        position: [0, 1.4, 7.2],
+        fovY: 0.85,
+        near: 0.3,
+        far: 40,
+      });
       // Wide enough to hold the tank's bounding sphere from where the light
       // stands. Anything outside the cone reads as lit, so a tight fit here
       // buys resolution and a loose one costs nothing but sharpness.
-      const lightCamera = createCamera({ position: LIGHT_POS, fovY: 0.62, near: 6, far: LIGHT_RANGE });
+      const lightCamera = createCamera({
+        position: LIGHT_POS,
+        fovY: 0.62,
+        near: 6,
+        far: LIGHT_RANGE,
+      });
       lightCamera.lookAt(0, 0, 0);
       let last = 0;
       let carry = 0;
@@ -341,7 +370,7 @@ export default function BallPhysicsDemo() {
         backdrop.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -356,13 +385,15 @@ export default function BallPhysicsDemo() {
         <div className="panel">
           <h1>Ball Physics</h1>
           <p className="panel-note">
-            {count} balls, simulated entirely on the GPU. Position and velocity live in a float
-            render target; each frame a fragment pass integrates them and resolves every contact,
-            then the spheres read their own centres out of that texture in the vertex shader. The
-            CPU uploads gravity and a timestep — nothing else. A shadow pass reads the same
-            texture from the light&rsquo;s point of view, so the heap shadows itself without a
-            single position ever coming back to the CPU. The glass reflects the pile by marching
-            its reflected ray through an off-screen copy of the scene.
+            {count} balls, simulated entirely on the GPU. Position and velocity
+            live in a float render target; each frame a fragment pass integrates
+            them and resolves every contact, then the spheres read their own
+            centres out of that texture in the vertex shader. The CPU uploads
+            gravity and a timestep — nothing else. A shadow pass reads the same
+            texture from the light&rsquo;s point of view, so the heap shadows
+            itself without a single position ever coming back to the CPU. The
+            glass reflects the pile by marching its reflected ray through an
+            off-screen copy of the scene.
           </p>
           <div className="row">
             <label htmlFor="count">Balls</label>
@@ -416,14 +447,20 @@ export default function BallPhysicsDemo() {
             />
             <output htmlFor="gravity">{gravity.toFixed(1)}</output>
           </div>
-          <button type="button" className="reset" onClick={() => shakeRef.current++}>
+          <button
+            type="button"
+            className="reset"
+            onClick={() => shakeRef.current++}
+          >
             Shake
           </button>
         </div>
       </div>
       <DemoStats stats={stats}>
-        {count} balls · 4 GPU passes per frame: physics, shadow, scene copy, render
+        {count} balls · 4 GPU passes per frame: physics, shadow, scene copy,
+        render
       </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }

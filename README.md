@@ -306,6 +306,47 @@ Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/
 
 Anything outside the subset fails compilation with a precise, actionable error.
 
+## Handling failure
+
+The runtime draws nothing when it fails — no message painted into your canvas,
+no DOM touched. Showing a problem is the application's job, so what you get is a
+failure you can catch and identify.
+
+```ts
+import { createRenderer, isBroMetalError } from 'brometal';
+
+try {
+  const renderer = await createRenderer(canvas, {
+    // Fires for failures that happen *after* creation — a lost device, or a
+    // pipeline that failed validation. These cannot be caught: they arrive
+    // frames later with none of your code on the stack.
+    onError: (error) => showToast(error.code, error.message),
+  });
+} catch (error) {
+  if (isBroMetalError(error) && error.code === 'webgpu-unavailable') {
+    showUpgradePrompt();
+  }
+}
+```
+
+| code | means |
+|---|---|
+| `webgpu-unavailable` | no `navigator.gpu` — the browser has no WebGPU |
+| `gpu-adapter-unavailable` | WebGPU exists but no GPU was granted (VM, remote desktop, acceleration off) |
+| `gpu-device-unavailable` | an adapter was granted but the device request failed |
+| `canvas-context-unavailable` | the canvas would not return a WebGPU context, usually because it already has another kind |
+| `gpu-device-lost` | the device died after creation; nothing will draw again |
+| `gpu-error` | an uncaptured GPU error — failed validation, or out of memory |
+
+Each code reads as the sentence a user should see: `errorTitle(code)` turns
+`gpu-adapter-unavailable` into "GPU adapter unavailable". The label is derived
+rather than looked up, so a code and its wording cannot drift apart.
+
+Wiring `onError` is worth it even if you only log. WebGPU reports most problems
+asynchronously, so an invalid pipeline draws nothing and a lost device stops
+producing frames — both with no exception raised anywhere. Without a handler the
+runtime warns once to the console, which is a last resort rather than a feature.
+
 ## WebGPU
 
 Every shader compiles to WGSL. There is no second backend: WebGL2 support was
@@ -372,5 +413,20 @@ packages/website/   # Next.js site (brometal.dev): homepage + all example pages
 npm run build       # compile the package (tsc)
 npm test            # vitest: compiler goldens, analyzer errors, optimizer, math, CLI
 npm run typecheck   # strict tsc across package + example
+npm run test:gpu    # real GPU: drives Chrome and WebKit, asserts on pixels
 ```
+
+`npm test` runs in node and can only check the *text* the compiler emits. It
+cannot see an invalid bind group, a pipeline that fails to create, or a uniform
+that is never uploaded — four such bugs once shipped past a green suite.
+`test:gpu` covers that, driving the system Chrome for the real WebGPU path and
+Playwright's WebKit for the no-WebGPU path. WebKit needs a one-time
+`npx playwright-core install webkit`; Chrome is used from the machine, not
+downloaded.
+
+Note what `test:gpu` does **not** cover: Safari's WGSL validation is stricter
+than Chrome's, and a shader Chrome accepts can be rejected there — which shows
+up as a pass that draws nothing. Playwright cannot drive real Safari, and its
+WebKit build ships no WebGPU, so that gap needs a manual check on a real
+Safari.
 

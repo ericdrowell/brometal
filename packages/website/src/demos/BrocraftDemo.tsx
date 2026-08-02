@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   createCamera,
   createCube,
@@ -8,11 +8,12 @@ import {
   createProgram,
   createRenderer,
   loadTexture,
-} from 'brometal';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import blocksShader from '@/shaders/brocraft-blocks.shader.gen';
-import waterShader from '@/shaders/brocraft-water.shader.gen';
-import skyShader from '@/shaders/brocraft-sky.shader.gen';
+} from "brometal";
+import DemoStats, { useFrameStats } from "@/components/DemoStats";
+import blocksShader from "@/shaders/brocraft-blocks.shader.gen";
+import waterShader from "@/shaders/brocraft-water.shader.gen";
+import skyShader from "@/shaders/brocraft-sky.shader.gen";
+import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 const SEA_LEVEL = 0;
 const AMPLITUDE = 1;
@@ -21,9 +22,9 @@ const WALK = 11;
 const SPRINT = 34;
 
 const DISTANCES = [
-  { label: 'Near', radius: 40 },
-  { label: 'Medium', radius: 56 },
-  { label: 'Far', radius: 72 },
+  { label: "Near", radius: 40 },
+  { label: "Medium", radius: 56 },
+  { label: "Far", radius: 72 },
 ];
 
 /**
@@ -32,7 +33,10 @@ const DISTANCES = [
  * offset is repeated once per layer — one instance per potential block —
  * and the shader turns (offset, layer) into a world position.
  */
-function buildCells(radius: number, layers: number): { blocks: Float32Array; water: Float32Array } {
+function buildCells(
+  radius: number,
+  layers: number,
+): { blocks: Float32Array; water: Float32Array } {
   const cells: { x: number; z: number; d: number }[] = [];
   const r2 = radius * radius;
   for (let x = -radius; x <= radius; x++) {
@@ -92,12 +96,22 @@ function palette(elevation: number) {
   };
   const dawn = smooth(-0.09, 0.05, elevation);
   const noon = smooth(0.05, 0.36, elevation);
-  const horizon = lerp3(lerp3(night.horizon, golden.horizon, dawn), day.horizon, noon);
-  const zenith = lerp3(lerp3(night.zenith, golden.zenith, dawn), day.zenith, noon);
+  const horizon = lerp3(
+    lerp3(night.horizon, golden.horizon, dawn),
+    day.horizon,
+    noon,
+  );
+  const zenith = lerp3(
+    lerp3(night.zenith, golden.zenith, dawn),
+    day.zenith,
+    noon,
+  );
   const sun = lerp3(lerp3(night.sun, golden.sun, dawn), day.sun, noon);
   // Ambient: the sky bounces onto upward faces, the ground onto downward ones.
   const skyTint = lerp3(zenith, horizon, 0.5).map((c) => c * 0.95) as Vec3;
-  const groundTint = [0.22, 0.19, 0.15].map((c) => c * (0.25 + noon * 0.75)) as Vec3;
+  const groundTint = [0.22, 0.19, 0.15].map(
+    (c) => c * (0.25 + noon * 0.75),
+  ) as Vec3;
   return { horizon, zenith, sun, skyTint, groundTint };
 }
 
@@ -115,6 +129,8 @@ export default function BrocraftDemo() {
   const todRef = useRef(timeOfDay);
   const rebuildRef = useRef(0);
 
+  const { error, report, dismiss } = useBroMetalError();
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
@@ -123,8 +139,9 @@ export default function BrocraftDemo() {
 
     void (async () => {
       const renderer = await createRenderer(canvas, {
+        onError: report,
         clearColor: [0.55, 0.72, 0.92, 1],
-        cull: 'back',
+        cull: "back",
       });
       if (cancelled) {
         renderer.destroy();
@@ -149,7 +166,7 @@ export default function BrocraftDemo() {
       blocks.uniforms.uAmp.set(AMPLITUDE);
 
       // ── Water: one alpha-blended quad per column, laid at sea level ──────
-      const water = createProgram(renderer, waterShader, { blend: 'alpha' });
+      const water = createProgram(renderer, waterShader, { blend: "alpha" });
       const tile = createPlane({ width: 1, height: 1 });
       water.attributes.aPosition.set(tile.positions);
       water.setIndices(tile.indices);
@@ -160,10 +177,18 @@ export default function BrocraftDemo() {
         // Anisotropy is what keeps ground stretching to the horizon from
         // shimmering — trilinear alone has to pick one mip for a footprint
         // that is many texels long and one wide.
-        loadTexture(renderer, '/textures/brocraft-grass.jpg', { anisotropy: 16 }),
-        loadTexture(renderer, '/textures/brocraft-dirt.jpg', { anisotropy: 16 }),
-        loadTexture(renderer, '/textures/brocraft-stone.jpg', { anisotropy: 16 }),
-        loadTexture(renderer, '/textures/brocraft-sand.jpg', { anisotropy: 16 }),
+        loadTexture(renderer, "/textures/brocraft-grass.jpg", {
+          anisotropy: 16,
+        }),
+        loadTexture(renderer, "/textures/brocraft-dirt.jpg", {
+          anisotropy: 16,
+        }),
+        loadTexture(renderer, "/textures/brocraft-stone.jpg", {
+          anisotropy: 16,
+        }),
+        loadTexture(renderer, "/textures/brocraft-sand.jpg", {
+          anisotropy: 16,
+        }),
       ]);
       if (cancelled) {
         renderer.destroy();
@@ -193,7 +218,12 @@ export default function BrocraftDemo() {
       // Depth range is kept tight rather than generous: a block world stacks a lot
       // of nearly-coplanar faces, and 0.08/900 spends most of the depth buffer on
       // the first metre.
-      const camera = createCamera({ position: [24, 21, 140], fovY: FOV, near: 0.35, far: 400 });
+      const camera = createCamera({
+        position: [24, 21, 140],
+        fovY: FOV,
+        near: 0.35,
+        far: 400,
+      });
       let px = 24;
       let py = 21;
       let pz = 140;
@@ -203,7 +233,7 @@ export default function BrocraftDemo() {
       const keys = new Set<string>();
       const onKeyDown = (event: KeyboardEvent): void => {
         keys.add(event.code);
-        if (event.code === 'Space') event.preventDefault();
+        if (event.code === "Space") event.preventDefault();
       };
       const onKeyUp = (event: KeyboardEvent): void => {
         keys.delete(event.code);
@@ -220,11 +250,11 @@ export default function BrocraftDemo() {
         setLocked(isLocked);
         if (!isLocked) keys.clear();
       };
-      window.addEventListener('keydown', onKeyDown);
-      window.addEventListener('keyup', onKeyUp);
-      window.addEventListener('mousemove', onMouseMove);
-      canvas.addEventListener('click', onClick);
-      document.addEventListener('pointerlockchange', onLockChange);
+      window.addEventListener("keydown", onKeyDown);
+      window.addEventListener("keyup", onKeyUp);
+      window.addEventListener("mousemove", onMouseMove);
+      canvas.addEventListener("click", onClick);
+      document.addEventListener("pointerlockchange", onLockChange);
 
       let last = 0;
       // The position readout is React state, so it is throttled rather than set
@@ -247,30 +277,32 @@ export default function BrocraftDemo() {
         const fz = -Math.cos(yaw) * cp;
         const rx = Math.cos(yaw);
         const rz = -Math.sin(yaw);
-        const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight') ? SPRINT : WALK) * dt;
+        const speed =
+          (keys.has("ShiftLeft") || keys.has("ShiftRight") ? SPRINT : WALK) *
+          dt;
         let mx = 0;
         let my = 0;
         let mz = 0;
-        if (keys.has('KeyW')) {
+        if (keys.has("KeyW")) {
           mx += fx;
           my += fy;
           mz += fz;
         }
-        if (keys.has('KeyS')) {
+        if (keys.has("KeyS")) {
           mx -= fx;
           my -= fy;
           mz -= fz;
         }
-        if (keys.has('KeyD')) {
+        if (keys.has("KeyD")) {
           mx += rx;
           mz += rz;
         }
-        if (keys.has('KeyA')) {
+        if (keys.has("KeyA")) {
           mx -= rx;
           mz -= rz;
         }
-        if (keys.has('Space')) my += 1;
-        if (keys.has('ControlLeft') || keys.has('KeyC')) my -= 1;
+        if (keys.has("Space")) my += 1;
+        if (keys.has("ControlLeft") || keys.has("KeyC")) my -= 1;
         const len = Math.hypot(mx, my, mz);
         if (len > 0) {
           px += (mx / len) * speed;
@@ -285,7 +317,11 @@ export default function BrocraftDemo() {
 
         // Sun: the slider sweeps it from before dawn to after dusk.
         const angle = (-0.15 + 1.3 * todRef.current) * Math.PI;
-        const sunDir: [number, number, number] = [Math.cos(angle) * 0.86, Math.sin(angle), 0.42];
+        const sunDir: [number, number, number] = [
+          Math.cos(angle) * 0.86,
+          Math.sin(angle),
+          0.42,
+        ];
         const sky3 = palette(Math.sin(angle));
         const fogStart = radius * 0.58;
         const fogEnd = radius - 0.5;
@@ -307,7 +343,11 @@ export default function BrocraftDemo() {
         blocks.draw();
 
         sky.uniforms.uRight.set([rx, 0, rz]);
-        sky.uniforms.uUp.set([Math.sin(pitch) * Math.sin(yaw), cp, Math.sin(pitch) * Math.cos(yaw)]);
+        sky.uniforms.uUp.set([
+          Math.sin(pitch) * Math.sin(yaw),
+          cp,
+          Math.sin(pitch) * Math.cos(yaw),
+        ]);
         sky.uniforms.uForward.set([fx, fy, fz]);
         sky.uniforms.uCamPos.set(viewPos);
         sky.uniforms.uSunDir.set(sunDir);
@@ -334,17 +374,22 @@ export default function BrocraftDemo() {
         hudClock += dt;
         if (hudClock >= 0.5) {
           hudClock = 0;
-          setWorld({ x: Math.round(px), y: Math.round(py), z: Math.round(pz), blocks: blockCount });
+          setWorld({
+            x: Math.round(px),
+            y: Math.round(py),
+            z: Math.round(pz),
+            blocks: blockCount,
+          });
         }
       });
 
       cleanup = () => {
         stop();
-        window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('keyup', onKeyUp);
-        window.removeEventListener('mousemove', onMouseMove);
-        canvas.removeEventListener('click', onClick);
-        document.removeEventListener('pointerlockchange', onLockChange);
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("keyup", onKeyUp);
+        window.removeEventListener("mousemove", onMouseMove);
+        canvas.removeEventListener("click", onClick);
+        document.removeEventListener("pointerlockchange", onLockChange);
         grass.dispose();
         dirt.dispose();
         stone.dispose();
@@ -354,7 +399,7 @@ export default function BrocraftDemo() {
         water.dispose();
         renderer.destroy();
       };
-    })();
+    })().catch(report);
 
     return () => {
       cancelled = true;
@@ -384,15 +429,19 @@ export default function BrocraftDemo() {
       {!locked ? (
         <div className="play-prompt">
           <strong>Click to play</strong>
-          <span>WASD move · mouse look · Space up · C down · Shift sprint · Esc release</span>
+          <span>
+            WASD move · mouse look · Space up · C down · Shift sprint · Esc
+            release
+          </span>
         </div>
       ) : null}
       <div className="panels">
         <div className="panel">
           <h1>Brocraft</h1>
           <p className="panel-note">
-            Layered grids of instanced cubes. The CPU uploads integer grid offsets <em>once</em>;
-            every height, material, and cull decision is made in the vertex shader.
+            Layered grids of instanced cubes. The CPU uploads integer grid
+            offsets <em>once</em>; every height, material, and cull decision is
+            made in the vertex shader.
           </p>
           <h2>View distance</h2>
           <div className="tiles brocraft-tiles">
@@ -400,7 +449,7 @@ export default function BrocraftDemo() {
               <button
                 key={option.label}
                 type="button"
-                className={distance === index ? 'selected' : undefined}
+                className={distance === index ? "selected" : undefined}
                 onClick={() => onDistance(index)}
               >
                 {option.label}
@@ -436,9 +485,10 @@ export default function BrocraftDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>
-        {world.blocks.toLocaleString()} block instances in one draw call · x {world.x} · y{' '}
-        {world.y} · z {world.z}
+        {world.blocks.toLocaleString()} block instances in one draw call · x{" "}
+        {world.x} · y {world.y} · z {world.z}
       </DemoStats>
+      <ErrorToast error={error} onDismiss={dismiss} />
     </>
   );
 }
