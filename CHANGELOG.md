@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.15.0 (2026-08-02)
+
 ### Added
 - **Typed, catchable errors.** `BroMetalError` carries a `code` an application
   can branch on: `webgpu-unavailable`, `gpu-adapter-unavailable`,

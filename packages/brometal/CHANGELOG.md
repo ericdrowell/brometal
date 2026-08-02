@@ -2,13 +2,20 @@
 
 ## Unreleased
 
+## 0.15.0 (2026-08-02)
+
 ### Added
 - **Typed, catchable errors.** `BroMetalError` carries a `code` an application
-  can branch on: `webgpu-unavailable`, `adapter-unavailable`,
-  `device-unavailable`, `context-unavailable`, `device-lost`, `gpu-error`. The
-  distinction matters — a browser without WebGPU and a machine whose adapter
-  request was refused look identical on a canvas but need different advice.
-  `isBroMetalError` narrows an unknown caught value.
+  can branch on: `webgpu-unavailable`, `gpu-adapter-unavailable`,
+  `gpu-device-unavailable`, `canvas-context-unavailable`, `gpu-device-lost`,
+  `gpu-error`. The distinction matters — a browser without WebGPU and a machine
+  whose adapter request was refused look identical on a canvas but need different
+  advice. `isBroMetalError` narrows an unknown caught value.
+- **`errorTitle(code)`** renders a code as the sentence a person should read:
+  `gpu-adapter-unavailable` becomes "GPU adapter unavailable". Each code names
+  the exact thing that could not be obtained, walking down the acquisition chain
+  — API, adapter, device, canvas context — and the label is derived from the code
+  rather than looked up beside it, so the two cannot drift apart.
 - **`createRenderer(canvas, { onError })`.** Called when the GPU fails *after*
   the renderer exists. Creation failures reject the promise and are caught
   normally; these cannot be, because they happen frames later with no call of
@@ -17,7 +24,7 @@
   pipeline that failed validation simply stopped drawing, with no exception
   anywhere and nothing in the console. With no handler the runtime warns once and
   then stays quiet, since a bad pipeline re-raises every frame.
-- **`adapter-unavailable` is now its own failure.** WebGPU present but no adapter
+- **`gpu-adapter-unavailable` is now its own failure.** WebGPU present but no adapter
   granted is common — virtual machines, remote desktop, blocklisted drivers,
   hardware acceleration switched off — and it previously threw a message that
   told the user nothing actionable.
