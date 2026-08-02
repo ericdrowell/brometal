@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.0 (2026-08-02)
+
 ### Added
 - **`createRenderer` throws where WebGPU is missing.** It names the requirement
   and the browsers that meet it, rather than returning a renderer that cannot
