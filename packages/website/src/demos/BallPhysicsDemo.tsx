@@ -10,9 +10,7 @@ import {
   createRenderer,
   createSphere,
   type RenderTarget,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import physicsShader from '@/shaders/balls-physics.shader.gen';
 import shadowShader from '@/shaders/balls-shadow.shader.gen';
@@ -52,7 +50,6 @@ const SCENE_SCALE = 0.5;
 
 export default function BallPhysicsDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const [count, setCount] = useState(DEFAULT_BALLS);
   const [bounce, setBounce] = useState(0.62);
@@ -79,7 +76,6 @@ export default function BallPhysicsDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       const quad = createPlane({ width: 2, height: 2 });
       const ball = createSphere({ radius: 1, widthSegments: 26, heightSegments: 18 });
@@ -428,7 +424,6 @@ export default function BallPhysicsDemo() {
       <DemoStats stats={stats}>
         {count} balls · 4 GPU passes per frame: physics, shadow, scene copy, render
       </DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

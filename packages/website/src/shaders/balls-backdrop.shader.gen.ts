@@ -2,31 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const ballsBackdropShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTop: 'vec3'; uBottom: 'vec3'; uGlow: 'vec3' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition.x, aPosition.y, 0.99999, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform vec3 uTop;
-uniform vec3 uBottom;
-uniform vec3 uGlow;
-in vec2 vUv;
-out vec4 fragColor;
-void main() {
-  vec3 base = mix(uBottom, uTop, pow(clamp(vUv.y, 0.0, 1.0), 0.75));
-  float falloff = 1.0 - clamp(length(vUv - vec2(0.5, 0.46)) * 1.7, 0.0, 1.0);
-  fragColor = vec4(base + uGlow * (pow(falloff, 2.4) * 0.5), 4000.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTop : vec3f,
   uBottom : vec3f,

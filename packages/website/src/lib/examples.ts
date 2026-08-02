@@ -16,7 +16,7 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
       {
         slug: 'rotating-cube',
         name: 'Rotating Cube',
-        description: 'Hello world: one spinning cube, a TypeScript shader, and the WebGL2 runtime.',
+        description: 'Hello world: one spinning cube, a TypeScript shader, and the WebGPU runtime.',
       },
       {
         slug: 'lots-of-cubes',
@@ -85,7 +85,7 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         slug: 'custom-shader',
         name: 'Custom Shader',
         description:
-          'Procedural plasma written in plain TypeScript — helper functions, let, and for loops compiled to GLSL.',
+          'Procedural plasma written in plain TypeScript — helper functions, let, and for loops compiled to WGSL.',
       },
     ],
   },

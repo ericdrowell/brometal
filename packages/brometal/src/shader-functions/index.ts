@@ -494,11 +494,10 @@ export function shadowDepth(): number {
  * The two things this exists to stop you getting wrong, both of which fail
  * silently and look like a lighting bug rather than a coordinate one:
  *
- * - **The uv.** WebGL2 and WebGPU disagree about which row of a render target
- *   NDC +y lands on, so a hand-rolled `clip.xy / clip.w * 0.5 + 0.5` is correct
- *   on one backend and vertically mirrored on the other. A mirrored lookup
- *   still produces a shadow — just attached to the wrong side of the object.
- *   This uses `targetUv`, which compiles to the right form for each.
+ * - **The uv.** NDC +y lands on a render target's *first* row while texture v
+ *   runs top-down, so a hand-rolled `clip.xy / clip.w * 0.5 + 0.5` reads the map
+ *   mirrored. A mirrored lookup still produces a shadow — just attached to the
+ *   wrong side of the object. This uses `targetUv`, which gets the flip right.
  * - **The bias units.** `bias` is in **world units**. Subtracting it from a
  *   distance that has already been divided by `range` scales it by `range`,
  *   making it tens of times larger than it reads — wide enough to erase every

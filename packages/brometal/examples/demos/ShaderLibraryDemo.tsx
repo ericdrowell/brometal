@@ -9,9 +9,7 @@ import {
   type BroMetalProgram,
   type CompiledShader,
   type GpuRecord,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from './_site/BackendBadge';
 import DemoStats, { useFrameStats } from './_site/DemoStats';
 
 import {
@@ -130,7 +128,6 @@ type QuadProgram = BroMetalProgram<
 
 export default function ShaderLibraryDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const activeRef = useRef(ALL_ENTRIES[0]!.key);
   const [selected, setSelected] = useState(ALL_ENTRIES[0]!.key);
@@ -147,7 +144,6 @@ export default function ShaderLibraryDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       const quad = createPlane({ width: 2, height: 2 });
       const programs = new Map<string, QuadProgram>();
@@ -231,7 +227,6 @@ export default function ShaderLibraryDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>brometal/shaders — precompiled, nothing compiled at runtime</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

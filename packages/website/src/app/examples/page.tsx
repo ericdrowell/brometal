@@ -6,7 +6,7 @@ import { SITE_URL, allExamples, canonical, jsonLd, pageMetadata } from '@/lib/se
 export const metadata: Metadata = pageMetadata({
   title: 'Examples',
   description:
-    'Live WebGL2 and WebGPU examples built with BroMetal: instancing, shadow mapping, GPU physics, Gerstner ocean waves, a block world and a flight game — each one a typed TypeScript shader compiled at build time.',
+    'Live WebGPU examples built with BroMetal: instancing, shadow mapping, GPU physics, Gerstner ocean waves, a block world and a flight game — each one a typed TypeScript shader compiled at build time.',
   path: '/examples',
 });
 
@@ -39,9 +39,8 @@ export default function ExamplesPage() {
       />
       <h1>Examples</h1>
       <p className="page-intro">
-        Every example below is a live WebGL2 or WebGPU scene, drawn by shaders written in
-        TypeScript and compiled to GLSL and WGSL at build time. Each one picks whichever backend
-        your browser supports and shows which it chose.
+        Every example below is a live WebGPU scene, drawn by shaders written in
+        TypeScript and compiled to WGSL at build time.
       </p>
       {EXAMPLE_SECTIONS.map((section) => (
         <section key={section.title}>

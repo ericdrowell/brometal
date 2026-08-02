@@ -2,40 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const gameLitShader: CompiledShader<{ aPosition: 'vec3'; aNormal: 'vec3' }, Record<string, never>, { uViewProj: 'mat4'; uModel: 'mat4'; uColor: 'vec3'; uLightDir: 'vec3' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aNormal;
-uniform mat4 uViewProj;
-uniform mat4 uModel;
-out vec3 vNormal;
-void main() {
-  vec4 world = uModel * vec4(aPosition, 1.0);
-  vNormal = (uModel * vec4(aNormal, 0.0)).xyz;
-  gl_Position = uViewProj * world;
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform vec3 uColor;
-uniform vec3 uLightDir;
-in vec3 vNormal;
-out vec4 fragColor;
-float lambert(vec3 normal, vec3 lightDir) {
-  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
-}
-vec3 hemisphereLight(vec3 normal, vec3 skyColor, vec3 groundColor) {
-  float blend = normalize(normal).y * 0.5 + 0.5;
-  return mix(groundColor, skyColor, blend);
-}
-void main() {
-  float diffuse = lambert(vNormal, uLightDir);
-  vec3 ambient = hemisphereLight(vNormal, vec3(0.5, 0.55, 0.7), vec3(0.3, 0.28, 0.36));
-  fragColor = vec4(uColor * (diffuse * 0.75) + uColor * ambient * 0.5, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uModel : mat4x4f,

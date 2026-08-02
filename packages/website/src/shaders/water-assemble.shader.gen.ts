@@ -2,50 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const waterAssembleShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTransform: 'sampler2D'; uPatchSize: 'float'; uChoppiness: 'float'; uScale: 'float'; uFoamThreshold: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition.x, aPosition.y, 0.0, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform sampler2D uTransform;
-uniform float uPatchSize;
-uniform float uChoppiness;
-uniform float uScale;
-uniform float uFoamThreshold;
-in vec2 vUv;
-out vec4 fragColor;
-void main() {
-  float size = 128.0;
-  float x = floor(vUv.x * size);
-  float y = floor(vUv.y * size);
-  float sign = 1.0 - 2.0 * mod(x + y, 2.0);
-  float gain = uScale * sign;
-  vec4 centre = texture(uTransform, vUv);
-  vec3 displacement = vec3(centre.x * uChoppiness * gain, centre.y * gain, centre.z * uChoppiness * gain);
-  float texel = 1.0 / size;
-  vec4 right = texture(uTransform, vec2(fract(vUv.x + texel), vUv.y));
-  vec4 up = texture(uTransform, vec2(vUv.x, fract(vUv.y + texel)));
-  float perMetre = size / uPatchSize;
-  float dxdx = (0.0 - right.x * uChoppiness * gain - displacement.x) * perMetre;
-  float dzdx = (0.0 - right.z * uChoppiness * gain - displacement.z) * perMetre;
-  float dxdz = (0.0 - up.x * uChoppiness * gain - displacement.x) * perMetre;
-  float dzdz = (0.0 - up.z * uChoppiness * gain - displacement.z) * perMetre;
-  float jacobian = (1.0 + dxdx) * (1.0 + dzdz) - dxdz * dzdx;
-  float foam = max(uFoamThreshold - jacobian, 0.0);
-  fragColor = vec4(displacement.x, displacement.y, displacement.z, foam);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uPatchSize : f32,
   uChoppiness : f32,

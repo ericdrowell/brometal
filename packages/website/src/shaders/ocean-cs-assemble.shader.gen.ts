@@ -2,8 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const oceanCsAssembleShader: CompiledShader<Record<string, never>, Record<string, never>, { uPatchSize: 'float'; uChoppiness: 'float'; uScale: 'float'; uFoamThreshold: 'float'; uCount: 'float'; uTransform: 'storage'; uDisplacement: 'storage' }> = {
-  vertexSrc: ``,
-  fragmentSrc: ``,
   wgslSrc: `struct BmUniforms {
   uPatchSize : f32,
   uChoppiness : f32,

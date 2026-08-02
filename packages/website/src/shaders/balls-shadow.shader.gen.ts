@@ -2,40 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const ballsShadowShader: CompiledShader<{ aPosition: 'vec3' }, { iIndex: 'float' }, { uLightViewProj: 'mat4'; uState: 'sampler2D'; uCount: 'float'; uRadius: 'float'; uLightPos: 'vec3'; uRange: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in float iIndex;
-uniform mat4 uLightViewProj;
-uniform sampler2D uState;
-uniform float uCount;
-uniform float uRadius;
-uniform vec3 uLightPos;
-uniform float uRange;
-out float vDistance;
-float shadowDepth(vec3 worldPos, vec3 lightPos, float range) {
-  return distance(worldPos, lightPos) / range;
-}
-void main() {
-  float u = (iIndex + 0.5) / uCount * 0.5;
-  vec3 centre = textureLod(uState, vec2(u, 0.5), 0.0).xyz;
-  vec3 world = centre + aPosition * uRadius;
-  vDistance = shadowDepth(world, uLightPos, uRange);
-  gl_Position = uLightViewProj * vec4(world, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in float vDistance;
-out vec4 fragColor;
-void main() {
-  fragColor = vec4(vDistance, 0.0, 0.0, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uLightViewProj : mat4x4f,
   uCount : f32,

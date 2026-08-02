@@ -3,18 +3,19 @@ import { shader, vec2, vec4, floor, mod, pow, sin, cos, mix, step } from 'bromet
 /**
  * Water Bro — the ocean's technique follows Three.js Water Pro
  * (https://threejsroadmap.com/buy-threejs-water-pro), reimplemented for BroMetal
- * with the author's permission. Water Pro runs its IFFT in compute shaders;
- * BroMetal has no compute stage, so the transform is done the pre-compute way —
- * as fragment passes ping-ponging between render targets.
+ * with the author's permission. Water Pro runs its IFFT in compute shaders; this
+ * pass predates BroMetal's compute stage and does the transform the pre-compute
+ * way, as fragment passes ping-ponging between render targets.
  *
  * This pass builds the butterfly table the FFT stages read: for every
  * (stage, index) pair, the twiddle factor and the two source indices that feed
  * that output. It runs once at startup, not per frame.
  *
- * The table is laid out along U only — width LOG2N*N, height 1 — because a
- * fullscreen quad covers a target's rows bottom-to-top on WebGL2 and
- * top-to-bottom on WebGPU. Anything that splits meaning across rows reads back
- * flipped on one of the two backends; U agrees on both.
+ * The table is laid out along U only — width LOG2N*N, height 1 — because rows
+ * are the axis where writing and reading disagree: a fullscreen quad's NDC +y
+ * covers a target's first row, while texture v addresses that row as v = 0. A
+ * layout that splits meaning across rows therefore reads back flipped. U has no
+ * such asymmetry.
  *
  * Indices are stored in an RGBA16F target. Integers below 2048 are exact in
  * half float, so a 128-point transform round-trips its indices losslessly.

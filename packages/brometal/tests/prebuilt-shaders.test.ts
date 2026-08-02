@@ -14,10 +14,10 @@ describe('brometal/shaders prebuilt modules', () => {
     expect(Object.keys(prebuilt)).toContain('raymarchShader');
   });
 
-  it.each(entries.map(([name]) => name))('%s carries GLSL, WGSL, and a layout', (name) => {
+  it.each(entries.map(([name]) => name))('%s carries WGSL and a layout', (name) => {
     const shader = (prebuilt as Record<string, CompiledShader>)[name]!;
-    expect(shader.vertexSrc).toContain('#version 300 es');
     expect(shader.wgslSrc).toContain('@vertex');
+    expect(shader.wgslSrc).toContain('@fragment');
     expect(shader.layout.attributes.length).toBeGreaterThan(0);
     expect(shader.uniforms).toHaveProperty('uTime');
   });

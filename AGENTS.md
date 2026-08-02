@@ -55,9 +55,10 @@ non-obvious semantics.
 
 ## Things that have bitten before
 
-- **GLSL ES 3.00 reserved words** (`patch`, `half`, `fixed`, `output`, `sample`,
-  …) link-fail silently in the driver: black screen, empty console. `parse.ts`
-  rejects them at build time; keep that list current.
+- **WGSL reserved words** — the reserved-for-future list is long and full of
+  ordinary names (`type`, `set`, `from`, `match`, `target`, `filter`, …). They
+  fail at pipeline creation, which surfaces as a blank canvas. `parse.ts` rejects
+  them at build time; keep that list current.
 - **WGSL uniformity**: `textureSample` may only be called from uniform control
   flow. Sampling inside an `if` in a fragment stage invalidates the entire
   pipeline and the pass draws nothing, with no error. Helpers emit

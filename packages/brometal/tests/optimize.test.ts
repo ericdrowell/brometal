@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { compileShaderSource } from '../src/compiler/compile.js';
-import { minifyGlsl } from '../src/compiler/optimize.js';
 import { CUBE_SHADER } from './fixtures.js';
 
 const FOLDING_SHADER = `
@@ -21,14 +20,14 @@ export default shader({
 describe('prod optimizations', () => {
   it('folds constant float expressions', () => {
     const compiled = compileShaderSource('test.shader.ts', FOLDING_SHADER, { optimize: true });
-    expect(compiled.vertexSrc).toContain('aWeight*10.0');
-    expect(compiled.vertexSrc).toContain('-2.0');
-    expect(compiled.vertexSrc).toContain('0.5');
+    expect(compiled.wgslSrc).toContain('bm_in.aWeight * 10.0');
+    expect(compiled.wgslSrc).toContain('-2.0');
+    expect(compiled.wgslSrc).toContain('0.5');
   });
 
   it('leaves non-constant expressions intact without optimize', () => {
     const compiled = compileShaderSource('test.shader.ts', FOLDING_SHADER);
-    expect(compiled.vertexSrc).toContain('aWeight * (2.0 * 3.0 + 4.0)');
+    expect(compiled.wgslSrc).toContain('bm_in.aWeight * (2.0 * 3.0 + 4.0)');
   });
 
   it('does not fold division by zero', () => {
@@ -45,29 +44,11 @@ export default shader({
 });
 `;
     const compiled = compileShaderSource('test.shader.ts', source, { optimize: true });
-    expect(compiled.vertexSrc).toContain('1.0/0.0');
+    expect(compiled.wgslSrc).toContain('1.0 / 0.0');
   });
 
-  it('minifies GLSL while keeping directives on their own lines', () => {
-    const compiled = compileShaderSource('test.shader.ts', CUBE_SHADER, { optimize: true });
-    const [firstLine, ...rest] = compiled.vertexSrc.trimEnd().split('\n');
-    expect(firstLine).toBe('#version 300 es');
-    expect(rest).toHaveLength(1);
-    expect(rest[0]).toContain('void main(){');
-    expect(compiled.fragmentSrc).toContain('#version 300 es\nprecision highp float;');
-  });
 
-  it('minification preserves spaces around plus and minus', () => {
-    const minified = minifyGlsl('void main() {\n  float x = a - -1.0;\n}\n');
-    expect(minified).toContain('x=a - -1.0');
-  });
 
-  it('minified cube shader still contains its declarations', () => {
-    const compiled = compileShaderSource('test.shader.ts', CUBE_SHADER, { optimize: true });
-    expect(compiled.vertexSrc).toContain('in vec3 aPosition;');
-    expect(compiled.vertexSrc).toContain('uniform mat4 uMvp;');
-    expect(compiled.vertexSrc).toContain('gl_Position=uMvp*vec4(aPosition,1.0);');
-  });
 
   it('removes never-read varyings and their assignments in prod builds', () => {
     const source = `
@@ -86,14 +67,14 @@ export default shader({
 });
 `;
     const dev = compileShaderSource('test.shader.ts', source);
-    expect(dev.vertexSrc).toContain('vUnused');
+    expect(dev.wgslSrc).toContain('vUnused');
     expect(dev.warnings).toEqual([
       `test.shader.ts — varying 'vUnused' is never read — it will be removed from prod builds`,
     ]);
 
     const prod = compileShaderSource('test.shader.ts', source, { optimize: true });
-    expect(prod.vertexSrc).not.toContain('vUnused');
-    expect(prod.fragmentSrc).not.toContain('vUnused');
+    expect(prod.wgslSrc).not.toContain('vUnused');
+    expect(prod.wgslSrc).toContain('vColor');
   });
 
   it('warns about unused attributes, instance attributes, and uniforms', () => {

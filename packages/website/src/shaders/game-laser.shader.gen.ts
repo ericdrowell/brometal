@@ -2,51 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const gameLaserShader: CompiledShader<{ aPosition: 'vec3' }, { iStart: 'vec3'; iDir: 'vec3'; iBirth: 'float' }, { uViewProj: 'mat4'; uTime: 'float'; uViewPos: 'vec3' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 iStart;
-layout(location = 2) in vec3 iDir;
-layout(location = 3) in float iBirth;
-uniform mat4 uViewProj;
-uniform float uTime;
-uniform vec3 uViewPos;
-out float vFacing;
-out float vAlong;
-out float vFade;
-void main() {
-  float age = uTime - iBirth;
-  float life = 1.1;
-  float alive = clamp(age * 60.0, 0.0, 1.0) * clamp((life - age) * 4.0, 0.0, 1.0);
-  vec3 f = normalize(iDir);
-  vec3 rgt = normalize(cross(f, vec3(0.0, 1.0, 0.0)));
-  vec3 up = cross(f, rgt);
-  float width = 0.18 * alive;
-  vec3 local = rgt * (aPosition.x * width) + up * (aPosition.y * width) + f * (aPosition.z * 1.7);
-  vec3 center = iStart + f * (age * 55.0);
-  vec3 world = center + local;
-  vec3 n = normalize(rgt * aPosition.x + up * aPosition.y + f * (aPosition.z * 0.1));
-  vFacing = clamp(dot(n, normalize(uViewPos - world)), 0.0, 1.0);
-  vAlong = aPosition.z * 0.5 + 0.5;
-  vFade = alive;
-  gl_Position = uViewProj * vec4(world, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in float vFacing;
-in float vAlong;
-in float vFade;
-out vec4 fragColor;
-void main() {
-  float core = pow(vFacing, 3.0);
-  float halo = pow(vFacing, 1.3) * 0.9;
-  vec3 color = mix(vec3(0.3, 0.55, 1.0), vec3(1.0, 1.0, 1.0), core);
-  fragColor = vec4(color, (core * 1.3 + halo) * (0.65 + vAlong * 0.35) * vFade);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uTime : f32,

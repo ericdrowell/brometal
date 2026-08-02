@@ -2,34 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnFilmGrainShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-in vec2 vUv;
-out vec4 fragColor;
-float hash21(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-float filmGrain(vec2 uv, float time) {
-  return hash21(uv * 997.0 + vec2(fract(time * 13.37) * 100.0, 0.0)) - 0.5;
-}
-void main() {
-  float g = 0.5 + filmGrain(vUv, uTime) * 0.25;
-  fragColor = vec4(g, g, g, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

@@ -46,17 +46,17 @@ describe('custom shaders: helpers, let, and loops', () => {
   it('compiles helper functions into the stages that use them', () => {
     const compiled = compile(PLASMA_SHADER);
     expect(compiled.warnings).toEqual([]);
-    expect(compiled.fragmentSrc).toContain('vec3 palette(float t) {');
-    expect(compiled.fragmentSrc).toContain('return vec3(');
-    expect(compiled.fragmentSrc).toContain('fragColor = vec4(palette(value * 0.5 + 0.15), 1.0);');
-    expect(compiled.vertexSrc).not.toContain('palette');
+    expect(compiled.wgslSrc).toContain('fn palette(t : f32) -> vec3f {');
+    expect(compiled.wgslSrc).toContain('return vec3f(');
+    expect(compiled.wgslSrc).toContain('return vec4f(palette(value * 0.5 + 0.15), 1.0);');
+    expect(compiled.wgslSrc.slice(compiled.wgslSrc.indexOf('fn vs_main'), compiled.wgslSrc.indexOf('fn fs_main'))).not.toContain('palette');
   });
 
   it('compiles for loops with mutable accumulators', () => {
     const compiled = compile(PLASMA_SHADER);
-    expect(compiled.fragmentSrc).toContain('for (float i = 0.0; i < 5.0; i = i + 1.0) {');
-    expect(compiled.fragmentSrc).toContain('frequency = frequency * 1.9;');
-    expect(compiled.fragmentSrc).toContain('amplitude = amplitude * 0.65;');
+    expect(compiled.wgslSrc).toContain('for (var i = 0.0; i < 5.0; i = i + 1.0) {');
+    expect(compiled.wgslSrc).toContain('frequency = frequency * 1.9;');
+    expect(compiled.wgslSrc).toContain('amplitude = amplitude * 0.65;');
   });
 
   it('supports transitive helper calls and emits them in order', () => {
@@ -82,8 +82,8 @@ export default shader({
 });
 `;
     const compiled = compile(source);
-    const waveIndex = compiled.vertexSrc.indexOf('float wave(float x) {');
-    const doubleIndex = compiled.vertexSrc.indexOf('float doubleWave(float x) {');
+    const waveIndex = compiled.wgslSrc.indexOf('fn wave(x : f32) -> f32 {');
+    const doubleIndex = compiled.wgslSrc.indexOf('fn doubleWave(x : f32) -> f32 {');
     expect(waveIndex).toBeGreaterThan(-1);
     expect(doubleIndex).toBeGreaterThan(waveIndex);
   });
@@ -183,8 +183,8 @@ export default shader({
 });
 `;
     const compiled = compile(source);
-    expect(compiled.vertexSrc).toContain('for (float i = 0.0; i < 3.0; i = i + 1.0) {');
-    expect(compiled.vertexSrc).toContain('total = total + sin(i);');
+    expect(compiled.wgslSrc).toContain('for (var i = 0.0; i < 3.0; i = i + 1.0) {');
+    expect(compiled.wgslSrc).toContain('total = total + sin(i);');
   });
 
   it('rejects return inside loops and helper bodies must end with return', () => {
@@ -219,8 +219,8 @@ export default shader({
 
   it('helpers and loops survive the prod optimize/minify pipeline', () => {
     const compiled = compile(PLASMA_SHADER, { optimize: true });
-    expect(compiled.fragmentSrc).toContain('vec3 palette(float t){');
-    expect(compiled.fragmentSrc).toContain('for(float i=0.0;i<5.0;i=i + 1.0){');
+    expect(compiled.wgslSrc).toContain('fn palette(t : f32) -> vec3f {');
+    expect(compiled.wgslSrc).toContain('for (var i = 0.0; i < 5.0; i = i + 1.0) {');
   });
 
   it('supports the new intrinsics', () => {
@@ -239,7 +239,7 @@ export default shader({
 });
 `;
     const compiled = compile(source);
-    expect(compiled.vertexSrc).toContain('float angle = atan(aUv.y, aUv.x);');
-    expect(compiled.vertexSrc).toContain('smoothstep(0.0, 1.0, mod(angle, 2.0))');
+    expect(compiled.wgslSrc).toContain('atan2(bm_in.aUv.y, bm_in.aUv.x)');
+    expect(compiled.wgslSrc).toContain('smoothstep(0.0, 1.0, ');
   });
 });

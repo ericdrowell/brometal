@@ -7,15 +7,12 @@ import {
   createProgram,
   createRenderer,
   mat4,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import oceanShader from '@/shaders/ocean.shader.gen';
 
 export default function NightOceanDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
 
   useEffect(() => {
@@ -31,7 +28,6 @@ export default function NightOceanDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       const program = createProgram(renderer, oceanShader);
       const plane = createPlane({ width: 40, height: 40, widthSegments: 220, heightSegments: 220 });
@@ -85,7 +81,6 @@ export default function NightOceanDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Gerstner waves with fresnel and specular glint</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

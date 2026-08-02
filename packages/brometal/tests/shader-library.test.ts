@@ -53,19 +53,14 @@ export default shader({
       "import { shader, vec3, vec4 } from 'brometal';",
       "import { shader, vec2, vec3, vec4 } from 'brometal';",
     );
-    const compiled = compile(withImports);
-    const glsl = compiled.fragmentSrc;
-    const hashIndex = glsl.indexOf('float hash21(vec2 p) {');
-    const noiseIndex = glsl.indexOf('float vnoise2(vec2 p) {');
-    const fbmIndex = glsl.indexOf('float fbm2(vec2 p, float octaves) {');
+    const wgsl = compile(withImports).wgslSrc;
+    const hashIndex = wgsl.indexOf('fn hash21(p : vec2f) -> f32 {');
+    const noiseIndex = wgsl.indexOf('fn vnoise2(p : vec2f) -> f32 {');
+    const fbmIndex = wgsl.indexOf('fn fbm2(p : vec2f, octaves : f32) -> f32 {');
     expect(hashIndex).toBeGreaterThan(-1);
     expect(noiseIndex).toBeGreaterThan(hashIndex);
     expect(fbmIndex).toBeGreaterThan(noiseIndex);
-    expect(glsl).toContain('fbm2(vUv * 4.0 + vec2(uTime, 0.0), 5.0)');
-
-    const wgsl = compiled.wgslSrc!;
-    expect(wgsl).toContain('fn hash21(p : vec2f) -> f32 {');
-    expect(wgsl).toContain('fn fbm2(p : vec2f, octaves : f32) -> f32 {');
+    expect(wgsl).toContain('fbm2(bm_in.vUv * 4.0 + vec2f(bm_u.uTime, 0.0), 5.0)');
   });
 
   it('only emits imported functions into stages that use them', () => {
@@ -89,10 +84,11 @@ export default shader({
       "import { shader, vec4 } from 'brometal';",
       "import { shader, vec2, vec4 } from 'brometal';",
     );
-    const compiled = compile(source);
-    expect(compiled.vertexSrc).not.toContain('sdCircle');
-    expect(compiled.fragmentSrc).toContain('float sdCircle(vec2 p, float radius) {');
-    expect(compiled.fragmentSrc).toContain('float fillAA(float d, float softness) {');
+    const wgsl = compile(source).wgslSrc;
+    expect(wgsl).toContain('fn sdCircle(p : vec2f, radius : f32) -> f32 {');
+    expect(wgsl).toContain('fn fillAA(d : f32, softness : f32) -> f32 {');
+    const vertex = wgsl.slice(wgsl.indexOf('fn vs_main'), wgsl.indexOf('fn fs_main'));
+    expect(vertex).not.toContain('sdCircle');
   });
 
   it('lets user helpers call library functions', () => {
@@ -119,8 +115,8 @@ export default shader({
 `;
     const compiled = compile(source);
     expect(compiled.warnings).toEqual([]);
-    const glsl = compiled.fragmentSrc;
-    expect(glsl.indexOf('float vnoise2')).toBeLessThan(glsl.indexOf('float turbulence'));
+    const wgsl = compiled.wgslSrc;
+    expect(wgsl.indexOf('fn vnoise2')).toBeLessThan(wgsl.indexOf('fn turbulence'));
   });
 
   it('rejects unknown library imports with the available list', () => {
@@ -160,7 +156,7 @@ export default shader({
     expect(() => compile(source)).toThrow(/shadows a function imported from brometal\/shader-functions/);
   });
 
-  it('easing functions clamp/shape as expected in emitted GLSL', () => {
+  it('easing functions clamp/shape as expected in emitted WGSL', () => {
     const compiled = compile(importOnlyShader('easeOutBounce').replace(
       'fragment() { return vec4(1, 1, 1, 1); }',
       `fragment() { const y = easeOutBounce(0.5); return vec4(y, y, y, 1); }`,
@@ -168,7 +164,7 @@ export default shader({
       "import { easeOutBounce } from 'brometal/shader-functions';",
       "import { easeOutBounce } from 'brometal/shader-functions';",
     ));
-    expect(compiled.fragmentSrc).toContain('float easeOutBounce(float t) {');
-    expect(compiled.fragmentSrc).toContain('7.5625');
+    expect(compiled.wgslSrc).toContain('fn easeOutBounce(t : f32) -> f32 {');
+    expect(compiled.wgslSrc).toContain('7.5625');
   });
 });

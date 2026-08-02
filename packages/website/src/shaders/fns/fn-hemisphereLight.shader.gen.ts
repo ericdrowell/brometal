@@ -2,40 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnHemisphereLightShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 hemisphereLight(vec3 normal, vec3 skyColor, vec3 groundColor) {
-  float blend = normalize(normal).y * 0.5 + 0.5;
-  return mix(groundColor, skyColor, blend);
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5) * 2.3;
-  float r = length(p);
-  vec3 lightDir = vec3(cos(uTime * 0.9), 0.6, sin(uTime * 0.9));
-  vec3 color = vec3(0.07, 0.07, 0.11);
-  if (r < 1.0) {
-    vec3 normal = vec3(p.x, p.y, sqrt(1.0 - r * r));
-    color = hemisphereLight(normal, vec3(0.4, 0.6, 1.0), vec3(0.9, 0.5, 0.2));
-  }
-  fragColor = vec4(color, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

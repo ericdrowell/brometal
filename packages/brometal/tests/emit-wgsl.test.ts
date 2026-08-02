@@ -119,15 +119,6 @@ export default shader({
     expect(wgsl).toContain('clamp(bm_in.aPosition * 2.0, vec3f(0.0), vec3f(1.0))');
   });
 
-  it('honors target selection', () => {
-    const webglOnly = compileShaderSource('t.shader.ts', CUBE_SHADER, { targets: ['webgl2'] });
-    expect(webglOnly.wgslSrc).toBeUndefined();
-    expect(webglOnly.vertexSrc).toContain('#version 300 es');
-
-    const webgpuOnly = compileShaderSource('t.shader.ts', CUBE_SHADER, { targets: ['webgpu'] });
-    expect(webgpuOnly.wgslSrc).toContain('@vertex');
-    expect(webgpuOnly.vertexSrc).toBe('');
-  });
 });
 
 describe('WGSL mod() polyfill', () => {
@@ -176,17 +167,14 @@ export default shader({
     expect(wgsl).toContain('(bm_in.vClip).xy / (bm_in.vClip).w * vec2f(0.5, -0.5) + vec2f(0.5)');
   });
 
-  it('leaves v alone on WebGL2, where the two conventions cancel', () => {
-    const glsl = compileShaderSource('t.shader.ts', SHADER).fragmentSrc;
-    expect(glsl).toContain('(vClip).xy / (vClip).w * 0.5 + 0.5');
-  });
 
-  it('is the one place the row-order difference lives', () => {
-    // Whatever else changes, the two backends must not agree here — if they
-    // ever do, every shadow in a scene is mirrored on one of them.
+  it('inverts v, because NDC y and texture v run opposite ways', () => {
+    // Not a cross-backend concern any more, but still a real one: WebGPU puts
+    // NDC +y at a target's first row while texture v runs top-down. Dropping the
+    // negation mirrors every shadow about the light's horizontal axis, which
+    // reads as a lighting bug rather than a uv one.
     const compiled = compileShaderSource('t.shader.ts', SHADER);
     expect(compiled.wgslSrc).toContain('vec2f(0.5, -0.5)');
-    expect(compiled.fragmentSrc).not.toContain('-0.5');
   });
 
   it('rejects anything that is not a clip-space vec4', () => {
@@ -235,11 +223,6 @@ export default shader({
     expect(wgsl).toContain('tap(uMap, uMap_sampler, bm_in.vUv)');
   });
 
-  it('passes the sampler straight through in GLSL, which has no such split', () => {
-    const glsl = compileShaderSource('t.shader.ts', SHADER).fragmentSrc;
-    expect(glsl).toContain('float tap(sampler2D map, vec2 uv)');
-    expect(glsl).toContain('tap(uMap, vUv)');
-  });
 
   it('rejects a parameter type that is not a GPU type', () => {
     expect(() =>
@@ -273,26 +256,22 @@ export default shader({
 `;
 
   it('resolves the shadow-map uv per backend, which is the whole point of it', () => {
-    // A hand-rolled uv is correct on one backend and vertically mirrored on the
-    // other. If these two ever agree, every shadow in a scene is mirrored on one
-    // of them — and a mirrored shadow reads as a lighting bug, not a uv bug.
+    // Hand-rolling this uv gets the v flip wrong and mirrors every shadow.
     const compiled = compileShaderSource('t.shader.ts', SHADER);
     expect(compiled.wgslSrc).toContain('vec2f(0.5, -0.5)');
-    expect(compiled.fragmentSrc).toContain('* 0.5 + 0.5');
-    expect(compiled.fragmentSrc).not.toContain('-0.5');
   });
 
   it('pulls in shadowDepth, so the map and the comparison share one formula', () => {
-    const glsl = compileShaderSource('t.shader.ts', SHADER).fragmentSrc;
-    expect(glsl).toContain('float shadowDepth(');
-    expect(glsl).toContain('shadowDepth(lookup, lightPos, range)');
+    const wgsl = compileShaderSource('t.shader.ts', SHADER).wgslSrc;
+    expect(wgsl).toContain('fn shadowDepth(');
+    expect(wgsl).toContain('shadowDepth(lookup, lightPos, range)');
   });
 
   it('evaluates the light-space projection once, not once per component', () => {
     // targetUv divides xy by w, so passing the mat4 product inline would emit
     // the whole multiply twice.
-    const glsl = compileShaderSource('t.shader.ts', SHADER).fragmentSrc;
-    const multiplies = glsl.split('lightViewProj * vec4(lookup').length - 1;
+    const wgsl = compileShaderSource('t.shader.ts', SHADER).wgslSrc;
+    const multiplies = wgsl.split('lightViewProj * vec4f(lookup').length - 1;
     expect(multiplies).toBe(1);
   });
 });
@@ -344,15 +323,6 @@ describe('storage buffers', () => {
     expect(wgsl).toContain('f32(arrayLength(&uWave))');
   });
 
-  it('falls back to a WebGPU-only build instead of failing the compile', () => {
-    // WebGL2 is GLSL ES 3.00 and has no SSBOs. The shader still compiles — it
-    // just loses the GLSL target, and says so.
-    const compiled = compile(STORAGE_SHADER);
-    expect(compiled.webgpuOnly).toBe(true);
-    expect(compiled.wgslSrc).toBeTruthy();
-    expect(compiled.vertexSrc).toBe('');
-    expect(compiled.warnings.join(' ')).toMatch(/storage buffers .*WebGL2 cannot express/);
-  });
 
   it('reports a useful error when storageRead is given a non-buffer', () => {
     const bad = STORAGE_SHADER.replace('storageRead(uWave, uCount)', 'storageRead(uCount, uCount)');
@@ -400,7 +370,6 @@ describe('compute stage', () => {
 
   it('emits no render entry points for a compute-only shader', () => {
     const compiled = compile(COMPUTE_SHADER);
-    expect(compiled.webgpuOnly).toBe(true);
     expect(compiled.wgslSrc).not.toContain('@vertex');
     expect(compiled.wgslSrc).not.toContain('@fragment');
   });

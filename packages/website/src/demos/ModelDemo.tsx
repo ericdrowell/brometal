@@ -8,15 +8,12 @@ import {
   createTexture,
   loadGlb,
   mat4,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import modelShader from '@/shaders/model.shader.gen';
 
 export default function ModelDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
 
   useEffect(() => {
@@ -34,7 +31,6 @@ export default function ModelDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       const mesh = model.meshes[0]!;
       const program = createProgram(renderer, modelShader);
@@ -94,7 +90,6 @@ export default function ModelDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>glTF-Binary model loaded with loadGlb</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

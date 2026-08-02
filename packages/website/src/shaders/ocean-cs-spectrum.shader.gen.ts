@@ -2,8 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const oceanCsSpectrumShader: CompiledShader<Record<string, never>, Record<string, never>, { uPatchSize: 'float'; uWindDir: 'vec2'; uWindSpeed: 'float'; uPeakWavelength: 'float'; uAmplitude: 'float'; uSpread: 'float'; uBand: 'vec2'; uSeed: 'float'; uCount: 'float'; uSpectrum: 'storage' }> = {
-  vertexSrc: ``,
-  fragmentSrc: ``,
   wgslSrc: `struct BmUniforms {
   uPatchSize : f32,
   uWindDir : vec2f,

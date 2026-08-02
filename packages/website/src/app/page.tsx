@@ -8,7 +8,7 @@ const delogs = localFont({ src: '../../public/fonts/Delogs Goes Hi-Tech.otf' });
 
 export const metadata: Metadata = {
   // Absolute, or the root layout's template would render "BroMetal — BroMetal".
-  title: { absolute: `${SITE_NAME} — TypeScript shaders for WebGL2 and WebGPU` },
+  title: { absolute: `${SITE_NAME} — TypeScript shaders for WebGPU` },
   description: SITE_DESCRIPTION,
   alternates: { canonical: SITE_URL },
 };
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 const FAQ: { q: string; a: string }[] = [
   {
     q: 'What is BroMetal?',
-    a: 'BroMetal is a graphics library that compiles shaders written in a typed TypeScript DSL into GLSL and WGSL ahead of time, and ships dual WebGL2 and WebGPU runtimes behind a single API. You write shaders as TypeScript functions, a build step turns each one into both shader languages, and your app imports the generated module. The compiler never reaches the browser.',
+    a: 'BroMetal is a WebGPU graphics library that compiles shaders written in a typed TypeScript DSL into WGSL ahead of time. You write shaders as TypeScript functions, a build step turns each one into a generated module, and your app imports it. The compiler never reaches the browser.',
   },
   {
     q: 'How is BroMetal different from Three.js?',
@@ -33,15 +33,15 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'How large is the BroMetal runtime?',
-    a: 'A typical BroMetal app — renderer, program, camera, a geometry generator and the matrix helpers — bundles to about 23 KB minified and 8.5 KB gzipped. The compiler and CLI are build-time only and are never included, and unused shader functions are tree-shaken away because they inline into shader text rather than shipping as runtime code.',
+    a: 'A typical BroMetal app — renderer, program, camera, a geometry generator and the matrix helpers — bundles to about 19 KB minified and 7 KB gzipped. The compiler and CLI are build-time only and are never included, and unused shader functions are tree-shaken away because they inline into shader text rather than shipping as runtime code.',
   },
   {
-    q: 'Does BroMetal support WebGPU?',
-    a: 'Yes. Every shader is compiled to both GLSL ES 3.00 and WGSL from one source, and `await createRenderer(canvas)` selects WebGPU when the browser exposes an adapter and falls back to WebGL2 otherwise. Both backends sit behind the same typed API, so application code does not branch on which one was chosen.',
+    q: 'Why is BroMetal WebGPU-only?',
+    a: 'Because the features worth building on do not exist in WebGL2. Compute shaders and storage buffers have no WebGL2 equivalent, and supporting both meant every feature had to be expressible in the older API. WebGPU now ships in Chrome, Edge, Firefox 141+ and Safari 26+, so the compiler emits WGSL alone and `createRenderer` throws where WebGPU is unavailable.',
   },
   {
-    q: 'Do I need to know GLSL or WGSL to use BroMetal?',
-    a: 'No. Shaders are written in TypeScript using a typed subset of the language — vectors, matrices, swizzles, loops and helper functions — and the compiler emits GLSL and WGSL for you. Knowing how shaders work still helps, since you are writing one, but you never write shader-language syntax and never maintain two versions of it.',
+    q: 'Do I need to know WGSL to use BroMetal?',
+    a: 'No. Shaders are written in TypeScript using a typed subset of the language — vectors, matrices, swizzles, loops and helper functions — and the compiler emits WGSL for you. Knowing how shaders work still helps, since you are writing one, but you never write shader-language syntax.',
   },
   {
     q: 'Does BroMetal compile shaders in the browser?',
@@ -49,7 +49,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Which browsers does BroMetal support?',
-    a: 'Any browser with WebGL2, which covers current versions of Chrome, Edge, Firefox and Safari on desktop and mobile. Where WebGPU is available, BroMetal uses it automatically for the lower driver overhead; where it is not, the WebGL2 path renders the same scene from the same source.',
+    a: 'Any browser with WebGPU: Chrome and Edge 113+, Firefox 141+, and Safari 26+, on desktop and on Android. BroMetal is WebGPU-only, so `createRenderer` throws with a clear message rather than degrading where it is missing.',
   },
   {
     q: 'Is BroMetal free and open source?',
@@ -83,8 +83,7 @@ export default function HomePage() {
       />
       <p className="tagline">&ldquo;Write TypeScript.&nbsp;&nbsp;Lift Shaders.&nbsp;&nbsp;Ship Shredded.&rdquo;</p>
       <p className="subhead">
-        Typed shaders compiled at build time &mdash; WebGL2 + WebGPU from one source, 8.5&nbsp;KB
-        gzipped.
+        Typed shaders compiled at build time &mdash; WebGPU, no compiler in the browser.
       </p>
       <a
         className="cta"
@@ -100,11 +99,11 @@ export default function HomePage() {
       <section className="ethos">
         <h2>Ethos</h2>
         <p>
-          Built for the AI coding era. Everything is TypeScript and compiles into shaders at build
-          time &mdash; GLSL and WGSL from one source, with no scene graph and no compiler in the
-          browser. A typical app bundles to about 23&nbsp;KB minified and 8.5&nbsp;KB gzipped,
-          because material systems and runtime shader generation are simply never shipped. Less to
-          download, nothing to generate at startup. The first frame hits instantly.
+          Built for the AI coding era. Everything is TypeScript and compiles into WGSL at build
+          time, with no scene graph and no compiler in the browser. A typical app bundles to about
+          19&nbsp;KB minified and 7&nbsp;KB gzipped, because material systems and runtime shader
+          generation are simply never shipped. Less to download, nothing to generate at startup.
+          The first frame hits instantly.
         </p>
       </section>
       <section className="faq">

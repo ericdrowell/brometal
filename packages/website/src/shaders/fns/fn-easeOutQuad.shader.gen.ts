@@ -2,41 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnEaseOutQuadShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-in vec2 vUv;
-out vec4 fragColor;
-float easeOutQuad(float t) {
-  return t * (2.0 - t);
-}
-void main() {
-  float mx = (vUv.x - 0.1) / 0.8;
-  float my = (vUv.y - 0.2) / 0.6;
-  vec3 color = vec3(0.08, 0.08, 0.12);
-  if (mx >= 0.0 && mx <= 1.0) {
-    float yv = easeOutQuad(clamp(mx, 0.0, 1.0));
-    float d = abs(my - yv);
-    color = mix(color, vec3(0.55, 0.6, 1.0), 1.0 - smoothstep(0.01, 0.03, d));
-    float tt = fract(uTime * 0.45);
-    vec2 dotVec = vec2((mx - tt) * 1.2, (my - easeOutQuad(tt)) * 1.2);
-    color = mix(color, vec3(1.0, 0.7, 0.3), 1.0 - smoothstep(0.035, 0.055, length(dotVec)));
-  }
-  fragColor = vec4(color, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

@@ -7,15 +7,12 @@ import {
   createProgram,
   createRenderer,
   mat4,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import terrainShader from '@/shaders/terrain.shader.gen';
 
 export default function TerrainDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const ampRef = useRef(0.9);
   const [amp, setAmp] = useState(0.9);
@@ -32,7 +29,6 @@ export default function TerrainDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       const program = createProgram(renderer, terrainShader);
       // A densely-tessellated plane: ~65k vertices for the vertex shader to move.
@@ -101,7 +97,6 @@ export default function TerrainDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Noise-displaced vertices, normals derived in the shader</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

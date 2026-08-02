@@ -2,56 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnWorleyEdge2Shader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec2 hash22(vec2 p) {
-  vec2 k = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-  return vec2(fract(sin(k.x) * 43758.5453), fract(sin(k.y) * 43758.5453));
-}
-float worleyEdge2(vec2 p) {
-  vec2 cell = vec2(floor(p.x), floor(p.y));
-  vec2 f = p - cell;
-  float f1 = 8.0;
-  float f2 = 8.0;
-  for (float i = -1.0; i <= 1.0; i = i + 1.0) {
-    for (float j = -1.0; j <= 1.0; j = j + 1.0) {
-      vec2 neighbor = vec2(i, j);
-      vec2 feature = hash22(cell + neighbor);
-      float d = length(neighbor + feature - f);
-      if (d < f1) {
-        f2 = f1;
-        f1 = d;
-      } else {
-        if (d < f2) {
-          f2 = d;
-        }
-      }
-    }
-  }
-  return f2 - f1;
-}
-void main() {
-  vec2 p = vec2(vUv.x * uAspect, vUv.y) * 5.0 + vec2(uTime * 0.3, uTime * 0.12);
-  float n = 1.0 - worleyEdge2(p);
-  fragColor = vec4(n, n, n, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

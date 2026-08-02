@@ -2,30 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const gameGlowShader: CompiledShader<{ aPosition: 'vec3' }, { iOffset: 'vec3'; iScale: 'float'; iAlpha: 'float' }, { uViewProj: 'mat4'; uColor: 'vec3' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 iOffset;
-layout(location = 2) in float iScale;
-layout(location = 3) in float iAlpha;
-uniform mat4 uViewProj;
-out float vAlpha;
-void main() {
-  vAlpha = iAlpha;
-  gl_Position = uViewProj * vec4(aPosition * iScale + iOffset, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform vec3 uColor;
-in float vAlpha;
-out vec4 fragColor;
-void main() {
-  fragColor = vec4(uColor, vAlpha);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uColor : vec3f,

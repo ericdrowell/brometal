@@ -2,43 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnRotate3Shader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 rotate3(vec3 p, vec3 axis, float angle) {
-  vec3 a = normalize(axis);
-  float c = cos(angle);
-  float s = sin(angle);
-  return p * c + cross(a, p) * s + a * (dot(a, p) * (1.0 - c));
-}
-void main() {
-  vec2 q = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  float r = length(q);
-  float z = sqrt(max(0.2025 - r * r, 0.0));
-  vec3 n = normalize(vec3(q.x, q.y, z));
-  vec3 rn = rotate3(n, normalize(vec3(0.5, 1.0, 0.3)), uTime * 0.8);
-  float c = mod(floor(rn.x * 3.0 + 3.0) + floor(rn.y * 3.0 + 3.0) + floor(rn.z * 3.0 + 3.0), 2.0);
-  float shade = mix(0.2, 1.0, c) * (n.z * 0.75 + 0.25);
-  float mask = 1.0 - smoothstep(0.44, 0.45, r);
-  float tone = shade * mask + 0.08 * (1.0 - mask);
-  fragColor = vec4(tone, tone, tone, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

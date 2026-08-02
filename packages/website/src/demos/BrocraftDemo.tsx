@@ -8,9 +8,7 @@ import {
   createProgram,
   createRenderer,
   loadTexture,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import blocksShader from '@/shaders/brocraft-blocks.shader.gen';
 import waterShader from '@/shaders/brocraft-water.shader.gen';
@@ -105,7 +103,6 @@ function palette(elevation: number) {
 
 export default function BrocraftDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const [locked, setLocked] = useState(false);
   const [distance, setDistance] = useState(1);
@@ -133,7 +130,6 @@ export default function BrocraftDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       const cube = createCube({ width: 1, height: 1, depth: 1 });
       const quad = createPlane({ width: 2, height: 2 });
@@ -443,7 +439,6 @@ export default function BrocraftDemo() {
         {world.blocks.toLocaleString()} block instances in one draw call · x {world.x} · y{' '}
         {world.y} · z {world.z}
       </DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

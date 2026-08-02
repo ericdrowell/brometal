@@ -2,55 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const texturedCubeShader: CompiledShader<{ aPosition: 'vec3'; aNormal: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uViewProj: 'mat4'; uModel: 'mat4'; uLightPos: 'vec3'; uViewPos: 'vec3'; uTex: 'sampler2D' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aNormal;
-layout(location = 2) in vec2 aUv;
-uniform mat4 uViewProj;
-uniform mat4 uModel;
-out vec3 vNormal;
-out vec2 vUv;
-out vec3 vWorldPos;
-void main() {
-  vec4 world = uModel * vec4(aPosition, 1.0);
-  vWorldPos = world.xyz;
-  vNormal = (uModel * vec4(aNormal, 0.0)).xyz;
-  vUv = aUv;
-  gl_Position = uViewProj * world;
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform vec3 uLightPos;
-uniform vec3 uViewPos;
-uniform sampler2D uTex;
-in vec3 vNormal;
-in vec2 vUv;
-in vec3 vWorldPos;
-out vec4 fragColor;
-float lambert(vec3 normal, vec3 lightDir) {
-  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
-}
-float blinnPhongSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float shininess) {
-  vec3 halfway = normalize(normalize(lightDir) + normalize(viewDir));
-  return pow(max(dot(normalize(normal), halfway), 0.0), shininess);
-}
-void main() {
-  float ambient = 0.25;
-  vec3 lightDir = uLightPos - vWorldPos;
-  vec3 viewDir = uViewPos - vWorldPos;
-  float diffuse = lambert(vNormal, lightDir);
-  float specular = blinnPhongSpec(vNormal, lightDir, viewDir, 32.0) * 0.4;
-  vec3 base = texture(uTex, vUv).xyz;
-  vec3 lit = base * (ambient + diffuse) + vec3(1.0, 1.0, 1.0) * specular;
-  fragColor = vec4(lit, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uModel : mat4x4f,

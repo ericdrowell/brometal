@@ -141,8 +141,8 @@ export interface ShaderDefinition<
     varyings: Readonly<Values<V>>,
   ): Vec4;
   /**
-   * A compute stage. WebGPU only — WebGL2 has no compute shaders at all, so a
-   * shader declaring one compiles to WGSL alone.
+   * A compute stage: work dispatched over a grid rather than driven by
+   * geometry.
    *
    * `id` is the global invocation id as floats. Compute returns nothing; it
    * communicates by writing to storage buffers.
@@ -154,7 +154,7 @@ export interface ShaderDefinition<
 
 /**
  * Declares a GPU shader program. The body is never executed on the CPU — the
- * BroMetal CLI (`npx brometal dev` / `npx brometal prod`) compiles it to GLSL.
+ * BroMetal CLI (`npx brometal dev` / `npx brometal prod`) compiles it to WGSL.
  */
 export function shader<
   const A extends GpuRecord = Record<string, never>,
@@ -172,7 +172,7 @@ export type UniformKind = '1f' | '2fv' | '3fv' | '4fv' | 'm4fv' | '1i';
 export interface AttributeLayoutEntry {
   name: string;
   type: GpuType;
-  /** GLSL location, assigned by the compiler via layout(location = N). */
+  /** Vertex-attribute location, assigned by the compiler as @location(N). */
   location: number;
   /** Components per element (floats). */
   size: number;

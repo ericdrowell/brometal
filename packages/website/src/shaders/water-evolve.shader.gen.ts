@@ -2,56 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const waterEvolveShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uSpectrum: 'sampler2D'; uPatchSize: 'float'; uTime: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition.x, aPosition.y, 0.0, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform sampler2D uSpectrum;
-uniform float uPatchSize;
-uniform float uTime;
-in vec2 vUv;
-out vec4 fragColor;
-vec2 complexMul(vec2 a, vec2 b) {
-  return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
-}
-void main() {
-  float size = 128.0;
-  float twoPi = 6.283185307179586;
-  float gravity = 9.81;
-  float x = floor(vUv.x * size);
-  float y = floor(vUv.y * size);
-  float n = x - size * 0.5;
-  float m = y - size * 0.5;
-  float delta = twoPi / uPatchSize;
-  vec2 k = vec2(n * delta, m * delta);
-  float kLength = length(k);
-  float alive = step(0.0001, kLength);
-  float safeLength = max(kLength, 0.0001);
-  vec4 seed = texture(uSpectrum, vUv);
-  vec2 positive = vec2(seed.x, seed.y);
-  vec2 negative = vec2(seed.z, 0.0 - seed.w);
-  float omega = sqrt(gravity * safeLength) * uTime;
-  vec2 phase = vec2(cos(omega), sin(omega));
-  vec2 conjugatePhase = vec2(phase.x, 0.0 - phase.y);
-  vec2 height = complexMul(positive, phase) + complexMul(negative, conjugatePhase);
-  vec2 unit = vec2(k.x / safeLength * alive, k.y / safeLength * alive);
-  vec2 displaceX = vec2(height.y * unit.x, 0.0 - height.x * unit.x);
-  vec2 displaceZ = vec2(height.y * unit.y, 0.0 - height.x * unit.y);
-  fragColor = vec4(displaceX.x - height.y, displaceX.y + height.x, displaceZ.x, displaceZ.y);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uPatchSize : f32,
   uTime : f32,

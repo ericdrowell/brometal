@@ -2,8 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const gpuComputeShader: CompiledShader<Record<string, never>, Record<string, never>, { uCount: 'float'; uOut: 'storage' }> = {
-  vertexSrc: ``,
-  fragmentSrc: ``,
   wgslSrc: `struct BmUniforms {
   uCount : f32,
 }

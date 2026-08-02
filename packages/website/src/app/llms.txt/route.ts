@@ -22,9 +22,9 @@ export function GET(): Response {
 
   const body = `# BroMetal
 
-> BroMetal compiles shaders written in a typed TypeScript DSL into GLSL and WGSL
-> at build time, and ships dual WebGL2 + WebGPU runtimes behind one API. There is
-> no scene graph, no material system, and no shader compiler in the browser.
+> BroMetal compiles shaders written in a typed TypeScript DSL into WGSL at build
+> time and ships a small WebGPU runtime. There is no scene graph, no material
+> system, and no shader compiler in the browser.
 
 Version ${BROMETAL_VERSION} · MIT licensed · https://www.npmjs.com/package/brometal
 
@@ -33,18 +33,18 @@ Version ${BROMETAL_VERSION} · MIT licensed · https://www.npmjs.com/package/bro
 You write a shader as a TypeScript function using a typed subset of the language
 (vectors, matrices, swizzles, float-counter loops, helper functions). A build
 step compiles each \`name.shader.ts\` into \`name.shader.gen.ts\` — a
-dependency-free module holding finished GLSL and WGSL plus typed interface
-metadata. Your app imports the generated module; the compiler never ships.
+dependency-free module holding finished WGSL plus typed interface metadata. Your
+app imports the generated module; the compiler never ships.
 
-\`await createRenderer(canvas)\` picks WebGPU when the browser exposes an adapter
-and falls back to WebGL2, behind the same typed API either way.
+\`await createRenderer(canvas)\` returns a WebGPU renderer, and throws with a
+clear message where WebGPU is unavailable.
 
 ## Facts
 
 - Bundle size: a typical app (renderer, program, camera, geometry, matrices)
-  is about 23 KB minified and 8.5 KB gzipped. The compiler and CLI are
+  is about 19 KB minified and 7 KB gzipped. The compiler and CLI are
   build-time only.
-- Backends: WebGL2 (GLSL ES 3.00) and WebGPU (WGSL), compiled from one source.
+- Backend: WebGPU (WGSL) only. Chrome/Edge 113+, Firefox 141+, Safari 26+.
 - No runtime shader generation, so no shader compilation cost on the first frame.
 - Sizing: BroMetal owns the canvas drawing buffer and tracks the CSS box at the
   device pixel ratio. Do not set the canvas \`width\`/\`height\` attributes.

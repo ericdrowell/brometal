@@ -2,39 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnBrightnessContrastShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 brightnessContrast(vec3 color, float brightness, float contrast) {
-  return (color - vec3(0.5, 0.5, 0.5)) * contrast + vec3(0.5, 0.5, 0.5) + vec3(brightness, brightness, brightness);
-}
-vec3 hsv2rgb(vec3 hsv) {
-  float h = hsv.x * 6.0;
-  float r = clamp(abs(h - 3.0) - 1.0, 0.0, 1.0);
-  float g = clamp(2.0 - abs(h - 2.0), 0.0, 1.0);
-  float b = clamp(2.0 - abs(h - 4.0), 0.0, 1.0);
-  return mix(vec3(1.0, 1.0, 1.0), vec3(r, g, b), hsv.y) * hsv.z;
-}
-void main() {
-  vec3 color = hsv2rgb(vec3(vUv.x, 0.6, vUv.y));
-  float contrast = 1.0 + 0.8 * sin(uTime);
-  fragColor = vec4(clamp(brightnessContrast(color, 0.0, contrast), 0.0, 1.0), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

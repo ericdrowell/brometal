@@ -30,7 +30,7 @@ import {
  * The lit pass. Everything here is ordinary Blinn-Phong except the one extra
  * question each fragment asks: from where the light stands, is anything closer?
  *
- * `targetUv` is what makes that question portable. WebGL2 and WebGPU disagree
+ * `targetUv` is what makes that question correct. NDC +y and texture v disagree
  * about which row of a render target NDC +y lands on, so hand-rolling
  * `clip.xy / clip.w * 0.5 + 0.5` mirrors the lookup on one of the two backends
  * — and a mirrored shadow still looks like a shadow, just attached to the wrong

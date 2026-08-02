@@ -2,8 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const oceanCsFftShader: CompiledShader<Record<string, never>, Record<string, never>, { uStage: 'float'; uVertical: 'float'; uCount: 'float'; uSource: 'storage'; uTarget: 'storage' }> = {
-  vertexSrc: ``,
-  fragmentSrc: ``,
   wgslSrc: `struct BmUniforms {
   uStage : f32,
   uVertical : f32,

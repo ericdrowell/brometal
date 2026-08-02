@@ -2,63 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const rippleShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uViewProj: 'mat4'; uModel: 'mat4'; uPhase: 'float'; uSpacing: 'float'; uAmp: 'float'; uLightDir: 'vec3' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-uniform mat4 uViewProj;
-uniform mat4 uModel;
-uniform float uPhase;
-uniform float uSpacing;
-uniform float uAmp;
-out vec3 vNormal;
-out float vHeight;
-float easeInOutCubic(float t) {
-  float result = 4.0 * t * t * t;
-  if (t >= 0.5) {
-    float inv = 2.0 - 2.0 * t;
-    result = 1.0 - inv * inv * inv * 0.5;
-  }
-  return result;
-}
-float rippleHeight(vec2 uv, float phaseTime, float spacing) {
-  float dist = length(uv - vec2(0.5, 0.5));
-  float phase = clamp(fract(phaseTime - dist * spacing), 0.0, 1.0);
-  float wave = (easeInOutCubic(phase) - phase) * 2.6;
-  float falloff = clamp(1.15 - dist * 1.55, 0.0, 1.0);
-  return wave * falloff;
-}
-void main() {
-  float h = rippleHeight(aUv, uPhase, uSpacing);
-  float e = 0.0039;
-  float hx = rippleHeight(aUv + vec2(e, 0.0), uPhase, uSpacing);
-  float hy = rippleHeight(aUv + vec2(0.0, e), uPhase, uSpacing);
-  vec3 normal = normalize(vec3((h - hx) * uAmp * 30.0, (h - hy) * uAmp * 30.0, 1.0));
-  vec4 displaced = vec4(aPosition.x, aPosition.y, h * uAmp, 1.0);
-  vec4 world = uModel * displaced;
-  vNormal = (uModel * vec4(normal, 0.0)).xyz;
-  vHeight = clamp(h, -0.5, 0.5) + 0.5;
-  gl_Position = uViewProj * world;
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform vec3 uLightDir;
-in vec3 vNormal;
-in float vHeight;
-out vec4 fragColor;
-float lambert(vec3 normal, vec3 lightDir) {
-  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
-}
-void main() {
-  float diffuse = lambert(vNormal, uLightDir);
-  vec3 low = vec3(0.1, 0.25, 0.35);
-  vec3 high = vec3(0.85, 0.8, 0.7);
-  fragColor = vec4(mix(low, high, vHeight) * (0.3 + diffuse * 0.8), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uModel : mat4x4f,

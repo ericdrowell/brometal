@@ -2,33 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnHash21Shader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float hash21(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-void main() {
-  vec2 q = vec2(vUv.x * uAspect, vUv.y) * 14.0;
-  float n = hash21(vec2(floor(q.x), floor(q.y) + floor(uTime) * 31.0));
-  fragColor = vec4(n, n, n, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

@@ -2,51 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnSmoothIntersectShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float smoothIntersect(float d1, float d2, float k) {
-  float h = clamp(0.5 - 0.5 * (d2 - d1) / k, 0.0, 1.0);
-  return mix(d2, d1, h) + k * h * (1.0 - h);
-}
-float sdCircle(vec2 p, float radius) {
-  return length(p) - radius;
-}
-float sdBox2(vec2 p, vec2 halfSize) {
-  vec2 d = vec2(abs(p.x) - halfSize.x, abs(p.y) - halfSize.y);
-  float outside = length(vec2(max(d.x, 0.0), max(d.y, 0.0)));
-  return outside + min(max(d.x, d.y), 0.0);
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  float circle = sdCircle(p - vec2(cos(uTime) * 0.12, 0.0), 0.2);
-  float box = sdBox2(p, vec2(0.2, 0.14));
-  float d = smoothIntersect(circle, box, 0.05);
-  vec3 color = vec3(0.9, 0.55, 0.25);
-  if (d > 0.0) {
-    color = vec3(0.35, 0.55, 0.95);
-  }
-  color = color * (0.75 + 0.25 * cos(d * 50.0));
-  float zero = 1.0 - smoothstep(0.004, 0.014, abs(d));
-  color = mix(color, vec3(1.0, 1.0, 1.0), zero);
-  fragColor = vec4(color, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

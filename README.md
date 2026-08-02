@@ -2,9 +2,9 @@
 
 Write TypeScript.  Lift Shaders.  Ship Shredded.
 
-Shaders written as typed TypeScript, compiled ahead of time to GLSL **and** WGSL,
-with dual WebGL2/WebGPU runtimes to drive them. No shader compiler ships to the
-browser — the runtime is ~23 KB minified, 8.5 KB gzipped.
+Shaders written as typed TypeScript, compiled ahead of time to WGSL, with a
+WebGPU runtime to drive them. No shader compiler ships to the browser — the
+runtime is ~19 KB minified, 7 KB gzipped.
 
 **[brometal.dev](https://brometal.dev)** · **[npm](https://www.npmjs.com/package/brometal)** · **[Discord](https://discord.gg/fNbTnAQqyg)**
 
@@ -47,7 +47,7 @@ npx brometal prod    # one-shot optimized build
 ```
 
 Each `name.shader.ts` produces a sibling `name.shader.gen.ts` — a dependency-free
-module holding the finished GLSL and WGSL plus typed interface metadata.
+module holding the finished WGSL plus typed interface metadata.
 
 **3. Import the generated module** — never the source:
 
@@ -55,7 +55,7 @@ module holding the finished GLSL and WGSL plus typed interface metadata.
 import { createRenderer, createProgram, mat4 } from 'brometal';
 import cubeShader from './shaders/cube.shader.gen';   // .gen, not .shader
 
-const renderer = await createRenderer(canvas);   // WebGPU if available, else WebGL2
+const renderer = await createRenderer(canvas);   // WebGPU; throws where unavailable
 const program = createProgram(renderer, cubeShader);
 
 program.attributes.aPosition.set(positions);   // Float32Array
@@ -93,8 +93,8 @@ shader *is* the thing you are building.
 |---|---|---|
 | Shaders | Typed TypeScript, checked at build time | GLSL/TSL strings |
 | Shader compilation | Ahead of time, on your machine | In the browser, at startup |
-| Runtime size | ~23 KB min / 8.5 KB gzip | ~600 KB min |
-| Backends | GLSL + WGSL from one source | WebGL and WebGPU renderers |
+| Runtime size | ~19 KB min / 7 KB gzip | ~600 KB min |
+| Backends | WebGPU | WebGL and WebGPU renderers |
 | Scene graph | None — you own the draw loop | Yes |
 
 The practical difference is where errors surface. A typo in a GLSL string is a
@@ -147,7 +147,7 @@ single zero-width read. BroMetal detects that case, leaves the buffer exactly as
 authored, and warns once naming the fix. It renders; it just will not fill its
 container or sharpen on a retina display until you give it CSS.
 
-Everything is typed end-to-end: the attribute/uniform records in `shader()` drive the GLSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors — a typo'd uniform name is a compile error in your app, and the compiler enforces the varyings contract (vertex must write every varying) with `file:line:col` diagnostics.
+Everything is typed end-to-end: the attribute/uniform records in `shader()` drive the WGSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors — a typo'd uniform name is a compile error in your app, and the compiler enforces the varyings contract (vertex must write every varying) with `file:line:col` diagnostics.
 
 ## Camera
 
@@ -216,7 +216,7 @@ export default shader({
 });
 ```
 
-The compiler resolves imports (and their dependencies — `fbm2` pulls in `vnoise2` and `hash21` automatically), type-checks every call against the library signatures, and emits only the functions each stage actually uses — into both GLSL and WGSL. Nothing ships at runtime; it's tree-shaken shader text.
+The compiler resolves imports (and their dependencies — `fbm2` pulls in `vnoise2` and `hash21` automatically), type-checks every call against the library signatures, and emits only the functions each stage actually uses. Nothing ships at runtime; it's tree-shaken shader text.
 
 Included: `hash11 hash21 hash22 hash31` · `vnoise2 gnoise2 fbm2 turbulence2 warp2 voronoi2 worleyEdge2 curl2 vnoise3 fbm3` · `remap smootherstep rotate2` · easings (`quad/cubic/sine/expo/back/elastic/bounce` families) · `luminance rgb2hsv hsv2rgb cosinePalette adjustSaturation brightnessContrast blendScreen blendOverlay tonemapACES tonemapReinhard gammaCorrect filmGrain` · `lambert blinnPhongSpec specGGX fresnel toonShade hemisphereLight` · `sdCircle sdBox2 sdRoundedBox2 sdHexagon sdSegment2 smoothUnion smoothSubtract smoothIntersect fillAA strokeAA` · `sdSphere3 sdBox3 sdTorus3 sdCapsule3 sdOctahedron3 sdPlane3`
 
@@ -290,7 +290,7 @@ Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/
 ### Deploying to Vercel
 
 1. Import the GitHub repo in Vercel and set **Root Directory** to `packages/website` — everything else is auto-detected (`vercel.json` + the `vercel-build` script).
-2. Each deploy builds the workspace compiler, runs the publish preflight, prod-compiles the shaders (minified GLSL), and builds Next against the **published** npm package — so brometal.dev always demos exactly what `npm install brometal` delivers, and the CLI gets exercised in CI on every deploy.
+2. Each deploy builds the workspace compiler, runs the publish preflight, prod-compiles the shaders, and builds Next against the **published** npm package — so brometal.dev always demos exactly what `npm install brometal` delivers, and the CLI gets exercised in CI on every deploy.
 3. `npm run release` handles the version handoff automatically: after publishing it updates `brometal-published` in the website workspace and commits + pushes the lockfile, so the next Vercel deploy builds against the fresh release. If the site ever uses features not yet published, the preflight fails the deploy with instructions instead of shipping a broken page.
 
 ## What the DSL supports (MVP)
@@ -299,36 +299,33 @@ Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/
 - Per-vertex `attributes` and per-instance `instanceAttributes`
 - `const` and mutable `let` locals, float arithmetic (`+ - * /`), compound assignment (`+= -= *= /=`, `x++`), comparisons, `if`/`else`
 - `for` loops with float counters — `for (let i = 0; i < n; i += 1)`
-- Module-level **helper functions** with typed signatures (`function palette(t: number): Vec3`), compiled to GLSL functions; helpers can call earlier helpers
+- Module-level **helper functions** with typed signatures (`function palette(t: number): Vec3`), compiled to WGSL functions; helpers can call earlier helpers
 - Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, swizzles (`.x`, `.xyz`, …)
 - Constructors `vec2/vec3/vec4` (composite forms like `vec4(v3, 1)` included)
 - Intrinsics: `texture reflect normalize dot cross mix clamp length distance sin cos tan asin acos atan abs sign fract floor sqrt pow exp exp2 log mod step smoothstep min max`
 
 Anything outside the subset fails compilation with a precise, actionable error.
 
-## WebGPU + WebGL from one source
+## WebGPU
 
-Every shader compiles to **both** GLSL ES 3.00 and WGSL by default
-(`npx brometal dev --targets=webgl2,webgpu` to control it — shader text is tiny,
-so shipping both costs single-digit KB).
+Every shader compiles to WGSL. There is no second backend: WebGL2 support was
+dropped in 0.14 because the features worth building on — compute shaders and
+storage buffers, chiefly — have no WebGL2 equivalent, and supporting both meant
+every feature had to be expressible in the older API.
 
 ```ts
-const renderer = await createRenderer(canvas);          // WebGPU when available, WebGL2 otherwise
-const program = createProgram(renderer, cubeShader);    // same API on both backends
+const renderer = await createRenderer(canvas);          // throws if WebGPU is missing
+const program = createProgram(renderer, cubeShader);
 // transparency: createProgram(renderer, s, { blend: 'alpha' | 'additive' })
 ```
 
-`createRenderer` probes for a working WebGPU adapter and falls back to WebGL2 —
-same typed program API, same draw loop, no app changes. Pass
-`backend: 'webgl2' | 'webgpu'` to pin one.
+WebGPU ships in Chrome and Edge 113+, Firefox 141+, and Safari 26+. Where it is
+absent, `createRenderer` rejects with a message naming the requirement rather
+than degrading quietly.
 
-The compiler absorbs the platform differences at build time: WGSL uniform blocks
-with correct alignment offsets, texture/sampler binding pairs, and the
-GL→WebGPU clip-space remap. CPU-side matrices work identically on both.
-
-Some features are WebGPU-only because WebGL2 has no equivalent — compute shaders
-and storage buffers, chiefly. A shader using them drops the GLSL target with a
-warning rather than failing the build.
+The compiler absorbs the platform details at build time: WGSL uniform blocks with
+correct alignment offsets, texture/sampler binding pairs, and the clip-space
+depth remap.
 
 ```mermaid
 flowchart TD
@@ -338,14 +335,11 @@ flowchart TD
         TC --> SA[GPU Semantic Analysis]
         SA --> IR[GPU IR]
         IR --> OPT[Optimization Passes]
-        OPT --> GLSL
         OPT --> WGSL
     end
     subgraph RUN ["Runtime — browser"]
-        WebGL
         WebGPU
     end
-    GLSL --> WebGL
     WGSL --> WebGPU
     style BUILD fill:none,stroke:#888,stroke-width:1.5px
     style RUN fill:none,stroke:#888,stroke-width:1.5px
@@ -363,12 +357,12 @@ BroMetal's spirit is to decide everything it can at compile time, so the runtime
 - **Unused attributes, uniforms, and varyings** are compile-time warnings, not runtime surprises; never-read varyings are stripped from prod builds along with the vertex code that fed them.
 - **Fragment precision** is a build flag: `npx brometal prod --precision=mediump` for mobile-leaning targets (default `highp`).
 
-At runtime, the hot path is equally lean: GL state is cached (repeat `useProgram`/VAO binds are skipped), resize handling is `ResizeObserver`-driven so the frame loop never reads DOM layout, `createRenderer` requests the high-performance GPU, opt-in back-face culling (`cull: 'back'`) halves fragment work for closed meshes, and every `mat4` function takes an optional `out` matrix so render loops allocate nothing.
+At runtime, the hot path is equally lean: pipelines and bind groups are built once and reused, resize handling is `ResizeObserver`-driven so the frame loop never reads DOM layout, `createRenderer` requests the high-performance GPU, opt-in back-face culling (`cull: 'back'`) halves fragment work for closed meshes, and every `mat4` function takes an optional `out` matrix so render loops allocate nothing.
 
 ## Repo layout
 
 ```
-packages/brometal/  # the npm package: compiler, CLI, WebGL2 runtime, camera, textures, mat4 math
+packages/brometal/  # the npm package: compiler, CLI, WebGPU runtime, camera, textures, mat4 math
 packages/website/   # Next.js site (brometal.dev): homepage + all example pages
 ```
 

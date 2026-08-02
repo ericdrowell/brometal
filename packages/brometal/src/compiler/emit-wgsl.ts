@@ -336,7 +336,7 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
 
   if (expr.callee === 'targetUv') {
     // WebGPU puts NDC +y at the target's *first* row while texture v still runs
-    // top-down, so v is inverted relative to WebGL2. Getting this wrong flips
+    // top-down, so v has to be inverted. Getting this wrong flips
     // every shadow in the scene about the light's horizontal axis, which reads
     // as shadows detaching and sliding the wrong way — not as an upside-down
     // image. Hence an intrinsic rather than a note in the docs.

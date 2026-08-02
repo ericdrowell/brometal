@@ -48,7 +48,7 @@ describe('brometal CLI compilation', () => {
     expect(generated).toContain(
       `CompiledShader<{ aPosition: 'vec3'; aColor: 'vec3' }, Record<string, never>, { uMvp: 'mat4' }>`,
     );
-    expect(generated).toContain('#version 300 es');
+    expect(generated).toContain('@vertex');
     expect(generated).toContain(`attributes: { aPosition: 'vec3', aColor: 'vec3' }`);
     expect(generated).toContain('instanceAttributes: {}');
     expect(generated).toContain(`uniforms: { uMvp: 'mat4' }`);
@@ -68,11 +68,4 @@ describe('brometal CLI compilation', () => {
     expect(() => readFileSync(genPathFor(shaderPath), 'utf8')).toThrow();
   });
 
-  it('compiles minified GLSL in prod mode', () => {
-    const shaderPath = path.join(root, 'cube.shader.ts');
-    writeFileSync(shaderPath, CUBE_SHADER);
-    compileProject(root, { optimize: true });
-    const generated = readFileSync(genPathFor(shaderPath), 'utf8');
-    expect(generated).toContain('void main(){');
-  });
 });

@@ -9,9 +9,7 @@ import {
   createRenderTarget,
   createSphere,
   mat4,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import surfaceShader from '@/shaders/water-surface.shader.gen';
 import skyShader from '@/shaders/water-sky.shader.gen';
@@ -19,7 +17,6 @@ import skydomeShader from '@/shaders/water-skydome.shader.gen';
 
 export default function DayOceanDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
 
   useEffect(() => {
@@ -37,7 +34,6 @@ export default function DayOceanDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       // The sky is raymarched into an equirectangular map by a fullscreen quad.
       const quad = createPlane({ width: 2, height: 2, widthSegments: 1, heightSegments: 1 });
@@ -96,7 +92,6 @@ export default function DayOceanDemo() {
       surface.uniforms.uFoamAmount.set(0.6);
       surface.uniforms.uModel.set(mat4.identity());
       surface.uniforms.uOrigin.set([0, 0]);
-      surface.uniforms.uFlipV.set(renderer.backend === 'webgpu' ? 1 : 0);
 
       // The dome carries the sky map: drawn around the camera each frame, large
       // enough to sit behind the ocean but inside the far plane.
@@ -176,7 +171,6 @@ export default function DayOceanDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Gerstner ocean with a refracted, lit seabed</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

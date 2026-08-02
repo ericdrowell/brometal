@@ -2,46 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnSdHexagonShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float sdHexagon(vec2 p, float radius) {
-  float kx = -0.866025404;
-  float ky = 0.5;
-  float kz = 0.577350269;
-  vec2 q = vec2(abs(p.x), abs(p.y));
-  float shift = 2.0 * min(dot(vec2(kx, ky), q), 0.0);
-  vec2 q2 = q - vec2(kx, ky) * shift;
-  vec2 q3 = vec2(q2.x - clamp(q2.x, -kz * radius, kz * radius), q2.y - radius);
-  return length(q3) * sign(q3.y);
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  float d = sdHexagon(p, 0.25);
-  vec3 color = vec3(0.9, 0.55, 0.25);
-  if (d > 0.0) {
-    color = vec3(0.35, 0.55, 0.95);
-  }
-  color = color * (0.75 + 0.25 * cos(d * 50.0));
-  float zero = 1.0 - smoothstep(0.004, 0.014, abs(d));
-  color = mix(color, vec3(1.0, 1.0, 1.0), zero);
-  fragColor = vec4(color, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

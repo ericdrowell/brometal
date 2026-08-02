@@ -7,9 +7,17 @@
 // emitted WGSL is right, and none of the four bugs this exists to catch were
 // visible there.
 
-import { createProgram, createRenderer, createStorageBuffer, createPlane } from 'brometal';
+import {
+  createProgram,
+  createRenderer,
+  createRenderTarget,
+  createStorageBuffer,
+  createPlane,
+} from 'brometal';
 import computeShader from './fixtures/gpu-compute.shader.gen';
 import readbackShader from './fixtures/gpu-readback.shader.gen';
+import targetWriteShader from './fixtures/gpu-target-write.shader.gen';
+import targetReadShader from './fixtures/gpu-target-read.shader.gen';
 
 interface Check {
   name: string;
@@ -27,6 +35,8 @@ const COUNT = 256;
 const WORKGROUP = 64;
 const WIDTH = 256;
 const HEIGHT = 64;
+/** Arbitrary constant the render-target pass stamps into blue. */
+const MARK = 0.25;
 
 /** Copy the GPU canvas through a 2D canvas so pixels can be read. */
 function samplePixel(canvas: HTMLCanvasElement, x: number, y: number): number[] {
@@ -113,6 +123,59 @@ async function run(): Promise<void> {
     passed: near(alpha!, 255),
     detail: `alpha ${alpha} expected ~255`,
   });
+
+  // Render targets: draw a known uv into one, then sample it back. The whole
+  // path is invisible to the node suite — target creation, drawTo's separate
+  // encoder, and the sampler binding all need a real device.
+  const target = createRenderTarget(renderer, { width: 128, height: 64 });
+  const write = createProgram(renderer, targetWriteShader);
+  write.attributes.aPosition.set(quad.positions);
+  write.attributes.aUv.set(quad.uvs);
+  write.setIndices(quad.indices);
+  write.uniforms.uMark.set(MARK);
+
+  const read = createProgram(renderer, targetReadShader);
+  read.attributes.aPosition.set(quad.positions);
+  read.attributes.aUv.set(quad.uvs);
+  read.setIndices(quad.indices);
+  read.uniforms.uTarget.set(target.texture);
+
+  await new Promise<void>((resolve) => {
+    const stop = renderer.loop(() => {
+      renderer.drawTo(target, () => {
+        write.draw();
+      });
+      read.draw();
+      stop();
+      resolve();
+    });
+  });
+
+  // Blue is the constant the write pass stamped in. Reading anything else means
+  // the sample never reached the target's contents.
+  const [, , markBlue] = samplePixel(canvas, 128, 32);
+  checks.push({
+    name: 'render target round-trips its contents',
+    passed: near(markBlue!, Math.round(MARK * 255), 12),
+    detail: `blue ${markBlue} expected ~${Math.round(MARK * 255)}`,
+  });
+
+  // Red is v as stored (sampled with the documented flip), green is v as this
+  // pass computes it. They agree only if the target's rows come back in the
+  // order the docs promise — a target mirrored the other way still draws
+  // something plausible, so nothing else here would notice.
+  for (const [label, y] of [
+    ['top', 8],
+    ['middle', 32],
+    ['bottom', 56],
+  ] as const) {
+    const [storedV, ownV] = samplePixel(canvas, 128, y);
+    checks.push({
+      name: `render target preserves row order (${label})`,
+      passed: near(storedV!, ownV!, 12),
+      detail: `stored v ${storedV} vs this pass's v ${ownV}`,
+    });
+  }
 
   window.__GPU_RESULTS__ = { backend: renderer.backend, checks };
 }

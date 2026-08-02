@@ -46,9 +46,9 @@ import { fresnel, blinnPhongSpec, gerstnerWave, fbm2, worleyEdge2 } from 'bromet
  * - Render targets are NEAREST and CLAMP_TO_EDGE, so both the interpolation and
  *   the tiling wrap have to be done by hand. Water Pro's own shader does the
  *   same four-tap bilinear for its wake field, for the same reason.
- * - A fullscreen quad fills a target bottom-to-top on WebGL2 and top-to-bottom
- *   on WebGPU. `uFlipV` carries which way round this backend is — the same
- *   correction three.js emits as its `bool(nodeUniform)` branches.
+ * - A fullscreen quad fills a target top-to-bottom while texture v runs the same
+ *   way, so a lookup built from the sky's own grid coordinates has to invert v.
+ *   `skyTap` does it once, where it can be seen.
  */
 
 /**
@@ -120,15 +120,17 @@ function caustics(p: Vec2, time: number): number {
  * four taps and avoids raising the raymarch resolution, which is what actually
  * costs time. U wraps (azimuth is periodic); V clamps (the poles are not).
  */
-function skyTap(map: Sampler2D, cx: number, cy: number, flipV: number): Vec3 {
+function skyTap(map: Sampler2D, cx: number, cy: number): Vec3 {
   const w = 512;
   const h = 256;
   const u = (mod(cx, w) + 0.5) / w;
+  // Row 0 of the sky target is the top of the sky, while v = 0 is the bottom of
+  // the image — hence the inversion rather than using `raw` directly.
   const raw = (clamp(cy, 0, h - 1) + 0.5) / h;
-  return texture(map, vec2(u, mix(raw, 1 - raw, flipV))).xyz;
+  return texture(map, vec2(u, 1 - raw)).xyz;
 }
 
-function equirectSky(map: Sampler2D, direction: Vec3, flipV: number): Vec3 {
+function equirectSky(map: Sampler2D, direction: Vec3): Vec3 {
   const w = 512;
   const h = 256;
   const twoPi = 6.283185307179586;
@@ -139,10 +141,10 @@ function equirectSky(map: Sampler2D, direction: Vec3, flipV: number): Vec3 {
   const by = floor(gy);
   const fx = gx - bx;
   const fy = gy - by;
-  const s00 = skyTap(map, bx, by, flipV);
-  const s10 = skyTap(map, bx + 1, by, flipV);
-  const s01 = skyTap(map, bx, by + 1, flipV);
-  const s11 = skyTap(map, bx + 1, by + 1, flipV);
+  const s00 = skyTap(map, bx, by);
+  const s10 = skyTap(map, bx + 1, by);
+  const s01 = skyTap(map, bx, by + 1);
+  const s11 = skyTap(map, bx + 1, by + 1);
   return mix(mix(s00, s10, fx), mix(s01, s11, fx), fy);
 }
 
@@ -159,8 +161,6 @@ export default shader({
     uChoppy: 'float',
     /** World-space XZ offset of the tile, so the grid can follow the camera. */
     uOrigin: 'vec2',
-    /** 1 when the backend fills render targets top-to-bottom. */
-    uFlipV: 'float',
     uViewPos: 'vec3',
     uSunDir: 'vec3',
     uSkyHorizon: 'vec3',
@@ -211,7 +211,6 @@ export default shader({
   fragment(
     {
       uSky,
-      uFlipV,
       uViewPos,
       uSunDir,
       uSkyHorizon,
@@ -251,7 +250,7 @@ export default shader({
     const reflectDir = reflect(vec3(0 - viewDir.x, 0 - viewDir.y, 0 - viewDir.z), normal);
     // Never reflect below the horizon — there is nothing down there to see.
     const bounced = vec3(reflectDir.x, max(reflectDir.y, 0.02), reflectDir.z);
-    const reflection = equirectSky(uSky, normalize(bounced), uFlipV);
+    const reflection = equirectSky(uSky, normalize(bounced));
 
     // Look *through* the surface: refract the view ray into the water, find
     // where it meets the seabed, and attenuate what comes back by how far it

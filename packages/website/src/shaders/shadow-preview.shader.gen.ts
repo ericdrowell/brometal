@@ -2,34 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const shadowPreviewShader: CompiledShader<{ aPosition: 'vec3' }, Record<string, never>, { uMap: 'sampler2D'; uRect: 'vec4' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-uniform vec4 uRect;
-out vec2 vUv;
-void main() {
-  vUv = ((vec4(aPosition.x, aPosition.y, 0.0, 1.0)).xy / (vec4(aPosition.x, aPosition.y, 0.0, 1.0)).w * 0.5 + 0.5);
-  gl_Position = vec4(aPosition.x * uRect.z + uRect.x, aPosition.y * uRect.w + uRect.y, 0.0, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform sampler2D uMap;
-in vec2 vUv;
-out vec4 fragColor;
-void main() {
-  float nearest = texture(uMap, vUv).x;
-  float empty = step(0.999, nearest);
-  float shade = pow(1.0 - nearest, 0.55);
-  vec3 image = mix(vec3(shade * 0.95, shade * 0.98, shade), vec3(0.07, 0.08, 0.11), empty);
-  float edge = step(0.984, max(abs(vUv.x - 0.5), abs(vUv.y - 0.5)) * 2.0);
-  fragColor = vec4(mix(image, vec3(0.32, 0.35, 0.44), edge), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uRect : vec4f,
 }

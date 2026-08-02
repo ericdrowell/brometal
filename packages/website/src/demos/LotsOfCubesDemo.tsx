@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createProgram, createRenderer, mat4, type RendererBackend } from 'brometal';
+import { createProgram, createRenderer, mat4 } from 'brometal';
 import cubesShader from '@/shaders/instanced-cubes.shader.gen';
 import { indices, pastelColors, positions } from '@/lib/cube-geometry';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 const GRID = 50; // 50 × 50 × 50 = 125,000 cubes
@@ -13,7 +12,6 @@ const COUNT = GRID * GRID * GRID;
 
 export default function LotsOfCubesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
 
   useEffect(() => {
@@ -28,7 +26,6 @@ export default function LotsOfCubesDemo() {
       renderer.destroy();
       return;
     }
-      setBackend(renderer.backend);
     const program = createProgram(renderer, cubesShader);
     program.attributes.aPosition.set(positions);
     program.attributes.aColor.set(pastelColors);
@@ -110,7 +107,6 @@ export default function LotsOfCubesDemo() {
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
       <DemoStats stats={stats}>125,000 cubes · 1 draw call · rotation computed on the GPU</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

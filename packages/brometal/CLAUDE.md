@@ -2,10 +2,9 @@
 
 You are writing an app that uses BroMetal. Read this before writing any shader.
 
-BroMetal compiles shaders written as **typed TypeScript** into GLSL ES 3.00 and
-WGSL **at build time**, and ships dual WebGL2 + WebGPU runtimes behind one API.
-There is no scene graph, no material system, and no shader compiler in the
-browser.
+BroMetal compiles shaders written as **typed TypeScript** into WGSL **at build
+time**, and ships a WebGPU runtime behind one API. There is no scene graph, no
+material system, and no shader compiler in the browser.
 
 - **[`AGENTS.md`](AGENTS.md)** — the complete DSL reference. Read it before
   anything non-trivial.
@@ -14,9 +13,9 @@ browser.
 
 ---
 
-## Shaders are TypeScript, not GLSL strings
+## Shaders are TypeScript, not shader-language strings
 
-This is the thing agents get wrong. Do **not** write GLSL and pass it as a
+This is the thing agents get wrong. Do **not** write WGSL and pass it as a
 string — there is no API that accepts one. Write this:
 
 ```ts
@@ -63,7 +62,7 @@ no error.
 import { createRenderer, createProgram, mat4 } from 'brometal';
 import cubeShader from './shaders/cube.shader.gen';
 
-const renderer = await createRenderer(canvas);   // WebGPU if available, else WebGL2
+const renderer = await createRenderer(canvas);   // WebGPU; throws where unavailable
 const program = createProgram(renderer, cubeShader);
 
 program.attributes.aPosition.set(positions);   // Float32Array
@@ -102,28 +101,27 @@ Compile errors with file, line and column. Read the message — it names the fix
 
 These produce a black screen or wrong output with **no error message**.
 
-- **Reserved words.** GLSL ES 3.00 reserves identifiers you would never guess:
-  `sample`, `patch`, `output`, `input`, `filter`, `half`, `fixed`, `common`,
-  `active`, `partition`, `resource`. Naming a variable `sample` link-fails in the
-  driver with an empty console. The compiler rejects the list it knows about.
+- **Reserved words.** WGSL reserves a long list of ordinary-looking words for
+  future use — `type`, `set`, `get`, `from`, `new`, `use`, `with`, `where`,
+  `match`, `self`, `null`, `pass`, `target`, `filter`, `precise`, `shared`.
+  BroMetal rejects them at build time, so this surfaces as a name error rather
+  than a pipeline that silently never creates.
 - **`texture()` inside an `if`.** WGSL requires texture sampling in uniform
   control flow; sampling inside a conditional invalidates the *whole pipeline*
   and the pass draws nothing. Sample unconditionally and multiply the result
   away. (Inside a helper function the emitter uses an explicit-LOD form, which is
   exempt — but it always samples LOD 0.)
-- **Sampling a render target needs `targetUv`.** WebGL2 and WebGPU disagree about
-  which row of a target NDC +y lands on. Hand-rolling
-  `clip.xy / clip.w * 0.5 + 0.5` is correct on one backend and vertically
-  mirrored on the other — which reads as a lighting bug, not a coordinate one.
+- **Sampling a render target needs `targetUv`.** NDC +y lands on a target's
+  *first* row while texture v runs top-down, so hand-rolling
+  `clip.xy / clip.w * 0.5 + 0.5` reads the target vertically mirrored — which
+  shows up as a lighting bug, not a coordinate one.
 - **Render targets are RGBA16F and sampled NEAREST, clamped.** They hold numbers,
   not pictures. Interpolation and tiling wrap must be done by hand.
 
-## WebGPU-only features
+## Compute
 
-Compute shaders, storage buffers and 3D textures have no WebGL2 equivalent —
-GLSL ES 3.00 has no compute stage and no SSBOs. A shader using them drops the
-GLSL target with a warning rather than failing the build, and the runtime throws
-a clear error if a WebGL2 renderer tries to dispatch.
+Work dispatched over a grid rather than driven by geometry. A compute stage
+writes to storage buffers; nothing else can.
 
 ```ts
 shader({

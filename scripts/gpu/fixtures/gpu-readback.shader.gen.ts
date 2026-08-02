@@ -2,8 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const gpuReadbackShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uCount: 'float'; uData: 'storage' }> = {
-  vertexSrc: ``,
-  fragmentSrc: ``,
   wgslSrc: `struct BmUniforms {
   uCount : f32,
 }

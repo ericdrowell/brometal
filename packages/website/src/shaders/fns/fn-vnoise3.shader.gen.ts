@@ -2,53 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnVnoise3Shader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float hash31(vec3 p) {
-  return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
-}
-float vnoise3(vec3 p) {
-  vec3 cell = vec3(floor(p.x), floor(p.y), floor(p.z));
-  vec3 f = p - cell;
-  vec3 u = vec3(f.x * f.x * (3.0 - 2.0 * f.x), f.y * f.y * (3.0 - 2.0 * f.y), f.z * f.z * (3.0 - 2.0 * f.z));
-  float n000 = hash31(cell);
-  float n100 = hash31(cell + vec3(1.0, 0.0, 0.0));
-  float n010 = hash31(cell + vec3(0.0, 1.0, 0.0));
-  float n110 = hash31(cell + vec3(1.0, 1.0, 0.0));
-  float n001 = hash31(cell + vec3(0.0, 0.0, 1.0));
-  float n101 = hash31(cell + vec3(1.0, 0.0, 1.0));
-  float n011 = hash31(cell + vec3(0.0, 1.0, 1.0));
-  float n111 = hash31(cell + vec3(1.0, 1.0, 1.0));
-  float nx00 = mix(n000, n100, u.x);
-  float nx10 = mix(n010, n110, u.x);
-  float nx01 = mix(n001, n101, u.x);
-  float nx11 = mix(n011, n111, u.x);
-  float nxy0 = mix(nx00, nx10, u.y);
-  float nxy1 = mix(nx01, nx11, u.y);
-  return mix(nxy0, nxy1, u.z);
-}
-void main() {
-  vec2 p = vec2(vUv.x * uAspect, vUv.y) * 4.0;
-  float n = vnoise3(vec3(p.x, p.y, uTime * 0.5));
-  fragColor = vec4(n, n, n, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

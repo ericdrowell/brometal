@@ -2,63 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnSdOctahedron3Shader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float sdOctahedron3(vec3 p, float size) {
-  return (abs(p.x) + abs(p.y) + abs(p.z) - size) * 0.57735027;
-}
-vec2 rotate2(vec2 p, float angle) {
-  float c = cos(angle);
-  float s = sin(angle);
-  return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-}
-float lambert(vec3 normal, vec3 lightDir) {
-  return max(dot(normalize(normal), normalize(lightDir)), 0.0);
-}
-float fresnel(vec3 normal, vec3 viewDir, float power) {
-  float base = 1.0 - max(dot(normalize(normal), normalize(viewDir)), 0.0);
-  return pow(base, power);
-}
-float scene(vec3 q, float time) {
-  vec2 r = rotate2(q.xz, time * 0.7);
-  return sdOctahedron3(vec3(r.x, q.y, r.y), 0.62);
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  vec3 ro = vec3(0.0, 0.3, 2.2);
-  vec3 rd = normalize(vec3(p.x, p.y - 0.1, -1.3));
-  float t = 0.0;
-  for (float i = 0.0; i < 64.0; i = i + 1.0) {
-    t = t + clamp(scene(ro + rd * t, uTime), 0.001, 0.3);
-  }
-  vec3 hit = ro + rd * t;
-  vec3 color = vec3(0.07, 0.07, 0.11);
-  if (scene(hit, uTime) < 0.01) {
-    float e = 0.002;
-    vec3 n = normalize(vec3(scene(hit + vec3(e, 0.0, 0.0), uTime) - scene(hit - vec3(e, 0.0, 0.0), uTime), scene(hit + vec3(0.0, e, 0.0), uTime) - scene(hit - vec3(0.0, e, 0.0), uTime), scene(hit + vec3(0.0, 0.0, e), uTime) - scene(hit - vec3(0.0, 0.0, e), uTime)));
-    float diffuse = lambert(n, vec3(0.6, 0.8, 0.4));
-    float rim = fresnel(n, vec3(0.0, 0.0, 1.0), 3.0);
-    color = vec3(0.85, 0.5, 0.3) * (0.2 + diffuse * 0.8) + vec3(0.5, 0.6, 1.0) * (rim * 0.4);
-  }
-  fragColor = vec4(color, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

@@ -2,43 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnVnoise2Shader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float hash21(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-float vnoise2(vec2 p) {
-  vec2 cell = vec2(floor(p.x), floor(p.y));
-  vec2 f = p - cell;
-  vec2 u = vec2(f.x * f.x * (3.0 - 2.0 * f.x), f.y * f.y * (3.0 - 2.0 * f.y));
-  float a = hash21(cell);
-  float b = hash21(cell + vec2(1.0, 0.0));
-  float c = hash21(cell + vec2(0.0, 1.0));
-  float d = hash21(cell + vec2(1.0, 1.0));
-  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-}
-void main() {
-  vec2 p = vec2(vUv.x * uAspect, vUv.y) * 4.0 + vec2(uTime * 0.3, uTime * 0.12);
-  float n = vnoise2(p);
-  fragColor = vec4(n, n, n, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

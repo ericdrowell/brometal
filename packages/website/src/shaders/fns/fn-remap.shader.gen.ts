@@ -2,33 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnRemapShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in vec2 vUv;
-out vec4 fragColor;
-float remap(float value, float inLow, float inHigh, float outLow, float outHigh) {
-  return outLow + (value - inLow) / (inHigh - inLow) * (outHigh - outLow);
-}
-void main() {
-  float n = vUv.x;
-  if (vUv.y < 0.5) {
-    n = clamp(remap(vUv.x, 0.3, 0.7, 0.0, 1.0), 0.0, 1.0);
-  }
-  fragColor = vec4(n, n, n, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

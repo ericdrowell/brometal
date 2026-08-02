@@ -7,7 +7,7 @@ import { CompileError } from '../compiler/errors.js';
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git']);
 
-const HELP = `BroMetal — compile TypeScript shaders to GLSL
+const HELP = `BroMetal — compile TypeScript shaders to WGSL
 
 Usage:
   brometal dev [dir]          Compile all *.shader.ts files and watch for changes

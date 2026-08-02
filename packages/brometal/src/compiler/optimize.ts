@@ -149,8 +149,3 @@ function dropAssignments(statements: IrStmt[], dead: Set<string>): IrStmt[] {
   }
   return result;
 }
-
-/**
- * Whitespace-level GLSL minification. Preprocessor directives keep their own
- * lines; spaces around `+`/`-` are preserved to avoid creating `--`/`++`.
- */

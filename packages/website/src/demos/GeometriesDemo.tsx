@@ -20,10 +20,8 @@ import {
   type BroMetalProgram,
   type Geometry,
   type Renderer,
-  type RendererBackend,
 } from 'brometal';
 import litShader from '@/shaders/textured-cube.shader.gen';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 const DEFAULT_TEXTURE = 'wood095';
@@ -119,7 +117,6 @@ function applyGeometry(program: LitProgram, geometry: Geometry): void {
 
 export default function GeometriesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const rendererRef = useRef<Renderer | null>(null);
   const programRef = useRef<LitProgram | null>(null);
@@ -150,7 +147,6 @@ export default function GeometriesDemo() {
       renderer.destroy();
       return;
     }
-      setBackend(renderer.backend);
     rendererRef.current = renderer;
     const program = createProgram(renderer, litShader);
     programRef.current = program;
@@ -229,7 +225,6 @@ export default function GeometriesDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Built-in geometry generators</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

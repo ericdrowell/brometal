@@ -2,46 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const ballsSeedShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uCount: 'float'; uBounds: 'vec3'; uRadius: 'float'; uSpread: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition.x, aPosition.y, 0.0, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uCount;
-uniform vec3 uBounds;
-uniform float uRadius;
-uniform float uSpread;
-in vec2 vUv;
-out vec4 fragColor;
-float hash11(float p) {
-  return fract(sin(p * 127.1) * 43758.5453);
-}
-void main() {
-  float isVelocity = step(0.5, vUv.x);
-  float slot = vUv.x - isVelocity * 0.5;
-  float index = floor(slot * 2.0 * uCount);
-  vec3 inner = vec3(uBounds.x - uRadius, uBounds.y - uRadius, uBounds.z - uRadius);
-  float span = inner.x * 2.0;
-  float columns = max(floor(span / (uRadius * 2.35)), 1.0);
-  float spacing = span / columns;
-  float cx = mod(index, columns);
-  float cz = mod(floor(index / columns), columns);
-  float cy = floor(index / (columns * columns));
-  float slack = (spacing - uRadius * 2.0) * 0.4;
-  vec3 position = vec3(0.0 - inner.x + (cx + 0.5) * spacing + (hash11(index * 1.7 + 0.3) - 0.5) * slack, inner.y - (cy + 0.5) * spacing + (hash11(index * 3.1 + 5.7) - 0.5) * slack, 0.0 - inner.z + (cz + 0.5) * spacing + (hash11(index * 2.3 + 9.1) - 0.5) * slack);
-  vec3 velocity = vec3((hash11(index * 7.7 + 1.9) - 0.5) * uSpread, (hash11(index * 4.9 + 3.3) - 0.5) * uSpread * 0.4, (hash11(index * 6.1 + 8.5) - 0.5) * uSpread);
-  fragColor = vec4(mix(position, velocity, isVelocity), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uCount : f32,
   uBounds : vec3f,

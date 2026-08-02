@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createPlane, createProgram, createRenderer, type RendererBackend } from 'brometal';
+import { createPlane, createProgram, createRenderer } from 'brometal';
 import customShader from '../shaders/custom.shader.gen';
-import BackendBadge from './_site/BackendBadge';
 import DemoStats, { useFrameStats } from './_site/DemoStats';
 
 const FRAGMENT_SOURCE = `function palette(t: number): Vec3 {
@@ -32,7 +31,6 @@ fragment({ uTime }, { vUv }) {
 
 export default function CustomShaderDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
 
   useEffect(() => {
@@ -47,7 +45,6 @@ export default function CustomShaderDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
       const program = createProgram(renderer, customShader);
 
       // A clip-space quad: the vertex stage outputs positions directly, so the
@@ -83,13 +80,12 @@ export default function CustomShaderDemo() {
         <h1>Custom Shader</h1>
         <p className="code-note">
           Plain TypeScript — a helper function, <code>let</code> accumulators, and a{' '}
-          <code>for</code> loop — compiled to GLSL and WGSL at build time. No engine, no materials: this
+          <code>for</code> loop — compiled to WGSL at build time. No engine, no materials: this
           page is one quad and your code.
         </p>
         <pre>{FRAGMENT_SOURCE}</pre>
       </div>
-      <DemoStats stats={stats}>Compiled in the browser to GLSL and WGSL</DemoStats>
-      <BackendBadge backend={backend} />
+      <DemoStats stats={stats}>Compiled to WGSL at build time, not in the browser</DemoStats>
     </>
   );
 }

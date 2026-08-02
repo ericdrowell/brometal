@@ -31,7 +31,7 @@ const UNIFORM_KINDS: Record<GpuType, UniformKind> = {
 
 /**
  * Decides the full runtime wiring plan at compile time: attribute locations
- * (matching the layout(location = N) qualifiers in the emitted GLSL), buffer
+ * (matching the @location(N) attributes in the emitted WGSL), buffer
  * component sizes, instancing divisors, and uniform upload routines.
  */
 export function buildLayout(ir: ShaderIr): ShaderLayout {

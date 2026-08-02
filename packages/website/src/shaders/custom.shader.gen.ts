@@ -2,40 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const customShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 palette(float t) {
-  return vec3(0.5 + 0.5 * cos(6.28318 * (t + 0.0)), 0.5 + 0.5 * cos(6.28318 * (t + 0.33)), 0.5 + 0.5 * cos(6.28318 * (t + 0.67)));
-}
-void main() {
-  float x = vUv.x * 6.0 - 3.0;
-  float y = vUv.y * 6.0 - 3.0;
-  float value = 0.0;
-  float frequency = 1.0;
-  float amplitude = 0.6;
-  for (float i = 0.0; i < 5.0; i = i + 1.0) {
-    value = value + amplitude * sin(x * frequency + uTime + i * 1.7) * cos(y * frequency - uTime * 0.6 + i * 0.9);
-    frequency = frequency * 1.9;
-    amplitude = amplitude * 0.65;
-  }
-  fragColor = vec4(palette(value * 0.5 + 0.15), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
 }

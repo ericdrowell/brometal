@@ -9,9 +9,7 @@ import {
   createSphere,
   mat4,
   type BlendMode,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import litShader from '@/shaders/game-lit.shader.gen';
 import glowShader from '@/shaders/game-glow.shader.gen';
@@ -26,7 +24,6 @@ const MODES: { mode: BlendMode; label: string; note: string }[] = [
 
 export default function BlendDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const activeRef = useRef<BlendMode>('alpha');
   const [active, setActive] = useState<BlendMode>('alpha');
@@ -43,7 +40,6 @@ export default function BlendDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       const cubeProgram = createProgram(renderer, litShader);
       const cube = createCube({ width: 1.4, height: 1.4, depth: 1.4 });
@@ -147,7 +143,6 @@ export default function BlendDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Three blend modes from one shader</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

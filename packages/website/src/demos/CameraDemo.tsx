@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createCamera, createProgram, createRenderer, mat4, type Camera, type RendererBackend } from 'brometal';
+import { createCamera, createProgram, createRenderer, mat4, type Camera } from 'brometal';
 import cubeShader from '@/shaders/camera-cube.shader.gen';
 import { colors, indices, positions } from '@/lib/cube-geometry';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 interface CameraState {
@@ -22,7 +21,6 @@ const TO_RADIANS = Math.PI / 180;
 
 export default function CameraDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const cameraRef = useRef<Camera | null>(null);
   const [state, setState] = useState<CameraState>(DEFAULTS);
@@ -40,7 +38,6 @@ export default function CameraDemo() {
       renderer.destroy();
       return;
     }
-      setBackend(renderer.backend);
     const program = createProgram(renderer, cubeShader);
     program.attributes.aPosition.set(positions);
     program.attributes.aColor.set(colors);
@@ -129,7 +126,6 @@ export default function CameraDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Cached view-projection — an unmoved camera costs no matrix math</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

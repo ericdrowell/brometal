@@ -1,15 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createCamera, createProgram, createRenderer, mat4, type RendererBackend } from 'brometal';
+import { createCamera, createProgram, createRenderer, mat4 } from 'brometal';
 import lightShader from '@/shaders/light-cube.shader.gen';
 import { colors, indices, normals, positions } from '@/lib/cube-geometry';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 export default function LightDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const lightRef = useRef(new Float32Array([4, 3, 6]));
   const [light, setLight] = useState<[number, number, number]>([4, 3, 6]);
@@ -27,7 +25,6 @@ export default function LightDemo() {
       renderer.destroy();
       return;
     }
-      setBackend(renderer.backend);
     const program = createProgram(renderer, lightShader);
     program.attributes.aPosition.set(positions);
     program.attributes.aNormal.set(normals);
@@ -98,7 +95,6 @@ export default function LightDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Blinn-Phong shading, one movable point light</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

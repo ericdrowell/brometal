@@ -12,9 +12,7 @@ import {
   createTorusKnot,
   type Geometry,
   type RenderTarget,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import depthShader from '@/shaders/shadow-depth.shader.gen';
 import sceneShader from '@/shaders/shadow-scene.shader.gen';
@@ -86,7 +84,6 @@ function instanceBuffers(instances: Instance[]): {
 
 export default function ShadowDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const [height, setHeight] = useState(11);
   const [softness, setSoftness] = useState(1.6);
@@ -114,7 +111,6 @@ export default function ShadowDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
 
       const cube = createCube({ width: 1, height: 1, depth: 1 });
       const sphere = createSphere({ radius: 0.85, widthSegments: 40, heightSegments: 28 });
@@ -361,7 +357,6 @@ export default function ShadowDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>2 passes · depth-tested shadow map · 9-tap PCF</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

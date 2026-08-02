@@ -2,59 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnRgb2hsvShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 rgb2hsv(vec3 color) {
-  float maxc = max(color.x, max(color.y, color.z));
-  float minc = min(color.x, min(color.y, color.z));
-  float delta = maxc - minc;
-  float h = 0.0;
-  if (delta > 0.00001) {
-    if (color.x >= maxc - 0.00001) {
-      h = (color.y - color.z) / delta;
-      h = (h - floor(h / 6.0) * 6.0) / 6.0;
-    } else {
-      if (color.y >= maxc - 0.00001) {
-        h = ((color.z - color.x) / delta + 2.0) / 6.0;
-      } else {
-        h = ((color.x - color.y) / delta + 4.0) / 6.0;
-      }
-    }
-  }
-  float s = 0.0;
-  if (maxc > 0.00001) {
-    s = delta / maxc;
-  }
-  return vec3(h, s, maxc);
-}
-vec3 cosinePalette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
-  vec3 phase = (c * t + d) * 6.28318;
-  return a + vec3(cos(phase.x), cos(phase.y), cos(phase.z)) * b;
-}
-void main() {
-  vec3 src = cosinePalette(vUv.x + uTime * 0.05, vec3(0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5), vec3(1.0, 1.0, 1.0), vec3(0.0, 0.33, 0.67));
-  vec3 shown = src;
-  if (vUv.y < 0.5) {
-    shown = rgb2hsv(src);
-  }
-  fragColor = vec4(shown, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

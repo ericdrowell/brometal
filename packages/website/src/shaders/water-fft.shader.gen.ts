@@ -2,50 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const waterFftShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uButterfly: 'sampler2D'; uSource: 'sampler2D'; uStage: 'float'; uVertical: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition.x, aPosition.y, 0.0, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform sampler2D uButterfly;
-uniform sampler2D uSource;
-uniform float uStage;
-uniform float uVertical;
-in vec2 vUv;
-out vec4 fragColor;
-vec2 complexMul(vec2 a, vec2 b) {
-  return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
-}
-void main() {
-  float size = 128.0;
-  float stages = 7.0;
-  float x = floor(vUv.x * size);
-  float y = floor(vUv.y * size);
-  float along = mix(x, y, uVertical);
-  vec4 entry = texture(uButterfly, vec2((uStage * size + along + 0.5) / (stages * size), 0.5));
-  vec2 twiddle = vec2(entry.x, entry.y);
-  float topIndex = entry.z;
-  float bottomIndex = entry.w;
-  vec2 topUv = vec2((mix(topIndex, x, uVertical) + 0.5) / size, (mix(y, topIndex, uVertical) + 0.5) / size);
-  vec2 bottomUv = vec2((mix(bottomIndex, x, uVertical) + 0.5) / size, (mix(y, bottomIndex, uVertical) + 0.5) / size);
-  vec4 top = texture(uSource, topUv);
-  vec4 bottom = texture(uSource, bottomUv);
-  vec2 first = vec2(top.x, top.y) + complexMul(twiddle, vec2(bottom.x, bottom.y));
-  vec2 second = vec2(top.z, top.w) + complexMul(twiddle, vec2(bottom.z, bottom.w));
-  fragColor = vec4(first.x, first.y, second.x, second.y);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uStage : f32,
   uVertical : f32,

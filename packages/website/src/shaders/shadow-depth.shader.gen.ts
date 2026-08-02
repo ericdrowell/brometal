@@ -2,42 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const shadowDepthShader: CompiledShader<{ aPosition: 'vec3' }, { iOffset: 'vec3'; iScale: 'vec3'; iSpin: 'float' }, { uLightViewProj: 'mat4'; uLightPos: 'vec3'; uTime: 'float'; uRange: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 iOffset;
-layout(location = 2) in vec3 iScale;
-layout(location = 3) in float iSpin;
-uniform mat4 uLightViewProj;
-uniform vec3 uLightPos;
-uniform float uTime;
-uniform float uRange;
-out float vDistance;
-vec3 rotate3(vec3 p, vec3 axis, float angle) {
-  vec3 a = normalize(axis);
-  float c = cos(angle);
-  float s = sin(angle);
-  return p * c + cross(a, p) * s + a * (dot(a, p) * (1.0 - c));
-}
-float shadowDepth(vec3 worldPos, vec3 lightPos, float range) {
-  return distance(worldPos, lightPos) / range;
-}
-void main() {
-  vec3 world = rotate3(aPosition * iScale, vec3(0.0, 1.0, 0.0), iSpin * uTime) + iOffset;
-  vDistance = shadowDepth(world, uLightPos, uRange);
-  gl_Position = uLightViewProj * vec4(world, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in float vDistance;
-out vec4 fragColor;
-void main() {
-  fragColor = vec4(vDistance, 0.0, 0.0, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uLightViewProj : mat4x4f,
   uLightPos : vec3f,

@@ -2,44 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnBlendOverlayShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in vec2 vUv;
-out vec4 fragColor;
-float blendOverlayChannel(float base, float blend) {
-  float result = 2.0 * base * blend;
-  if (base >= 0.5) {
-    result = 1.0 - 2.0 * (1.0 - base) * (1.0 - blend);
-  }
-  return result;
-}
-vec3 blendOverlay(vec3 base, vec3 blend) {
-  return vec3(blendOverlayChannel(base.x, blend.x), blendOverlayChannel(base.y, blend.y), blendOverlayChannel(base.z, blend.z));
-}
-vec3 hsv2rgb(vec3 hsv) {
-  float h = hsv.x * 6.0;
-  float r = clamp(abs(h - 3.0) - 1.0, 0.0, 1.0);
-  float g = clamp(2.0 - abs(h - 2.0), 0.0, 1.0);
-  float b = clamp(2.0 - abs(h - 4.0), 0.0, 1.0);
-  return mix(vec3(1.0, 1.0, 1.0), vec3(r, g, b), hsv.y) * hsv.z;
-}
-void main() {
-  vec3 base = hsv2rgb(vec3(vUv.x, 0.7, 0.8));
-  fragColor = vec4(blendOverlay(base, vec3(vUv.y, vUv.y, vUv.y)), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

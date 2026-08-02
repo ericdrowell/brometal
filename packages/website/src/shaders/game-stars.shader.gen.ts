@@ -2,37 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const gameStarsShader: CompiledShader<{ aPosition: 'vec3' }, { iOffset: 'vec3'; iLen: 'float'; iSeed: 'float' }, { uViewProj: 'mat4'; uScroll: 'float'; uWrap: 'float'; uAhead: 'float'; uColor: 'vec3' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 iOffset;
-layout(location = 2) in float iLen;
-layout(location = 3) in float iSeed;
-uniform mat4 uViewProj;
-uniform float uScroll;
-uniform float uWrap;
-uniform float uAhead;
-out float vAlpha;
-void main() {
-  float z = mod(iOffset.z + uScroll * (0.7 + iSeed * 0.6), uWrap) - uWrap + uAhead;
-  vec3 local = vec3(aPosition.x * 0.035, aPosition.y * 0.035, aPosition.z * iLen);
-  vec3 world = local + vec3(iOffset.x, iOffset.y, z);
-  float closeness = clamp((z + uWrap - uAhead) / uWrap, 0.0, 1.0);
-  vAlpha = (0.15 + closeness * 0.85) * (0.4 + iSeed * 0.6);
-  gl_Position = uViewProj * vec4(world, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform vec3 uColor;
-in float vAlpha;
-out vec4 fragColor;
-void main() {
-  fragColor = vec4(uColor, vAlpha);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uScroll : f32,

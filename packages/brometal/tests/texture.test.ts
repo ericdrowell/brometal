@@ -37,16 +37,25 @@ export default shader({
 `;
 
 describe('textures and lighting', () => {
-  it('compiles a textured Blinn-Phong shader to valid GLSL', () => {
+  it('compiles a textured Blinn-Phong shader to valid WGSL', () => {
     const compiled = compile(TEXTURED_LIT_SHADER);
     expect(compiled.warnings).toEqual([]);
-    expect(compiled.fragmentSrc).toContain('uniform sampler2D uTex;');
-    expect(compiled.fragmentSrc).toContain('vec3 base = texture(uTex, vUv).xyz;');
-    expect(compiled.fragmentSrc).toContain(
-      'float specular = pow(max(dot(n, halfway), 0.0), 32.0) * 0.4;',
+    // A texture is two bindings in WGSL — the texture and its sampler — and both
+    // have to reach the fragment stage for the sample to compile.
+    expect(compiled.wgslSrc).toContain('var uTex : texture_2d<f32>;');
+    expect(compiled.wgslSrc).toContain('var uTex_sampler : sampler;');
+    expect(compiled.wgslSrc).toContain(
+      'let base = textureSample(uTex, uTex_sampler, bm_in.vUv).xyz;',
     );
-    expect(compiled.vertexSrc).toContain('vWorldPos = world.xyz;');
-    expect(compiled.vertexSrc).not.toContain('sampler2D');
+    expect(compiled.wgslSrc).toContain(
+      'let specular = pow(max(dot(n, halfway), 0.0), 32.0) * 0.4;',
+    );
+    const vertex = compiled.wgslSrc.slice(
+      compiled.wgslSrc.indexOf('fn vs_main'),
+      compiled.wgslSrc.indexOf('fn fs_main'),
+    );
+    expect(vertex).toContain('bm_out.vWorldPos = world.xyz;');
+    expect(vertex).not.toContain('textureSample');
   });
 
   it('assigns texture units at compile time', () => {
@@ -89,8 +98,8 @@ export default shader({
   },
 });
 `;
-    expect(compile(source).vertexSrc).toContain(
-      'vColor = reflect(normalize(aPosition), normalize(aNormal));',
+    expect(compile(source).wgslSrc).toContain(
+      'bm_out.vColor = reflect(normalize(bm_in.aPosition), normalize(bm_in.aNormal));',
     );
   });
 

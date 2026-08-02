@@ -2,45 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const gameReticleShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, { iCenter: 'vec3'; iSize: 'float'; iAlpha: 'float' }, { uViewProj: 'mat4'; uColor: 'vec3' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-layout(location = 2) in vec3 iCenter;
-layout(location = 3) in float iSize;
-layout(location = 4) in float iAlpha;
-uniform mat4 uViewProj;
-out vec2 vUv;
-out float vAlpha;
-void main() {
-  vUv = aUv;
-  vAlpha = iAlpha;
-  gl_Position = uViewProj * vec4(iCenter.x + aPosition.x * iSize, iCenter.y + aPosition.y * iSize, iCenter.z, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform vec3 uColor;
-in vec2 vUv;
-in float vAlpha;
-out vec4 fragColor;
-float sdBox2(vec2 p, vec2 halfSize) {
-  vec2 d = vec2(abs(p.x) - halfSize.x, abs(p.y) - halfSize.y);
-  float outside = length(vec2(max(d.x, 0.0), max(d.y, 0.0)));
-  return outside + min(max(d.x, d.y), 0.0);
-}
-float strokeAA(float d, float width, float softness) {
-  return 1.0 - smoothstep(width - softness, width + softness, abs(d));
-}
-void main() {
-  vec2 p = vUv - vec2(0.5, 0.5);
-  float outline = strokeAA(sdBox2(p, vec2(0.34, 0.34)), 0.012, 0.008);
-  float corner = smoothstep(0.2, 0.23, min(abs(p.x), abs(p.y)));
-  fragColor = vec4(uColor, outline * corner * vAlpha);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uColor : vec3f,

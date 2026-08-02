@@ -2,34 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnBlendOverlayChannelShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in vec2 vUv;
-out vec4 fragColor;
-float blendOverlayChannel(float base, float blend) {
-  float result = 2.0 * base * blend;
-  if (base >= 0.5) {
-    result = 1.0 - 2.0 * (1.0 - base) * (1.0 - blend);
-  }
-  return result;
-}
-void main() {
-  float v = blendOverlayChannel(vUv.x, vUv.y);
-  fragColor = vec4(v, v, v, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

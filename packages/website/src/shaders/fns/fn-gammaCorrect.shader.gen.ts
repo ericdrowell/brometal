@@ -2,35 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnGammaCorrectShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 gammaCorrect(vec3 color, float gamma) {
-  float inv = 1.0 / gamma;
-  return vec3(pow(color.x, inv), pow(color.y, inv), pow(color.z, inv));
-}
-void main() {
-  vec3 ramp = vec3(vUv.x, vUv.x, vUv.x);
-  vec3 shown = ramp;
-  if (vUv.y < 0.5) {
-    shown = gammaCorrect(ramp, 2.2);
-  }
-  fragColor = vec4(shown, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

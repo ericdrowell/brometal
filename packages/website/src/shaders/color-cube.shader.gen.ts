@@ -2,27 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const colorCubeShader: CompiledShader<{ aPosition: 'vec3'; aColor: 'vec3' }, Record<string, never>, { uMvp: 'mat4' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aColor;
-uniform mat4 uMvp;
-out vec3 vColor;
-void main() {
-  vColor = aColor;
-  gl_Position = uMvp * vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in vec3 vColor;
-out vec4 fragColor;
-void main() {
-  fragColor = vec4(vColor, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uMvp : mat4x4f,
 }

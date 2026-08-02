@@ -1,11 +1,21 @@
-import ts from 'typescript';
-import { GPU_TYPES, type GpuRecord, type GpuType } from '../dsl/types.js';
-import { errorAt, type CompileError } from './errors.js';
+import ts from "typescript";
+import { GPU_TYPES, type GpuRecord, type GpuType } from "../dsl/types.js";
+import { errorAt, type CompileError } from "./errors.js";
 
-export type ShaderFn = ts.ArrowFunction | ts.FunctionExpression | ts.MethodDeclaration;
+export type ShaderFn =
+  | ts.ArrowFunction
+  | ts.FunctionExpression
+  | ts.MethodDeclaration;
 
 /** DSL value types usable in helper signatures ('float' maps from `number`). */
-export type HelperType = 'float' | 'vec2' | 'vec3' | 'vec4' | 'mat4' | 'sampler2D' | 'sampler3D';
+export type HelperType =
+  | "float"
+  | "vec2"
+  | "vec3"
+  | "vec4"
+  | "mat4"
+  | "sampler2D"
+  | "sampler3D";
 
 export interface ParsedHelper {
   name: string;
@@ -31,141 +41,283 @@ export interface ParsedShaderModule {
   workgroupSize: readonly [number, number, number];
 }
 
-const GLSL_RESERVED = new Set([
-  'main',
-  'fragColor',
-  'void',
-  'float',
-  'int',
-  'uint',
-  'bool',
-  'true',
-  'false',
-  'vec2',
-  'vec3',
-  'vec4',
-  'ivec2',
-  'ivec3',
-  'ivec4',
-  'bvec2',
-  'bvec3',
-  'bvec4',
-  'mat2',
-  'mat3',
-  'mat4',
-  'uniform',
-  'in',
-  'out',
-  'inout',
-  'attribute',
-  'varying',
-  'const',
-  'if',
-  'else',
-  'for',
-  'while',
-  'do',
-  'return',
-  'break',
-  'continue',
-  'discard',
-  'struct',
-  'precision',
-  'highp',
-  'mediump',
-  'lowp',
-  'sampler2D',
-  'sampler3D',
-  'samplerCube',
-  'texture',
-  'switch',
-  'case',
-  'default',
-  'layout',
-  'centroid',
-  'flat',
-  'smooth',
-  'invariant',
-  // Reserved for future use by GLSL ES 3.00 (§3.6). These compile as ordinary
-  // TypeScript, so without this list they reach the driver and fail there —
-  // `patch` in a fragment shader is an "Illegal use of reserved word", which
-  // surfaces as a black screen rather than a build error.
-  'common',
-  'partition',
-  'active',
-  'asm',
-  'class',
-  'union',
-  'enum',
-  'typedef',
-  'template',
-  'this',
-  'packed',
-  'resource',
-  'goto',
-  'inline',
-  'noinline',
-  'public',
-  'static',
-  'extern',
-  'external',
-  'interface',
-  'long',
-  'short',
-  'half',
-  'fixed',
-  'unsigned',
-  'superp',
-  'input',
-  'output',
-  'filter',
-  'sizeof',
-  'cast',
-  'namespace',
-  'using',
-  'patch',
-  'sample',
-  'subroutine',
-  'buffer',
-  'shared',
-  'coherent',
-  'volatile',
-  'restrict',
-  'readonly',
-  'writeonly',
-  'noperspective',
-  // WGSL keywords that are legal TypeScript identifiers — every shader is
-  // emitted to both languages, so a name only has to collide in one of them.
-  'fn',
-  'array',
-  'ptr',
-  'atomic',
-  'override',
-  'alias',
-  'loop',
-  'bitcast',
-  'workgroup',
-  'storage',
-  'private',
-  'function',
-  'f32',
-  'i32',
-  'u32',
+// Every name a shader declares is emitted verbatim into WGSL, so anything WGSL
+// treats specially has to be rejected here. These all parse as ordinary
+// TypeScript, so without this list they reach the driver instead — and a WGSL
+// parse error surfaces as a pipeline that never creates, which reads as a blank
+// canvas rather than a build failure.
+const WGSL_RESERVED = new Set([
+  // Keywords (WGSL §2.3).
+  "alias",
+  "break",
+  "case",
+  "const",
+  "const_assert",
+  "continue",
+  "continuing",
+  "default",
+  "diagnostic",
+  "discard",
+  "else",
+  "enable",
+  "false",
+  "fn",
+  "for",
+  "if",
+  "let",
+  "loop",
+  "override",
+  "requires",
+  "return",
+  "struct",
+  "switch",
+  "true",
+  "var",
+  "while",
+  // Predeclared types and their aliases. Shadowing these is technically legal,
+  // but the emitter writes them into the same scope, so a collision breaks it.
+  "bool",
+  "f16",
+  "f32",
+  "i32",
+  "u32",
+  "array",
+  "atomic",
+  "ptr",
+  "vec2",
+  "vec3",
+  "vec4",
+  "vec2f",
+  "vec3f",
+  "vec4f",
+  "vec2i",
+  "vec3i",
+  "vec4i",
+  "vec2u",
+  "vec3u",
+  "vec4u",
+  "vec2h",
+  "vec3h",
+  "vec4h",
+  "mat2x2",
+  "mat2x3",
+  "mat2x4",
+  "mat3x2",
+  "mat3x3",
+  "mat3x4",
+  "mat4x2",
+  "mat4x3",
+  "mat4x4",
+  "mat2x2f",
+  "mat2x3f",
+  "mat2x4f",
+  "mat3x2f",
+  "mat3x3f",
+  "mat3x4f",
+  "mat4x2f",
+  "mat4x3f",
+  "mat4x4f",
+  "sampler",
+  "sampler_comparison",
+  "texture_1d",
+  "texture_2d",
+  "texture_2d_array",
+  "texture_3d",
+  "texture_cube",
+  "texture_cube_array",
+  "texture_multisampled_2d",
+  "texture_depth_2d",
+  "texture_depth_2d_array",
+  "texture_depth_cube",
+  "texture_depth_cube_array",
+  "texture_depth_multisampled_2d",
+  "texture_storage_1d",
+  "texture_storage_2d",
+  "texture_storage_2d_array",
+  "texture_storage_3d",
+  // Address spaces and access modes, which appear in the declarations the
+  // emitter writes around user names.
+  "function",
+  "private",
+  "workgroup",
+  "uniform",
+  "storage",
+  "handle",
+  "read",
+  "write",
+  "read_write",
+  // Reserved for future use (WGSL §2.4). Only the ones that are also legal
+  // TypeScript identifiers can reach us, which is most of them.
+  "NULL",
+  "Self",
+  "abstract",
+  "active",
+  "alignas",
+  "alignof",
+  "as",
+  "asm",
+  "asm_fragment",
+  "async",
+  "attribute",
+  "auto",
+  "await",
+  "become",
+  "binding_array",
+  "cast",
+  "catch",
+  "class",
+  "co_await",
+  "co_return",
+  "co_yield",
+  "coherent",
+  "column_major",
+  "common",
+  "compile",
+  "compile_fragment",
+  "concept",
+  "const_cast",
+  "consteval",
+  "constexpr",
+  "constinit",
+  "crate",
+  "debugger",
+  "decltype",
+  "delete",
+  "demote",
+  "demote_to_helper",
+  "do",
+  "dynamic_cast",
+  "enum",
+  "explicit",
+  "export",
+  "extends",
+  "extern",
+  "external",
+  "fallthrough",
+  "filter",
+  "final",
+  "finally",
+  "friend",
+  "from",
+  "fxgroup",
+  "get",
+  "goto",
+  "groupshared",
+  "highp",
+  "impl",
+  "implements",
+  "import",
+  "inline",
+  "instanceof",
+  "interface",
+  "layout",
+  "lowp",
+  "macro",
+  "macro_rules",
+  "match",
+  "mediump",
+  "meta",
+  "mod",
+  "module",
+  "move",
+  "mut",
+  "mutable",
+  "namespace",
+  "new",
+  "nil",
+  "noexcept",
+  "noinline",
+  "nointerpolation",
+  "non_coherent",
+  "noncoherent",
+  "noperspective",
+  "null",
+  "nullptr",
+  "of",
+  "operator",
+  "package",
+  "packoffset",
+  "partition",
+  "pass",
+  "patch",
+  "pixelfragment",
+  "precise",
+  "precision",
+  "premerge",
+  "priv",
+  "protected",
+  "pub",
+  "public",
+  "readonly",
+  "ref",
+  "regardless",
+  "register",
+  "reinterpret_cast",
+  "require",
+  "resource",
+  "restrict",
+  "self",
+  "set",
+  "shared",
+  "sizeof",
+  "smooth",
+  "snorm",
+  "static",
+  "static_assert",
+  "static_cast",
+  "std",
+  "subroutine",
+  "super",
+  "target",
+  "template",
+  "this",
+  "thread_local",
+  "throw",
+  "trait",
+  "try",
+  "type",
+  "typedef",
+  "typeid",
+  "typename",
+  "typeof",
+  "union",
+  "unless",
+  "unorm",
+  "unsafe",
+  "unsized",
+  "use",
+  "using",
+  "varying",
+  "virtual",
+  "volatile",
+  "wgsl",
+  "where",
+  "with",
+  "writeonly",
+  "yield",
 ]);
 
 const IDENT_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-export function isValidGlslName(name: string): boolean {
+export function isValidShaderName(name: string): boolean {
   return (
     IDENT_PATTERN.test(name) &&
-    !GLSL_RESERVED.has(name) &&
-    !name.startsWith('gl_') &&
-    !name.startsWith('bm_') // reserved for compiler-generated WGSL plumbing
+    !WGSL_RESERVED.has(name) &&
+    !name.startsWith("__") && // reserved by WGSL itself
+    !name.startsWith("bm_") // reserved for compiler-generated WGSL plumbing
   );
 }
 
-export function parseShaderModule(fileName: string, source: string): ParsedShaderModule {
-  const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.ES2022, true);
+export function parseShaderModule(
+  fileName: string,
+  source: string,
+): ParsedShaderModule {
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.ES2022,
+    true,
+  );
 
   const shaderLocalName = findShaderImportName(sourceFile);
   if (shaderLocalName === undefined) {
@@ -190,7 +342,11 @@ export function parseShaderModule(fileName: string, source: string): ParsedShade
   visit(sourceFile);
 
   if (calls.length === 0) {
-    throw errorAt(sourceFile, sourceFile, `no ${shaderLocalName}() call found in this module`);
+    throw errorAt(
+      sourceFile,
+      sourceFile,
+      `no ${shaderLocalName}() call found in this module`,
+    );
   }
   if (calls.length > 1) {
     throw errorAt(
@@ -201,7 +357,10 @@ export function parseShaderModule(fileName: string, source: string): ParsedShade
   }
 
   const call = calls[0]!;
-  if (call.arguments.length !== 1 || !ts.isObjectLiteralExpression(call.arguments[0]!)) {
+  if (
+    call.arguments.length !== 1 ||
+    !ts.isObjectLiteralExpression(call.arguments[0]!)
+  ) {
     throw errorAt(
       sourceFile,
       call,
@@ -223,33 +382,39 @@ export function parseShaderModule(fileName: string, source: string): ParsedShade
   for (const prop of config.properties) {
     const name = propertyName(sourceFile, prop);
     switch (name) {
-      case 'attributes':
-        attributes = parseGpuRecord(sourceFile, prop, name, { allowMat4: false });
+      case "attributes":
+        attributes = parseGpuRecord(sourceFile, prop, name, {
+          allowMat4: false,
+        });
         break;
-      case 'instanceAttributes':
-        instanceAttributes = parseGpuRecord(sourceFile, prop, name, { allowMat4: false });
+      case "instanceAttributes":
+        instanceAttributes = parseGpuRecord(sourceFile, prop, name, {
+          allowMat4: false,
+        });
         break;
-      case 'uniforms':
+      case "uniforms":
         uniforms = parseGpuRecord(sourceFile, prop, name, { allowMat4: true });
         break;
-      case 'storage':
+      case "storage":
         // Declared by element type, so the same float/vec2/vec3/vec4 rule as
         // attributes applies — a buffer of mat4 or of samplers is not a thing.
-        storageElements = parseGpuRecord(sourceFile, prop, name, { allowMat4: false });
+        storageElements = parseGpuRecord(sourceFile, prop, name, {
+          allowMat4: false,
+        });
         break;
-      case 'varyings':
+      case "varyings":
         varyings = parseGpuRecord(sourceFile, prop, name, { allowMat4: false });
         break;
-      case 'vertex':
+      case "vertex":
         vertexFn = parseFn(sourceFile, prop, name);
         break;
-      case 'fragment':
+      case "fragment":
         fragmentFn = parseFn(sourceFile, prop, name);
         break;
-      case 'compute':
+      case "compute":
         computeFn = parseFn(sourceFile, prop, name);
         break;
-      case 'workgroupSize':
+      case "workgroupSize":
         workgroupSize = parseWorkgroupSize(sourceFile, prop);
         break;
       default:
@@ -263,26 +428,41 @@ export function parseShaderModule(fileName: string, source: string): ParsedShade
 
   // A compute-only shader draws nothing, so it has no attributes and no
   // vertex/fragment pair. The render path still requires all three.
-  const computeOnly = computeFn !== undefined && vertexFn === undefined && fragmentFn === undefined;
+  const computeOnly =
+    computeFn !== undefined &&
+    vertexFn === undefined &&
+    fragmentFn === undefined;
   if (!computeOnly) {
     if (attributes === undefined || Object.keys(attributes).length === 0) {
-      throw errorAt(sourceFile, config, `shader() requires a non-empty 'attributes' record`);
+      throw errorAt(
+        sourceFile,
+        config,
+        `shader() requires a non-empty 'attributes' record`,
+      );
     }
     if (vertexFn === undefined) {
-      throw errorAt(sourceFile, config, `shader() requires a 'vertex' function`);
+      throw errorAt(
+        sourceFile,
+        config,
+        `shader() requires a 'vertex' function`,
+      );
     }
     if (fragmentFn === undefined) {
-      throw errorAt(sourceFile, config, `shader() requires a 'fragment' function`);
+      throw errorAt(
+        sourceFile,
+        config,
+        `shader() requires a 'fragment' function`,
+      );
     }
   }
 
   const seen = new Map<string, string>();
   for (const [recordName, record] of [
-    ['attributes', attributes ?? {}],
-    ['instanceAttributes', instanceAttributes],
-    ['uniforms', uniforms],
-    ['storage', storageElements],
-    ['varyings', varyings],
+    ["attributes", attributes ?? {}],
+    ["instanceAttributes", instanceAttributes],
+    ["uniforms", uniforms],
+    ["storage", storageElements],
+    ["varyings", varyings],
   ] as const) {
     for (const key of Object.keys(record)) {
       const existing = seen.get(key);
@@ -301,7 +481,7 @@ export function parseShaderModule(fileName: string, source: string): ParsedShade
   // destructuring, use-tracking and binding assignment all work unchanged; the
   // element types are kept alongside for storageRead's return type.
   for (const name of Object.keys(storageElements)) {
-    uniforms[name] = 'storage';
+    uniforms[name] = "storage";
   }
 
   const helpers = parseHelpers(sourceFile);
@@ -327,94 +507,166 @@ function parseWorkgroupSize(
   sourceFile: ts.SourceFile,
   prop: ts.ObjectLiteralElementLike,
 ): readonly [number, number, number] {
-  if (!ts.isPropertyAssignment(prop) || !ts.isArrayLiteralExpression(prop.initializer)) {
-    throw errorAt(sourceFile, prop, `workgroupSize must be an array literal like [64, 1, 1]`);
+  if (
+    !ts.isPropertyAssignment(prop) ||
+    !ts.isArrayLiteralExpression(prop.initializer)
+  ) {
+    throw errorAt(
+      sourceFile,
+      prop,
+      `workgroupSize must be an array literal like [64, 1, 1]`,
+    );
   }
   const values = prop.initializer.elements.map((element) => {
     if (!ts.isNumericLiteral(element)) {
-      throw errorAt(sourceFile, element, `workgroupSize entries must be number literals`);
+      throw errorAt(
+        sourceFile,
+        element,
+        `workgroupSize entries must be number literals`,
+      );
     }
     const value = Number(element.text);
     if (!Number.isInteger(value) || value < 1) {
-      throw errorAt(sourceFile, element, `workgroupSize entries must be positive integers`);
+      throw errorAt(
+        sourceFile,
+        element,
+        `workgroupSize entries must be positive integers`,
+      );
     }
     return value;
   });
   if (values.length !== 3) {
-    throw errorAt(sourceFile, prop, `workgroupSize needs exactly three entries — [x, y, z]`);
+    throw errorAt(
+      sourceFile,
+      prop,
+      `workgroupSize needs exactly three entries — [x, y, z]`,
+    );
   }
   return [values[0]!, values[1]!, values[2]!] as const;
 }
 
 function helperTypeFromAnnotation(node: ts.TypeNode): HelperType | undefined {
   if (node.kind === ts.SyntaxKind.NumberKeyword) {
-    return 'float';
+    return "float";
   }
   if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) {
     const byName: Record<string, HelperType> = {
-      Vec2: 'vec2',
-      Vec3: 'vec3',
-      Vec4: 'vec4',
-      Mat4: 'mat4',
+      Vec2: "vec2",
+      Vec3: "vec3",
+      Vec4: "vec4",
+      Mat4: "mat4",
       // A helper may take a sampler so that things like shadow lookups can be
-      // packaged as a function instead of re-derived at every call site. GLSL
-      // takes a sampler parameter directly; WGSL needs the texture and its
-      // sampler as two parameters, which the WGSL emitter expands.
-      Sampler2D: 'sampler2D',
-      Sampler3D: 'sampler3D',
+      // packaged as a function instead of re-derived at every call site. WGSL
+      // needs the texture and its sampler as two separate parameters, which the
+      // emitter expands from this single DSL-level one.
+      Sampler2D: "sampler2D",
+      Sampler3D: "sampler3D",
     };
     return byName[node.typeName.text];
   }
   return undefined;
 }
 
-/** Module-level `function` declarations become GLSL helper functions. */
+/** Module-level `function` declarations become WGSL helper functions. */
 export function parseHelpers(sourceFile: ts.SourceFile): ParsedHelper[] {
   const helpers: ParsedHelper[] = [];
   const seen = new Set<string>();
   for (const statement of sourceFile.statements) {
     if (!ts.isFunctionDeclaration(statement)) continue;
     if (statement.name === undefined) {
-      throw errorAt(sourceFile, statement, `shader helper functions must be named`);
+      throw errorAt(
+        sourceFile,
+        statement,
+        `shader helper functions must be named`,
+      );
     }
     const name = statement.name.text;
-    if (!isValidGlslName(name)) {
-      throw errorAt(sourceFile, statement, `helper '${name}' is not a usable GLSL identifier`);
+    if (!isValidShaderName(name)) {
+      throw errorAt(
+        sourceFile,
+        statement,
+        `helper '${name}' is not a usable shader identifier`,
+      );
     }
     if (seen.has(name)) {
-      throw errorAt(sourceFile, statement, `helper '${name}' is declared twice`);
+      throw errorAt(
+        sourceFile,
+        statement,
+        `helper '${name}' is declared twice`,
+      );
     }
-    if (statement.asteriskToken !== undefined || statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) === true) {
-      throw errorAt(sourceFile, statement, `helper '${name}' cannot be async or a generator`);
+    if (
+      statement.asteriskToken !== undefined ||
+      statement.modifiers?.some(
+        (m) => m.kind === ts.SyntaxKind.AsyncKeyword,
+      ) === true
+    ) {
+      throw errorAt(
+        sourceFile,
+        statement,
+        `helper '${name}' cannot be async or a generator`,
+      );
     }
     if (statement.typeParameters !== undefined) {
-      throw errorAt(sourceFile, statement, `helper '${name}' cannot be generic`);
+      throw errorAt(
+        sourceFile,
+        statement,
+        `helper '${name}' cannot be generic`,
+      );
     }
     if (statement.body === undefined) {
       throw errorAt(sourceFile, statement, `helper '${name}' must have a body`);
     }
     const params = statement.parameters.map((param) => {
-      if (!ts.isIdentifier(param.name) || param.dotDotDotToken !== undefined || param.initializer !== undefined) {
-        throw errorAt(sourceFile, param, `helper '${name}' parameters must be plain identifiers without defaults`);
+      if (
+        !ts.isIdentifier(param.name) ||
+        param.dotDotDotToken !== undefined ||
+        param.initializer !== undefined
+      ) {
+        throw errorAt(
+          sourceFile,
+          param,
+          `helper '${name}' parameters must be plain identifiers without defaults`,
+        );
       }
       if (param.type === undefined) {
-        throw errorAt(sourceFile, param, `helper '${name}' parameters need type annotations (number, Vec2, Vec3, Vec4, Mat4, Sampler2D, or Sampler3D)`);
+        throw errorAt(
+          sourceFile,
+          param,
+          `helper '${name}' parameters need type annotations (number, Vec2, Vec3, Vec4, Mat4, Sampler2D, or Sampler3D)`,
+        );
       }
       const type = helperTypeFromAnnotation(param.type);
       if (type === undefined) {
-        throw errorAt(sourceFile, param.type, `helper parameters must be number, Vec2, Vec3, Vec4, Mat4, Sampler2D, or Sampler3D`);
+        throw errorAt(
+          sourceFile,
+          param.type,
+          `helper parameters must be number, Vec2, Vec3, Vec4, Mat4, Sampler2D, or Sampler3D`,
+        );
       }
-      if (!isValidGlslName(param.name.text)) {
-        throw errorAt(sourceFile, param, `parameter '${param.name.text}' is not a usable GLSL identifier`);
+      if (!isValidShaderName(param.name.text)) {
+        throw errorAt(
+          sourceFile,
+          param,
+          `parameter '${param.name.text}' is not a usable shader identifier`,
+        );
       }
       return { name: param.name.text, type };
     });
     if (statement.type === undefined) {
-      throw errorAt(sourceFile, statement, `helper '${name}' needs a return type annotation (number, Vec2, Vec3, or Vec4)`);
+      throw errorAt(
+        sourceFile,
+        statement,
+        `helper '${name}' needs a return type annotation (number, Vec2, Vec3, or Vec4)`,
+      );
     }
     const returnType = helperTypeFromAnnotation(statement.type);
-    if (returnType === undefined || returnType === 'mat4') {
-      throw errorAt(sourceFile, statement.type, `helper return types must be number, Vec2, Vec3, or Vec4`);
+    if (returnType === undefined || returnType === "mat4") {
+      throw errorAt(
+        sourceFile,
+        statement.type,
+        `helper return types must be number, Vec2, Vec3, or Vec4`,
+      );
     }
     seen.add(name);
     helpers.push({ name, fn: statement, params, returnType });
@@ -428,7 +680,8 @@ function findLibraryImports(sourceFile: ts.SourceFile): string[] {
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
     if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    if (statement.moduleSpecifier.text !== 'brometal/shader-functions') continue;
+    if (statement.moduleSpecifier.text !== "brometal/shader-functions")
+      continue;
     if (statement.importClause?.isTypeOnly === true) continue;
     const bindings = statement.importClause?.namedBindings;
     if (bindings === undefined || !ts.isNamedImports(bindings)) {
@@ -457,12 +710,12 @@ function findShaderImportName(sourceFile: ts.SourceFile): string | undefined {
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
     if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    if (statement.moduleSpecifier.text !== 'brometal') continue;
+    if (statement.moduleSpecifier.text !== "brometal") continue;
     const bindings = statement.importClause?.namedBindings;
     if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
     for (const element of bindings.elements) {
       const importedName = element.propertyName?.text ?? element.name.text;
-      if (importedName === 'shader') {
+      if (importedName === "shader") {
         return element.name.text;
       }
     }
@@ -470,12 +723,19 @@ function findShaderImportName(sourceFile: ts.SourceFile): string | undefined {
   return undefined;
 }
 
-function propertyName(sourceFile: ts.SourceFile, prop: ts.ObjectLiteralElementLike): string {
+function propertyName(
+  sourceFile: ts.SourceFile,
+  prop: ts.ObjectLiteralElementLike,
+): string {
   const name = prop.name;
   if (name !== undefined && ts.isIdentifier(name)) {
     return name.text;
   }
-  throw errorAt(sourceFile, prop, `shader() properties must use plain identifier names`);
+  throw errorAt(
+    sourceFile,
+    prop,
+    `shader() properties must use plain identifier names`,
+  );
 }
 
 function parseGpuRecord(
@@ -484,27 +744,38 @@ function parseGpuRecord(
   recordName: string,
   options: { allowMat4: boolean },
 ): GpuRecord {
-  if (!ts.isPropertyAssignment(prop) || !ts.isObjectLiteralExpression(prop.initializer)) {
-    throw errorAt(sourceFile, prop, `'${recordName}' must be an inline object literal`);
+  if (
+    !ts.isPropertyAssignment(prop) ||
+    !ts.isObjectLiteralExpression(prop.initializer)
+  ) {
+    throw errorAt(
+      sourceFile,
+      prop,
+      `'${recordName}' must be an inline object literal`,
+    );
   }
   const record: GpuRecord = {};
   for (const entry of prop.initializer.properties) {
     if (!ts.isPropertyAssignment(entry)) {
-      throw errorAt(sourceFile, entry, `'${recordName}' entries must be \`name: 'type'\` pairs`);
-    }
-    const key = propertyName(sourceFile, entry);
-    if (!isValidGlslName(key)) {
       throw errorAt(
         sourceFile,
         entry,
-        `'${key}' is not a usable GLSL identifier (reserved word, gl_ prefix, or invalid characters)`,
+        `'${recordName}' entries must be \`name: 'type'\` pairs`,
+      );
+    }
+    const key = propertyName(sourceFile, entry);
+    if (!isValidShaderName(key)) {
+      throw errorAt(
+        sourceFile,
+        entry,
+        `'${key}' is not a usable shader identifier (WGSL reserved word, bm_ prefix, or invalid characters)`,
       );
     }
     if (!ts.isStringLiteral(entry.initializer)) {
       throw errorAt(
         sourceFile,
         entry,
-        `'${recordName}.${key}' must be a string literal GPU type (one of ${GPU_TYPES.join(', ')})`,
+        `'${recordName}.${key}' must be a string literal GPU type (one of ${GPU_TYPES.join(", ")})`,
       );
     }
     const typeName = entry.initializer.text;
@@ -512,10 +783,15 @@ function parseGpuRecord(
       throw errorAt(
         sourceFile,
         entry.initializer,
-        `'${typeName}' is not a valid GPU type — expected one of ${GPU_TYPES.join(', ')}`,
+        `'${typeName}' is not a valid GPU type — expected one of ${GPU_TYPES.join(", ")}`,
       );
     }
-    if ((typeName === 'mat4' || typeName === 'sampler2D' || typeName === 'sampler3D') && !options.allowMat4) {
+    if (
+      (typeName === "mat4" ||
+        typeName === "sampler2D" ||
+        typeName === "sampler3D") &&
+      !options.allowMat4
+    ) {
       throw errorAt(
         sourceFile,
         entry.initializer,
@@ -537,11 +813,16 @@ function parseFn(
   }
   if (
     ts.isPropertyAssignment(prop) &&
-    (ts.isArrowFunction(prop.initializer) || ts.isFunctionExpression(prop.initializer))
+    (ts.isArrowFunction(prop.initializer) ||
+      ts.isFunctionExpression(prop.initializer))
   ) {
     return prop.initializer;
   }
-  throw errorAt(sourceFile, prop, `'${fnName}' must be a method or arrow function`);
+  throw errorAt(
+    sourceFile,
+    prop,
+    `'${fnName}' must be a method or arrow function`,
+  );
 }
 
 export type { CompileError };

@@ -2,7 +2,7 @@
 
 Write TypeScript.  Lift Shaders.  Ship Shredded.
 
-BroMetal is LLVM-inspired compiler infrastructure for GPU programming that transforms TypeScript into highly optimized GPU shaders. It compiles a typed TypeScript DSL to WebGL2 GLSL **and** WGSL from one source, and ships dual WebGL2/WebGPU runtimes — buffers, uniforms, pipelines, program linking, and the render loop are all handled for you. `await createRenderer(canvas)` uses WebGPU when the browser provides it and falls back to WebGL2, behind one typed API.
+BroMetal is LLVM-inspired compiler infrastructure for GPU programming that transforms TypeScript into highly optimized GPU shaders. It compiles a typed TypeScript DSL to WGSL and ships a WebGPU runtime — buffers, uniforms, pipelines, bind groups, and the render loop are all handled for you. `await createRenderer(canvas)` gives you a WebGPU renderer, and throws where WebGPU is unavailable.
 
 > **Pre-1.0:** BroMetal is evolving fast. Minor versions may include breaking changes — every one is documented in [CHANGELOG.md](https://github.com/ericdrowell/brometal/blob/main/CHANGELOG.md). The `shader()` DSL and `brometal/shader-functions` surfaces are stable-by-intent; runtime APIs may still shift until 1.0.
 
@@ -38,10 +38,10 @@ export default shader({
 
 ```bash
 npx brometal dev    # compile all *.shader.ts and watch for changes
-npx brometal prod   # one-shot optimized build (constant folding + minified GLSL)
+npx brometal prod   # one-shot optimized build (constant folding, dead-varying pruning)
 ```
 
-Each `name.shader.ts` compiles to a sibling `name.shader.gen.ts` — a dependency-free module with the GLSL plus typed interface metadata. Your app imports the generated module; the compiler never reaches your bundle.
+Each `name.shader.ts` compiles to a sibling `name.shader.gen.ts` — a dependency-free module with the WGSL plus typed interface metadata. Your app imports the generated module; the compiler never reaches your bundle.
 
 ## Render
 
@@ -49,7 +49,7 @@ Each `name.shader.ts` compiles to a sibling `name.shader.gen.ts` — a dependenc
 import { createRenderer, createProgram, mat4 } from 'brometal';
 import cubeShader from './shaders/cube.shader.gen';
 
-const renderer = await createRenderer(canvas);   // WebGPU when available, WebGL2 otherwise
+const renderer = await createRenderer(canvas);   // WebGPU; throws where unavailable
 const program = createProgram(renderer, cubeShader);
 
 program.attributes.aPosition.set(positions);
@@ -62,7 +62,7 @@ renderer.loop((t) => {
 });
 ```
 
-Everything is typed end-to-end: the records in `shader()` drive the GLSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors. A typo'd uniform name is a compile error in your app; the shader compiler enforces the varyings contract with `file:line:col` diagnostics.
+Everything is typed end-to-end: the records in `shader()` drive the WGSL declarations, the generated metadata, and the `program.attributes.*` / `program.uniforms.*` accessors. A typo'd uniform name is a compile error in your app; the shader compiler enforces the varyings contract with `file:line:col` diagnostics.
 
 ## The canvas
 
@@ -117,8 +117,8 @@ They are a 2D-canvas legacy and they actively cause trouble here:
 
 ### React
 
-`createRenderer` is async — it probes for a WebGPU adapter before falling back
-to WebGL2 — so the component can unmount before it resolves. StrictMode runs
+`createRenderer` is async — requesting a WebGPU adapter and device both are —
+so the component can unmount before it resolves. StrictMode runs
 effects twice in development, which makes that the common case rather than the
 rare one, so the cancellation flag below is not optional.
 
@@ -213,7 +213,7 @@ export default shader({
 });
 ```
 
-The compiler resolves imports (and their dependencies — `fbm2` pulls in `vnoise2` and `hash21` automatically), type-checks every call against the library signatures, and emits only the functions each stage actually uses — into both GLSL and WGSL. Nothing ships at runtime; it's tree-shaken shader text.
+The compiler resolves imports (and their dependencies — `fbm2` pulls in `vnoise2` and `hash21` automatically), type-checks every call against the library signatures, and emits only the functions each stage actually uses. Nothing ships at runtime; it's tree-shaken shader text.
 
 Included: `hash11 hash21 hash22 hash31` · `vnoise2 gnoise2 fbm2 gfbm2 turbulence2 warp2 voronoi2 worleyEdge2 curl2 vnoise3 fbm3` · `remap smootherstep rotate2 rotate3 gerstnerWave` · easings (`quad/cubic/sine/expo/back/elastic/bounce` families) · `luminance rgb2hsv hsv2rgb cosinePalette adjustSaturation brightnessContrast blendScreen blendOverlay tonemapACES tonemapReinhard gammaCorrect filmGrain` · `lambert blinnPhongSpec specGGX fresnel toonShade hemisphereLight` · `sdCircle sdBox2 sdRoundedBox2 sdHexagon sdSegment2 smoothUnion smoothSubtract smoothIntersect fillAA strokeAA` · `sdSphere3 sdBox3 sdTorus3 sdCapsule3 sdOctahedron3 sdPlane3`
 
@@ -292,12 +292,11 @@ const uv = targetUv(uLightViewProj.mul(vec4(worldPosition, 1)));
 const nearest = texture(uShadowMap, uv).x;
 ```
 
-WebGL2 and WebGPU disagree about which row of a render target NDC +y refers to,
-so the obvious `clip.xy / clip.w * 0.5 + 0.5` is right on one backend and
-vertically mirrored on the other. `targetUv` compiles to the correct form for
-each. This is worth reaching for even if you only ever test one backend: a
-mirrored lookup still produces a shadow, just attached to the wrong side of the
-object, which does not look like a coordinate bug.
+NDC +y lands on a render target's *first* row while texture v runs top-down, so
+the obvious `clip.xy / clip.w * 0.5 + 0.5` reads the map vertically mirrored.
+`targetUv` gets the flip right. This is worth reaching for rather than
+hand-rolling: a mirrored lookup still produces a shadow, just attached to the
+wrong side of the object, which does not look like a coordinate bug.
 
 Targets are RGBA16F and sampled unfiltered — they hold numbers, not pictures.
 Store what you actually want to compare; the Shadow example writes linear
@@ -325,7 +324,7 @@ Thousands of independently animated objects, one draw call, one mat4 + one float
 - Per-vertex `attributes` and per-instance `instanceAttributes`
 - `const` and mutable `let` locals, float arithmetic (`+ - * /`), compound assignment (`+= -= *= /=`, `x++`), comparisons, `if`/`else`
 - `for` loops with float counters — `for (let i = 0; i < n; i += 1)`
-- Module-level **helper functions** with typed signatures (`function palette(t: number): Vec3`), compiled to GLSL functions; helpers can call earlier helpers
+- Module-level **helper functions** with typed signatures (`function palette(t: number): Vec3`), compiled to WGSL functions; helpers can call earlier helpers
 - Vector methods `.add() .sub() .mul() .div() .scale()`, `mat4.mul()`, swizzles (`.x`, `.xyz`, …)
 - Constructors `vec2/vec3/vec4` (composite forms like `vec4(v3, 1)` included)
 - Intrinsics: `texture reflect normalize dot cross mix clamp length distance sin cos tan asin acos atan abs sign fract floor sqrt pow exp exp2 log mod step smoothstep min max`

@@ -2,30 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const waterSkydomeShader: CompiledShader<{ aPosition: 'vec3' }, Record<string, never>, { uViewProj: 'mat4'; uModel: 'mat4'; uZenith: 'vec3'; uHorizon: 'vec3' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-uniform mat4 uViewProj;
-uniform mat4 uModel;
-out vec3 vDir;
-void main() {
-  vDir = normalize(aPosition);
-  gl_Position = uViewProj * (uModel * vec4(aPosition, 1.0));
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform vec3 uZenith;
-uniform vec3 uHorizon;
-in vec3 vDir;
-out vec4 fragColor;
-void main() {
-  vec3 direction = normalize(vDir);
-  fragColor = vec4(uHorizon + (uZenith - uHorizon) * clamp(direction.y, 0.0, 1.0), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uModel : mat4x4f,

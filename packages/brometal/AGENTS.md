@@ -3,10 +3,9 @@
 You are writing an app that uses BroMetal. This file is the whole orientation:
 what it is, the rules the DSL enforces, and the mistakes that fail *silently*.
 
-BroMetal compiles shaders written in a typed TypeScript DSL into GLSL ES 3.00
-and WGSL **at build time**, and ships dual WebGL2 + WebGPU runtimes behind one
-API. There is no scene graph, no material system, and no shader compiler in the
-browser. You write the shader.
+BroMetal compiles shaders written in a typed TypeScript DSL into WGSL **at build
+time**, and ships a WebGPU runtime behind one API. There is no scene graph, no
+material system, and no shader compiler in the browser. You write the shader.
 
 ---
 
@@ -25,7 +24,7 @@ shader, reloading, and concluding the change did nothing.
 import { createRenderer, createProgram, createCamera, createCube } from 'brometal';
 import cubeShader from './shaders/cube.shader.gen';
 
-const renderer = await createRenderer(canvas);      // WebGPU if available, else WebGL2
+const renderer = await createRenderer(canvas);      // WebGPU; throws where unavailable
 const program = createProgram(renderer, cubeShader);
 const cube = createCube({ width: 1, height: 1, depth: 1 });
 
@@ -92,10 +91,11 @@ Write `0 - x` rather than `-x` when negating an expression you are unsure about;
 
 ## Failures that are silent — read this before debugging a black screen
 
-**Reserved words.** GLSL ES 3.00 reserves identifiers you would never guess:
-`patch half fixed filter output sample input active common partition resource`.
-BroMetal rejects them at build time now, but if you see a name-related error,
-this is why. Do not name a variable `output` or `sample`.
+**Reserved words.** WGSL reserves a long list of ordinary-looking words for
+future use, and several are names you would reach for without thinking:
+`type set get from new use with where match self null pass target filter
+precise shared mod`. BroMetal rejects them at build time, so this shows up as a
+name error rather than a black screen — but that is why.
 
 **`texture()` cannot be called inside an `if`.** WGSL requires texture sampling
 to happen in uniform control flow. Sampling inside a conditional invalidates the
@@ -109,14 +109,14 @@ const contribution = texture(uMap, uv).x * step(0.5, someCondition);
 (Inside a **helper function** the emitter uses `textureSampleLevel`, which does
 not carry that restriction — but it always samples LOD 0, so no mipmapping.)
 
-**Sampling a render target needs `targetUv`.** WebGL2 and WebGPU disagree about
-which row of a render target NDC +y lands on. Hand-rolling
-`clip.xy / clip.w * 0.5 + 0.5` is correct on one backend and **vertically
-mirrored** on the other. A mirrored lookup still produces a plausible-looking
-image, so this reads as a lighting bug rather than a coordinate one.
+**Sampling a render target needs `targetUv`.** NDC +y lands on a target's *first*
+row while texture v runs top-down, so hand-rolling `clip.xy / clip.w * 0.5 + 0.5`
+reads the target **vertically mirrored**. A mirrored lookup still produces a
+plausible-looking image, so this reads as a lighting bug rather than a coordinate
+one.
 
 ```ts
-const uv = targetUv(lightClipPosition);   // correct on both backends
+const uv = targetUv(lightClipPosition);
 ```
 
 **The canvas has no `width`/`height` attributes.** BroMetal owns the drawing

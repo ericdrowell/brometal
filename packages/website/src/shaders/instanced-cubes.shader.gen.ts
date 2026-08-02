@@ -2,40 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const instancedCubesShader: CompiledShader<{ aPosition: 'vec3'; aColor: 'vec3' }, { iOffset: 'vec3'; iAxis: 'vec3'; iSpeed: 'float'; iScale: 'float'; iTint: 'vec3' }, { uViewProj: 'mat4'; uTime: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aColor;
-layout(location = 2) in vec3 iOffset;
-layout(location = 3) in vec3 iAxis;
-layout(location = 4) in float iSpeed;
-layout(location = 5) in float iScale;
-layout(location = 6) in vec3 iTint;
-uniform mat4 uViewProj;
-uniform float uTime;
-out vec3 vColor;
-vec3 rotate3(vec3 p, vec3 axis, float angle) {
-  vec3 a = normalize(axis);
-  float c = cos(angle);
-  float s = sin(angle);
-  return p * c + cross(a, p) * s + a * (dot(a, p) * (1.0 - c));
-}
-void main() {
-  vec3 rotated = rotate3(aPosition * iScale, iAxis, uTime * iSpeed);
-  vColor = aColor * iTint;
-  gl_Position = uViewProj * vec4(rotated + iOffset, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in vec3 vColor;
-out vec4 fragColor;
-void main() {
-  fragColor = vec4(vColor, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uViewProj : mat4x4f,
   uTime : f32,

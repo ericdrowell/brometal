@@ -29,10 +29,10 @@ import {
  * One simulation step, run as a fragment pass over the state target.
  *
  * State is laid out along X only: the left half holds positions, the right half
- * velocities. Texture V points opposite ways on the two backends — a fullscreen
- * quad writes the bottom row on one and the top row on the other, while sampling
- * reads the same v from opposite ends — so a two-row layout silently swaps
- * position and velocity between WebGL2 and WebGPU. U agrees on both.
+ * velocities. Rows are the axis where writing and reading disagree — a
+ * fullscreen quad's NDC +y covers the target's first row, while texture v
+ * addresses that row as v = 0 — so a two-row layout would silently swap position
+ * and velocity. U has no such asymmetry.
  *
  * Balls are never allowed to overlap, rather than being pushed apart afterwards.
  * A step works out where the ball wants to go, then asks every neighbour how far

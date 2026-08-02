@@ -2,49 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const waterButterflyShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, Record<string, never>> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition.x, aPosition.y, 0.0, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in vec2 vUv;
-out vec4 fragColor;
-float bitReverse(float index) {
-  float stages = 7.0;
-  float value = index;
-  float reversed = 0.0;
-  for (float i = 0.0; i < stages; i = i + 1.0) {
-    reversed = reversed * 2.0 + mod(value, 2.0);
-    value = floor(value / 2.0);
-  }
-  return reversed;
-}
-void main() {
-  float size = 128.0;
-  float stages = 7.0;
-  float twoPi = 6.283185307179586;
-  float linear = floor(vUv.x * (stages * size));
-  float stage = floor(linear / size);
-  float index = mod(linear, size);
-  float span = pow(2.0, stage);
-  float wing = step(mod(index, span * 2.0), span - 0.5);
-  float k = mod(index * (size / (span * 2.0)), size);
-  float angle = twoPi * k / size;
-  float top = mix(index - span, index, wing);
-  float bottom = mix(index, index + span, wing);
-  float isFirst = step(stage, 0.5);
-  fragColor = vec4(cos(angle), sin(angle), mix(top, bitReverse(top), isFirst), mix(bottom, bitReverse(bottom), isFirst));
-}
-`,
   wgslSrc: `struct BmVSIn {
   @location(0) aPosition : vec3f,
   @location(1) aUv : vec2f,

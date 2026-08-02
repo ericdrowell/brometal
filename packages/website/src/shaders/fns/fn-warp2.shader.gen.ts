@@ -2,62 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnWarp2Shader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float hash21(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-float vnoise2(vec2 p) {
-  vec2 cell = vec2(floor(p.x), floor(p.y));
-  vec2 f = p - cell;
-  vec2 u = vec2(f.x * f.x * (3.0 - 2.0 * f.x), f.y * f.y * (3.0 - 2.0 * f.y));
-  float a = hash21(cell);
-  float b = hash21(cell + vec2(1.0, 0.0));
-  float c = hash21(cell + vec2(0.0, 1.0));
-  float d = hash21(cell + vec2(1.0, 1.0));
-  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-}
-float fbm2(vec2 p, float octaves) {
-  float total = 0.0;
-  float amplitude = 0.5;
-  float frequency = 1.0;
-  float norm = 0.0;
-  for (float i = 0.0; i < octaves; i = i + 1.0) {
-    total = total + amplitude * vnoise2(p * frequency);
-    norm = norm + amplitude;
-    amplitude = amplitude * 0.5;
-    frequency = frequency * 2.0;
-  }
-  return total / norm;
-}
-float warp2(vec2 p, float time) {
-  vec2 q = vec2(fbm2(p, 4.0), fbm2(p + vec2(5.2, 1.3), 4.0));
-  vec2 shifted = p + q * 2.0;
-  vec2 r = vec2(fbm2(shifted + vec2(1.7, 9.2 + time * 0.15), 4.0), fbm2(shifted + vec2(8.3 - time * 0.126, 2.8), 4.0));
-  return fbm2(p + r * 2.0, 4.0);
-}
-void main() {
-  vec2 p = vec2(vUv.x * uAspect, vUv.y) * 4.0 + vec2(uTime * 0.3, uTime * 0.12);
-  float n = warp2(p * 0.5, uTime);
-  fragColor = vec4(n, n, n, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

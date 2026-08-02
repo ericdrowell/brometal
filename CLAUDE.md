@@ -74,7 +74,7 @@ Bugs that passed a green suite in this repo:
 - Uniforms never flushed for `dispatch()`, so compute read zeros — no error at
   all, just wrong numbers
 
-**Dump the emitted GLSL/WGSL and read it.** For anything that renders, look at
+**Dump the emitted WGSL and read it.** For anything that renders, look at
 the actual pixels before saying it works.
 
 For runtime changes — `runtime/webgpu.ts`, bind groups, pipelines, uniform

@@ -43,7 +43,7 @@ imported `from 'brometal'` is the real API.
 
 ## The examples
 
-- **Rotating Cube** (`rotating-cube`) — Hello world: one spinning cube, a TypeScript shader, and the WebGL2 runtime.
+- **Rotating Cube** (`rotating-cube`) — Hello world: one spinning cube, a TypeScript shader, and the WebGPU runtime.
 - **Lots of Cubes** (`lots-of-cubes`) — 125,000 independently tumbling cubes in a single draw call — rotation computed on the GPU.
 - **Camera** (`camera`) — Interactive camera: position and rotation sliders driving a cached view-projection matrix.
 - **Light** (`light`) — Blinn-Phong lighting on solid-colored faces with a movable point light.
@@ -54,7 +54,7 @@ imported `from 'brometal'` is the real API.
 - **Model** (`model`) — A textured spaceship loaded from a .glb file with loadGlb — CC0 model by Quaternius.
 - **Shader Functions** (`shader-functions`) — A visual reference example for every function in brometal/shader-functions — noise, easing, color, lighting, SDFs.
 - **Shader Library** (`shader-library`) — 30 prebuilt shaders shipped in brometal/shaders — fire, raymarching, fractals, image effects — zero compilation in your app.
-- **Custom Shader** (`custom-shader`) — Procedural plasma written in plain TypeScript — helper functions, let, and for loops compiled to GLSL.
+- **Custom Shader** (`custom-shader`) — Procedural plasma written in plain TypeScript — helper functions, let, and for loops compiled to WGSL.
 - **Terrain** (`terrain`) — A 65k-vertex plane sculpted into rolling terrain by fbm noise running in the vertex shader.
 - **Ripples** (`ripples`) — Elastic ripples rolling across a surface — easing functions driving per-vertex animation on the GPU.
 - **Night Ocean** (`night-ocean`) — A moonlit ocean — Gerstner waves in the vertex shader, fbm micro-ripples, fresnel, and a specular glint per pixel.

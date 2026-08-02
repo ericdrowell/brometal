@@ -18,14 +18,6 @@ export interface TextureOptions {
 }
 
 export interface BroMetalTexture {
-  /** Present on WebGL2-backed textures. */
-  readonly glTexture?: WebGLTexture;
-  /**
-   * WebGL2 bind target. Absent means TEXTURE_2D; a volume carries TEXTURE_3D.
-   * Binding a 3D texture to the 2D target silently reads nothing, so the target
-   * has to travel with the texture rather than being assumed at the call site.
-   */
-  readonly glTarget?: number;
   dispose(): void;
 }
 
@@ -58,46 +50,7 @@ export function createTexture3D(
       `BroMetal: volume data is ${volume.data.length} bytes but ${volume.width}x${volume.height}x${volume.depth} RGBA needs ${expected}`,
     );
   }
-  if (renderer.backend === 'webgpu') {
-    return createWebgpuTexture3D(renderer, volume, options);
-  }
-  const gl = renderer.gl;
-  if (gl === undefined) {
-    throw new Error('BroMetal: renderer has no WebGL2 context');
-  }
-  const glTexture = gl.createTexture();
-  if (glTexture === null) {
-    throw new Error('BroMetal: failed to create a 3D texture');
-  }
-  gl.bindTexture(gl.TEXTURE_3D, glTexture);
-  gl.texImage3D(
-    gl.TEXTURE_3D,
-    0,
-    gl.RGBA,
-    volume.width,
-    volume.height,
-    volume.depth,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    volume.data,
-  );
-  const wrap = options.wrap === 'clamp' ? gl.CLAMP_TO_EDGE : gl.REPEAT;
-  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, wrap);
-  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, wrap);
-  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, wrap);
-  const filter = options.filter === 'nearest' ? gl.NEAREST : gl.LINEAR;
-  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, filter);
-  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, filter);
-  gl.bindTexture(gl.TEXTURE_3D, null);
-
-  return {
-    glTexture,
-    glTarget: gl.TEXTURE_3D,
-    dispose(): void {
-      gl.deleteTexture(glTexture);
-    },
-  };
+  return createWebgpuTexture3D(renderer, volume, options);
 }
 
 export function createTexture(
@@ -105,58 +58,7 @@ export function createTexture(
   source: TexImageSource,
   options: TextureOptions = {},
 ): BroMetalTexture {
-  if (renderer.backend === 'webgpu') {
-    return createWebgpuTexture(renderer, source, options);
-  }
-  const gl = renderer.gl;
-  if (gl === undefined) {
-    throw new Error('BroMetal: renderer has no WebGL2 context');
-  }
-  return createWebgl2Texture(gl, source, options);
-}
-
-function createWebgl2Texture(
-  gl: WebGL2RenderingContext,
-  source: TexImageSource,
-  options: TextureOptions,
-): BroMetalTexture {
-  const glTexture = gl.createTexture();
-  if (glTexture === null) {
-    throw new Error('BroMetal: failed to create a texture');
-  }
-  gl.bindTexture(gl.TEXTURE_2D, glTexture);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, options.flipY ?? true);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-
-  const wrap = options.wrap === 'clamp' ? gl.CLAMP_TO_EDGE : gl.REPEAT;
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
-
-  if (options.filter === 'nearest') {
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  } else {
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    const requested = Math.floor(options.anisotropy ?? 1);
-    if (requested > 1) {
-      const ext = gl.getExtension('EXT_texture_filter_anisotropic');
-      if (ext !== null) {
-        const limit = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number;
-        gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(requested, limit));
-      }
-    }
-  }
-  gl.bindTexture(gl.TEXTURE_2D, null);
-
-  return {
-    glTexture,
-    dispose(): void {
-      gl.deleteTexture(glTexture);
-    },
-  };
+  return createWebgpuTexture(renderer, source, options);
 }
 
 export async function loadTexture(
@@ -172,10 +74,6 @@ export async function loadTexture(
   } catch {
     throw new Error(`BroMetal: failed to load texture '${url}'`);
   }
-  if (renderer.backend === 'webgpu') {
-    // ImageBitmap is the universally-supported WebGPU copy source.
-    const bitmap = await createImageBitmap(image);
-    return createTexture(renderer, bitmap, options);
-  }
-  return createTexture(renderer, image, options);
+  // ImageBitmap is the universally-supported WebGPU copy source.
+  return createTexture(renderer, await createImageBitmap(image), options);
 }

@@ -2,39 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnSmootherstepShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-in vec2 vUv;
-out vec4 fragColor;
-float smootherstep(float edge0, float edge1, float x) {
-  float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-  return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
-}
-void main() {
-  float mx = (vUv.x - 0.1) / 0.8;
-  float my = (vUv.y - 0.2) / 0.6;
-  vec3 color = vec3(0.08, 0.08, 0.12);
-  if (mx >= 0.0 && mx <= 1.0) {
-    float quintic = smootherstep(0.0, 1.0, clamp(mx, 0.0, 1.0));
-    float cubic = smoothstep(0.0, 1.0, clamp(mx, 0.0, 1.0));
-    color = mix(color, vec3(0.4, 0.45, 0.6), 1.0 - smoothstep(0.008, 0.024, abs(my - cubic)));
-    color = mix(color, vec3(1.0, 0.7, 0.3), 1.0 - smoothstep(0.008, 0.024, abs(my - quintic)));
-  }
-  fragColor = vec4(color, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

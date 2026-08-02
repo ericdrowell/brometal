@@ -2,42 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnGerstnerWaveShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 gerstnerWave(vec2 p, vec2 dir, float steepness, float wavelength, float time) {
-  float k = 6.28318 / wavelength;
-  float c = sqrt(9.8 / k);
-  vec2 d = normalize(dir);
-  float f = k * (dot(d, p) - c * time);
-  float a = steepness / k;
-  return vec3(d.x * a * cos(f), d.y * a * cos(f), a * sin(f));
-}
-void main() {
-  vec2 p = vec2(vUv.x * uAspect, vUv.y) * 6.0;
-  vec3 w1 = gerstnerWave(p, vec2(1.0, 0.4), 0.9, 2.2, uTime);
-  vec3 w2 = gerstnerWave(p, vec2(-0.6, 1.0), 0.7, 1.3, uTime);
-  float h = (w1.z + w2.z) * 1.6 + 0.5;
-  vec3 deep = vec3(0.05, 0.15, 0.3);
-  vec3 crest = vec3(0.75, 0.9, 1.0);
-  fragColor = vec4(mix(deep, crest, clamp(h, 0.0, 1.0)), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

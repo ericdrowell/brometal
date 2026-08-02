@@ -11,11 +11,9 @@ import {
   type BroMetalProgram,
   type BroMetalTexture,
   type Renderer,
-  type RendererBackend,
 } from 'brometal';
 import litShader from '../shaders/textured-cube.shader.gen';
 import { indices, normals, positions, uvs } from '@/lib/cube-geometry';
-import BackendBadge from './_site/BackendBadge';
 import DemoStats, { useFrameStats } from './_site/DemoStats';
 
 const TEXTURES = [
@@ -38,7 +36,6 @@ type LitProgram = BroMetalProgram<
 
 export default function TexturesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const rendererRef = useRef<Renderer | null>(null);
   const programRef = useRef<LitProgram | null>(null);
@@ -60,7 +57,6 @@ export default function TexturesDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
       rendererRef.current = renderer;
       const program = createProgram(renderer, litShader);
       programRef.current = program;
@@ -188,7 +184,6 @@ export default function TexturesDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>Mipmapped CC0 texture, lit per fragment</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

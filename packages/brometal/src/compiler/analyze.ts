@@ -4,7 +4,7 @@ import { SHADER_LIBRARY } from '../shader-functions/library-source.js';
 import { errorAt } from './errors.js';
 import type { IrBinaryOp, IrExpr, IrStmt, IrType, ShaderIr, StageIr } from './ir.js';
 import {
-  isValidGlslName,
+  isValidShaderName,
   parseHelpers,
   type ParsedHelper,
   type ParsedShaderModule,
@@ -677,8 +677,8 @@ function lowerDecl(ctx: StageContext, scope: Scope, statement: ts.VariableStatem
     throw errorAt(ctx.sourceFile, declaration, `declarations must have an initializer`);
   }
   const name = declaration.name.text;
-  if (!isValidGlslName(name)) {
-    throw errorAt(ctx.sourceFile, declaration, `'${name}' is not a usable GLSL identifier`);
+  if (!isValidShaderName(name)) {
+    throw errorAt(ctx.sourceFile, declaration, `'${name}' is not a usable shader identifier`);
   }
   if (ctx.interfaceNames.has(name)) {
     throw errorAt(
@@ -911,7 +911,7 @@ function lowerFor(ctx: StageContext, scope: Scope, statement: ts.ForStatement): 
     throw errorAt(ctx.sourceFile, declaration, `for-loop counters need a name and an initial value`);
   }
   const name = declaration.name.text;
-  if (!isValidGlslName(name) || ctx.interfaceNames.has(name)) {
+  if (!isValidShaderName(name) || ctx.interfaceNames.has(name)) {
     throw errorAt(ctx.sourceFile, declaration, `'${name}' is not a usable loop counter name`);
   }
   const initExpr = lowerExpr(ctx, scope, declaration.initializer);

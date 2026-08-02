@@ -8,9 +8,7 @@ import {
   type BroMetalProgram,
   type GpuRecord,
   type Renderer,
-  type RendererBackend,
 } from 'brometal';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 import { FN_CATEGORY_ORDER, FN_EXAMPLES, type FnExample } from '@/lib/fn-catalog';
 
@@ -22,7 +20,6 @@ type QuadProgram = BroMetalProgram<
 
 export default function ShaderFunctionsDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
   const rendererRef = useRef<Renderer | null>(null);
   const quadRef = useRef<ReturnType<typeof createPlane> | null>(null);
@@ -57,7 +54,6 @@ export default function ShaderFunctionsDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
       rendererRef.current = renderer;
       quadRef.current = createPlane({ width: 2, height: 2 });
       ensureProgram(activeRef.current);
@@ -137,7 +133,6 @@ export default function ShaderFunctionsDemo() {
         </div>
       </div>
       <DemoStats stats={stats}>brometal/shader-functions — inlined at build time</DemoStats>
-      <BackendBadge backend={backend} />
     </>
   );
 }

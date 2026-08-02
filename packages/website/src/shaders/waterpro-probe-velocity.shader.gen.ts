@@ -2,8 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const waterproProbeVelocityShader: CompiledShader<Record<string, never>, Record<string, never>, { uDeltaTime: 'float'; uCount: 'float'; uVelocity: 'storage'; uPosition: 'storage'; uPrevious: 'storage' }> = {
-  vertexSrc: ``,
-  fragmentSrc: ``,
   wgslSrc: `struct BmUniforms {
   uDeltaTime : f32,
   uCount : f32,

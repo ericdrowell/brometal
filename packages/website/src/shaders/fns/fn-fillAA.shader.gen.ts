@@ -2,48 +2,6 @@
 import type { CompiledShader } from 'brometal';
 
 const fnFillAAShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float fillAA(float d, float softness) {
-  return 1.0 - smoothstep(0.0, softness, d);
-}
-float sdHexagon(vec2 p, float radius) {
-  float kx = -0.866025404;
-  float ky = 0.5;
-  float kz = 0.577350269;
-  vec2 q = vec2(abs(p.x), abs(p.y));
-  float shift = 2.0 * min(dot(vec2(kx, ky), q), 0.0);
-  vec2 q2 = q - vec2(kx, ky) * shift;
-  vec2 q3 = vec2(q2.x - clamp(q2.x, -kz * radius, kz * radius), q2.y - radius);
-  return length(q3) * sign(q3.y);
-}
-vec2 rotate2(vec2 p, float angle) {
-  float c = cos(angle);
-  float s = sin(angle);
-  return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-}
-void main() {
-  vec2 p = rotate2(vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5), uTime * 0.3);
-  float a = fillAA(sdHexagon(p, 0.28), 0.006);
-  fragColor = vec4(vec3(0.95, 0.6, 0.25) * a + vec3(0.08, 0.08, 0.12) * (1.0 - a), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

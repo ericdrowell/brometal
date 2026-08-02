@@ -1,15 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createProgram, createRenderer, mat4, type RendererBackend } from 'brometal';
+import { createProgram, createRenderer, mat4 } from 'brometal';
 import cubeShader from '@/shaders/color-cube.shader.gen';
 import { colors, indices, positions } from '@/lib/cube-geometry';
-import BackendBadge from '@/components/BackendBadge';
 import DemoStats, { useFrameStats } from '@/components/DemoStats';
 
 export default function RotatingCubeDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backend, setBackend] = useState<RendererBackend | null>(null);
   const { stats, tick } = useFrameStats();
 
   useEffect(() => {
@@ -24,7 +22,6 @@ export default function RotatingCubeDemo() {
         renderer.destroy();
         return;
       }
-      setBackend(renderer.backend);
       const program = createProgram(renderer, cubeShader);
       program.attributes.aPosition.set(positions);
       program.attributes.aColor.set(colors);
@@ -62,8 +59,7 @@ export default function RotatingCubeDemo() {
   return (
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
-      <DemoStats stats={stats}>One cube, one shader compiled to GLSL and WGSL</DemoStats>
-      <BackendBadge backend={backend} />
+      <DemoStats stats={stats}>One cube, one shader compiled to WGSL</DemoStats>
     </>
   );
 }

@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### Added
+- **`createRenderer` throws where WebGPU is missing.** It names the requirement
+  and the browsers that meet it, rather than returning a renderer that cannot
+  draw. Chrome and Edge 113+, Firefox 141+, Safari 26+.
+- **Render-target coverage in `npm run test:gpu`.** Two new fixtures write a
+  known uv into a target and sample it back on real hardware, checking both that
+  the contents survive the round trip and that the rows come back in the
+  documented order. This path had no automated coverage at all once the WebGL2
+  unit tests went; a mirrored target still draws something plausible.
+
+### Improved
+- **Breaking: WebGPU only.** The compiler emits WGSL and nothing else, and the
+  WebGL2 runtime is gone. Supporting both meant every feature had to be
+  expressible in the older API, and the features worth building on — compute
+  shaders, storage buffers — have no WebGL2 equivalent. A typical app now bundles
+  to ~19 KB minified / 7 KB gzipped, down from ~23 KB / 8.5 KB. What went, and
+  what to do instead:
+  - `RendererOptions.backend` and `Renderer.gl` are removed, and
+    `RendererBackend` is `'webgpu'` alone. Drop the option; there is nothing to
+    select between.
+  - Compiled modules carry `wgslSrc`; `vertexSrc`, `fragmentSrc` and
+    `webgpuOnly` are gone, as are the `targets` and `precision` compile options
+    and the `--targets` / `--precision` CLI flags. Recompile with
+    `npx brometal dev --once` — the runtime says so plainly if it meets a module
+    built by an older compiler.
+- **Breaking: reserved-word checking follows WGSL.** The compiler previously
+  guarded against GLSL ES 3.00's reserved list, which no longer describes what
+  will fail. It now rejects WGSL's keywords, predeclared types and
+  reserved-for-future words — including ordinary-looking names like `type`,
+  `set`, `from`, `match`, `target` and `filter` — and identifiers starting with
+  `__`. Names GLSL reserved but WGSL does not, such as `sample` and `output`,
+  are usable again.
+- **Uniform length checking lives in one place.** Moved into
+  `checkUniformValue`, so the size the compiler recorded is enforced once. A
+  short write does not fail on its own; it shifts every uniform packed after it,
+  and the wrong value surfaces somewhere unrelated.
+
 ## 0.13.0 (2026-08-01)
 
 ### Added
