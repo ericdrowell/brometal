@@ -2,48 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const halftoneShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float'; uTex: 'sampler2D' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform float uAspect;
-uniform sampler2D uTex;
-in vec2 vUv;
-out vec4 fragColor;
-float luminance(vec3 color) {
-  return dot(color, vec3(0.2126, 0.7152, 0.0722));
-}
-vec2 rotate2(vec2 p, float angle) {
-  float c = cos(angle);
-  float s = sin(angle);
-  return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-}
-float fillAA(float d, float softness) {
-  return 1.0 - smoothstep(0.0, softness, d);
-}
-void main() {
-  float lum = luminance(texture(uTex, vUv).xyz);
-  vec2 grid = rotate2(vec2(vUv.x * uAspect, vUv.y), 0.6) * 70.0;
-  vec2 cell = vec2(fract(grid.x) - 0.5, fract(grid.y) - 0.5);
-  float radius = (1.0 - lum) * 0.68;
-  float ink = fillAA(length(cell) - radius, 0.08);
-  vec3 paper = vec3(0.96, 0.94, 0.88);
-  vec3 inkColor = vec3(0.12, 0.1, 0.2);
-  fragColor = vec4(mix(paper, inkColor, ink), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

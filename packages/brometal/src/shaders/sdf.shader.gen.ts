@@ -2,51 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const sdfShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float sdCircle(vec2 p, float radius) {
-  return length(p) - radius;
-}
-float sdBox2(vec2 p, vec2 halfSize) {
-  vec2 d = vec2(abs(p.x) - halfSize.x, abs(p.y) - halfSize.y);
-  float outside = length(vec2(max(d.x, 0.0), max(d.y, 0.0)));
-  return outside + min(max(d.x, d.y), 0.0);
-}
-float smoothUnion(float d1, float d2, float k) {
-  float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
-  return mix(d2, d1, h) - k * h * (1.0 - h);
-}
-float fillAA(float d, float softness) {
-  return 1.0 - smoothstep(0.0, softness, d);
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  vec2 orbit = vec2(cos(uTime) * 0.22, sin(uTime * 1.3) * 0.18);
-  float circle = sdCircle(p - orbit, 0.12);
-  float box = sdBox2(p, vec2(0.16, 0.16));
-  float d = smoothUnion(circle, box, 0.09);
-  float fill = fillAA(d, 0.006);
-  float edge = fillAA(abs(d) - 0.004, 0.004);
-  vec3 body = vec3(0.98, 0.45, 0.2) * fill;
-  fragColor = vec4(body + vec3(1.0, 0.9, 0.6) * (edge * 0.6), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

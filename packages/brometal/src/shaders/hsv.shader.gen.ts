@@ -2,47 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const hsvShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 hsv2rgb(vec3 hsv) {
-  float h = hsv.x * 6.0;
-  float r = clamp(abs(h - 3.0) - 1.0, 0.0, 1.0);
-  float g = clamp(2.0 - abs(h - 2.0), 0.0, 1.0);
-  float b = clamp(2.0 - abs(h - 4.0), 0.0, 1.0);
-  return mix(vec3(1.0, 1.0, 1.0), vec3(r, g, b), hsv.y) * hsv.z;
-}
-float fillAA(float d, float softness) {
-  return 1.0 - smoothstep(0.0, softness, d);
-}
-float sdCircle(vec2 p, float radius) {
-  return length(p) - radius;
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  float angle = atan(p.y, p.x) * 0.159155 + 0.5;
-  float hue = fract(angle + uTime * 0.05);
-  float sat = length(p) * 2.4;
-  vec3 wheel = hsv2rgb(vec3(hue, sat, 1.0));
-  float mask = fillAA(sdCircle(p, 0.42), 0.005);
-  fragColor = vec4(wheel * mask, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

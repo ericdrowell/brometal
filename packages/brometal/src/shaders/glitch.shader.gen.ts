@@ -2,42 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const glitchShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float'; uTex: 'sampler2D' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform float uTime;
-uniform sampler2D uTex;
-in vec2 vUv;
-out vec4 fragColor;
-float hash11(float p) {
-  return fract(sin(p * 127.1) * 43758.5453);
-}
-void main() {
-  float frame = floor(uTime * 7.0);
-  float row = floor(vUv.y * 28.0);
-  float gate = step(0.82, hash11(row * 3.7 + frame * 17.0));
-  float shift = (hash11(row + frame * 100.0) - 0.5) * 0.25 * gate;
-  vec2 q = vec2(fract(vUv.x + shift), vUv.y);
-  float split = 0.012 * gate + 0.002;
-  float r = texture(uTex, vec2(fract(q.x + split), q.y)).x;
-  float g = texture(uTex, q).y;
-  float b = texture(uTex, vec2(fract(q.x - split), q.y)).z;
-  fragColor = vec4(r, g, b, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

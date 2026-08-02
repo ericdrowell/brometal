@@ -2,36 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const chromaticShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float'; uTex: 'sampler2D' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform float uTime;
-uniform sampler2D uTex;
-in vec2 vUv;
-out vec4 fragColor;
-void main() {
-  vec2 c = vec2(vUv.x - 0.5, vUv.y - 0.5);
-  float amount = length(c) * (0.012 + 0.008 * sin(uTime * 2.0));
-  vec2 dir = c * (amount * 6.0);
-  float r = texture(uTex, vUv + dir).x;
-  float g = texture(uTex, vUv).y;
-  float b = texture(uTex, vUv - dir).z;
-  fragColor = vec4(r, g, b, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

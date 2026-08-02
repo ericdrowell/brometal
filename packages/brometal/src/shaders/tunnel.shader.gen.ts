@@ -2,40 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const tunnelShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec2 rotate2(vec2 p, float angle) {
-  float c = cos(angle);
-  float s = sin(angle);
-  return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-}
-void main() {
-  vec2 p = rotate2(vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5), uTime * 0.1);
-  float radius = length(p) + 0.0001;
-  float angle = atan(p.y, p.x) * 0.159155;
-  float depth = 0.25 / radius + uTime * 0.7;
-  float c = mod(floor(angle * 12.0) + floor(depth * 6.0), 2.0);
-  float fog = smoothstep(0.02, 0.4, radius);
-  float tone = mix(0.1, 1.0, c) * fog;
-  fragColor = vec4(tone, tone * 0.7, tone * 0.4, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

@@ -124,6 +124,13 @@
   (Quaternius Spitfire, CC0) added to the Basics section.
 
 ### Improved
+- **`npm run test:gpu` — GPU integration tests.** Compiles fixture shaders,
+  bundles a browser entry, serves it, and drives the system Chrome to assert on
+  pixels the GPU actually produced. The vitest suite verifies the compiler emits
+  correct shader text and cannot see anything downstream of that: four bugs
+  shipped past it while the compute stage was written, one of which raised no
+  error at all. Uses `playwright-core` against the installed Chrome, so no
+  browser is downloaded, and stays out of `npm test` because it needs a GPU.
 - **Releases stamp the changelog and sync the package.** `npm run release`
   promotes `## Unreleased` to a dated version heading, regenerates the examples
   and changelog copies inside the package, and stages both into the release

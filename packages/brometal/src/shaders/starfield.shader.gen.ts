@@ -2,45 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const starfieldShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec2 hash22(vec2 p) {
-  vec2 k = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-  return vec2(fract(sin(k.x) * 43758.5453), fract(sin(k.y) * 43758.5453));
-}
-float hash21(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  float brightness = 0.0;
-  for (float layer = 1.0; layer <= 3.0; layer = layer + 1.0) {
-    vec2 q = p * (layer * 10.0) + vec2(uTime * 0.04 * layer, uTime * 0.01 * layer);
-    vec2 cell = vec2(floor(q.x), floor(q.y));
-    vec2 star = hash22(cell) * 0.8 + vec2(0.1, 0.1);
-    float d = distance(q - cell, star);
-    float twinkle = 0.6 + 0.4 * sin(uTime * 3.0 + hash21(cell) * 40.0);
-    brightness = brightness + (1.0 - smoothstep(0.0, 0.12 / layer, d)) * twinkle / layer;
-  }
-  fragColor = vec4(brightness, brightness, brightness * 1.15, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

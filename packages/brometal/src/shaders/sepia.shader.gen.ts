@@ -2,39 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const sepiaShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float'; uTex: 'sampler2D' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform float uAspect;
-uniform sampler2D uTex;
-in vec2 vUv;
-out vec4 fragColor;
-float luminance(vec3 color) {
-  return dot(color, vec3(0.2126, 0.7152, 0.0722));
-}
-void main() {
-  vec3 c = texture(uTex, vUv).xyz;
-  float g = luminance(c);
-  vec3 sepia = vec3(g * 1.07, g * 0.85, g * 0.62);
-  vec3 graded = mix(c, sepia, 0.85);
-  vec2 centered = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  float vig = 1.0 - smoothstep(0.3, 0.85, length(centered));
-  fragColor = vec4(graded * vig, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

@@ -208,10 +208,8 @@ export interface CompiledShader<
   I extends GpuRecord = GpuRecord,
   U extends GpuRecord = GpuRecord,
 > {
-  vertexSrc: string;
-  fragmentSrc: string;
-  /** WGSL module (both entry points) — present when compiled with the webgpu target. */
-  wgslSrc?: string;
+  /** The WGSL module, carrying every entry point the shader declares. */
+  wgslSrc: string;
   attributes: A;
   instanceAttributes: I;
   uniforms: U;

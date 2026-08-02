@@ -1,6 +1,6 @@
 import { shader, vec2, vec4, floor, min, storageRead, storageLength } from 'brometal';
 
-/** Reads the compute shader's output back and paints it across the screen. */
+/** Fixture: paints a storage buffer across the canvas so pixels can be asserted. */
 export default shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uCount: 'float' },
@@ -15,9 +15,8 @@ export default shader({
   fragment({ uData, uCount }, { vUv }) {
     const index = min(floor(vUv.x * uCount), uCount - 1);
     const value = storageRead(uData, index);
-    // A stripe across the bottom reports arrayLength, so a buffer that bound at
-    // the wrong size is visible too.
-    const lengthOk = storageLength(uData) / uCount;
-    return vec4(value.x, value.y * lengthOk, value.z, 1);
+    // Alpha carries arrayLength/uCount so a buffer bound at the wrong size shows
+    // up as a channel that is not exactly 1.
+    return vec4(value.x, value.y, value.z, storageLength(uData) / uCount);
   },
 });

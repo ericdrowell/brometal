@@ -2,36 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const edgesShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float'; uTex: 'sampler2D' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform sampler2D uTex;
-in vec2 vUv;
-out vec4 fragColor;
-float luminance(vec3 color) {
-  return dot(color, vec3(0.2126, 0.7152, 0.0722));
-}
-void main() {
-  float e = 0.0016;
-  float gx = luminance(texture(uTex, vUv + vec2(e, 0.0)).xyz) - luminance(texture(uTex, vUv - vec2(e, 0.0)).xyz);
-  float gy = luminance(texture(uTex, vUv + vec2(0.0, e)).xyz) - luminance(texture(uTex, vUv - vec2(0.0, e)).xyz);
-  float mag = sqrt(gx * gx + gy * gy) * 5.0;
-  fragColor = vec4(mag * 0.4, mag * 0.9, mag, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

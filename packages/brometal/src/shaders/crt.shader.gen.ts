@@ -2,38 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const crtShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float'; uTex: 'sampler2D' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform float uTime;
-uniform sampler2D uTex;
-in vec2 vUv;
-out vec4 fragColor;
-void main() {
-  vec2 c = vec2(vUv.x - 0.5, vUv.y - 0.5);
-  float r2 = dot(c, c);
-  vec2 q = vec2(c.x * (1.0 + r2 * 0.28) + 0.5, c.y * (1.0 + r2 * 0.28) + 0.5);
-  float inBounds = step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
-  float scan = 0.82 + 0.18 * sin(q.y * 700.0 + uTime * 8.0);
-  float flicker = 0.96 + 0.04 * sin(uTime * 60.0);
-  vec3 color = texture(uTex, q).xyz * (scan * flicker * inBounds);
-  float vig = 1.0 - smoothstep(0.3, 0.62, r2);
-  fragColor = vec4(color * vig, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

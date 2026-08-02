@@ -89,3 +89,28 @@ export interface ShaderIr {
   storageWritten: string[];
   workgroupSize: readonly [number, number, number];
 }
+
+/** Expands a stage's directly-called helpers to include everything they call. */
+export function helperClosure(ir: ShaderIr, roots: Iterable<string>): Set<string> {
+  const byName = new Map(ir.helpers.map((helper) => [helper.name, helper]));
+  const result = new Set<string>();
+  const visit = (name: string): void => {
+    if (result.has(name)) return;
+    result.add(name);
+    for (const dependency of byName.get(name)?.usedHelpers ?? []) {
+      visit(dependency);
+    }
+  };
+  for (const root of roots) {
+    visit(root);
+  }
+  return result;
+}
+
+/** Numeric literals: WGSL needs a decimal point to keep an integer a float. */
+export function formatFloat(value: number): string {
+  if (Number.isInteger(value) && Math.abs(value) < 1e21) {
+    return `${value}.0`;
+  }
+  return String(value);
+}

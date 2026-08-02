@@ -1,7 +1,6 @@
 import type { ShaderLayout } from '../dsl/types.js';
-import { formatFloat } from './emit-glsl.js';
 import type { HelperIr, IrExpr, IrStmt, IrType, ShaderIr } from './ir.js';
-import { helperClosure } from './emit-glsl.js';
+import { formatFloat, helperClosure } from './ir.js';
 
 /**
  * WGSL backend. Emits one module containing both entry points (vs_main /

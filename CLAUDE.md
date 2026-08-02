@@ -77,6 +77,12 @@ Bugs that passed a green suite in this repo:
 **Dump the emitted GLSL/WGSL and read it.** For anything that renders, look at
 the actual pixels before saying it works.
 
+For runtime changes — `runtime/webgpu.ts`, bind groups, pipelines, uniform
+uploads — run `npm run test:gpu`. It drives the system Chrome against a real GPU
+and asserts on pixels, which is the only thing that catches a valid-looking
+shader wired up wrongly. It is not part of `npm test`, because it needs a GPU and
+a Chrome install.
+
 ---
 
 ## Order of operations

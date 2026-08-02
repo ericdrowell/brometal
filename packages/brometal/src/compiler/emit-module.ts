@@ -9,9 +9,8 @@ export function buildGeneratedModule(shaderName: string, compiled: CompiledShade
 import type { CompiledShader } from 'brometal';
 
 const ${shaderName}: CompiledShader<${attributeType}, ${instanceAttributeType}, ${uniformType}> = {
-  vertexSrc: \`${escapeTemplate(compiled.vertexSrc)}\`,
-  fragmentSrc: \`${escapeTemplate(compiled.fragmentSrc)}\`,
-${compiled.wgslSrc === undefined ? '' : `  wgslSrc: \`${escapeTemplate(compiled.wgslSrc)}\`,\n`}  attributes: ${recordValueLiteral(compiled.attributes)},
+  wgslSrc: \`${escapeTemplate(compiled.wgslSrc)}\`,
+  attributes: ${recordValueLiteral(compiled.attributes)},
   instanceAttributes: ${recordValueLiteral(compiled.instanceAttributes)},
   uniforms: ${recordValueLiteral(compiled.uniforms)},
   layout: ${JSON.stringify(compiled.layout)},

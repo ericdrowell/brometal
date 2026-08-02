@@ -2,34 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const paletteShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 cosinePalette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
-  vec3 phase = (c * t + d) * 6.28318;
-  return a + vec3(cos(phase.x), cos(phase.y), cos(phase.z)) * b;
-}
-void main() {
-  float wave = 0.15 * sin(vUv.y * 8.0 + uTime);
-  vec3 color = cosinePalette(vUv.x * uAspect * 0.55 + wave + uTime * 0.1, vec3(0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5), vec3(1.0, 1.0, 1.0), vec3(0.0, 0.33, 0.67));
-  fragColor = vec4(color, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

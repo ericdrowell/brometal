@@ -2,50 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const juliaShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 cosinePalette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
-  vec3 phase = (c * t + d) * 6.28318;
-  return a + vec3(cos(phase.x), cos(phase.y), cos(phase.z)) * b;
-}
-void main() {
-  float zx = (vUv.x - 0.5) * uAspect * 2.8;
-  float zy = (vUv.y - 0.5) * 2.8;
-  float cRe = 0.7885 * cos(uTime * 0.25);
-  float cIm = 0.7885 * sin(uTime * 0.25);
-  float escaped = 0.0;
-  for (float i = 1.0; i <= 48.0; i = i + 1.0) {
-    float nx = zx * zx - zy * zy + cRe;
-    float ny = 2.0 * zx * zy + cIm;
-    zx = nx;
-    zy = ny;
-    if (escaped < 0.5 && zx * zx + zy * zy > 4.0) {
-      escaped = i;
-    }
-  }
-  vec3 color = vec3(0.0, 0.0, 0.0);
-  if (escaped > 0.5) {
-    color = cosinePalette(escaped * 0.025 + uTime * 0.02, vec3(0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5), vec3(1.0, 1.0, 1.0), vec3(0.0, 0.1, 0.2));
-  }
-  fragColor = vec4(color, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

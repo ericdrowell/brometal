@@ -10,7 +10,10 @@ export const metadata: Metadata = {
   // `%s` is filled by each page's own title; the home page overrides the
   // template with `absolute` so it does not read "BroMetal — BroMetal".
   title: {
-    default: `${SITE_NAME} — TypeScript shaders for WebGL2 and WebGPU`,
+    // Every page sets its own title; this is only a fallback, and a bare name
+    // keeps an untitled page obvious in analytics rather than masquerading as the
+    // home page.
+    default: SITE_NAME,
     template: `%s — ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,

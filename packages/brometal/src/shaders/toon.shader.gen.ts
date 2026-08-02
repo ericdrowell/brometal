@@ -2,64 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const toonShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-float toonShade(vec3 normal, vec3 lightDir, float bands) {
-  float diffuse = max(dot(normalize(normal), normalize(lightDir)), 0.0);
-  return clamp(floor(diffuse * bands) / (bands - 1.0), 0.0, 1.0);
-}
-float specGGX(vec3 normal, vec3 lightDir, vec3 viewDir, float roughness) {
-  vec3 n = normalize(normal);
-  vec3 halfway = normalize(normalize(lightDir) + normalize(viewDir));
-  float ndoth = max(dot(n, halfway), 0.0);
-  float a = roughness * roughness;
-  float a2 = a * a;
-  float denom = ndoth * ndoth * (a2 - 1.0) + 1.0;
-  float ndf = a2 / (3.14159265 * denom * denom);
-  float ndotl = max(dot(n, normalize(lightDir)), 0.0);
-  return ndf * ndotl * 0.25;
-}
-float fillAA(float d, float softness) {
-  return 1.0 - smoothstep(0.0, softness, d);
-}
-float sdCircle(vec2 p, float radius) {
-  return length(p) - radius;
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5) * 2.4;
-  float r = length(p);
-  vec3 lightDir = vec3(cos(uTime * 0.8), 0.6, sin(uTime * 0.8));
-  vec3 color = vec3(0.09, 0.08, 0.13);
-  if (r < 1.0) {
-    vec3 normal = vec3(p.x, p.y, sqrt(1.0 - r * r));
-    float bands = toonShade(normal, lightDir, 3.0);
-    float spec = specGGX(normal, lightDir, vec3(0.0, 0.0, 1.0), 0.35);
-    float glint = smoothstep(0.25, 0.3, spec);
-    vec3 base = vec3(0.36, 0.65, 0.95);
-    color = base * (0.25 + bands * 0.75) + vec3(1.0, 1.0, 1.0) * (glint * 0.6);
-    float outline = smoothstep(0.88, 0.99, r);
-    color = color * (1.0 - outline);
-  }
-  float mask = fillAA(sdCircle(p, 1.0), 0.012);
-  fragColor = vec4(color * mask + vec3(0.09, 0.08, 0.13) * (1.0 - mask), 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

@@ -2,33 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const pixelateShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float'; uTex: 'sampler2D' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-precision highp sampler2D;
-precision highp sampler3D;
-uniform float uTime;
-uniform float uAspect;
-uniform sampler2D uTex;
-in vec2 vUv;
-out vec4 fragColor;
-void main() {
-  float cells = 60.0 + floor(sin(uTime * 0.6) * 44.0);
-  vec2 q = vec2(floor(vUv.x * cells * uAspect) / (cells * uAspect), floor(vUv.y * cells) / cells);
-  fragColor = texture(uTex, q);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

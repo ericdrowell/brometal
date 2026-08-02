@@ -2,43 +2,6 @@
 import type { CompiledShader } from '../index.js';
 
 const metaballsShader: CompiledShader<{ aPosition: 'vec3'; aUv: 'vec2' }, Record<string, never>, { uTime: 'float'; uAspect: 'float' }> = {
-  vertexSrc: `#version 300 es
-precision highp float;
-precision highp int;
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main() {
-  vUv = aUv;
-  gl_Position = vec4(aPosition, 1.0);
-}
-`,
-  fragmentSrc: `#version 300 es
-precision highp float;
-precision highp int;
-uniform float uTime;
-uniform float uAspect;
-in vec2 vUv;
-out vec4 fragColor;
-vec3 cosinePalette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
-  vec3 phase = (c * t + d) * 6.28318;
-  return a + vec3(cos(phase.x), cos(phase.y), cos(phase.z)) * b;
-}
-void main() {
-  vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - 0.5);
-  vec2 b1 = vec2(cos(uTime) * 0.25, sin(uTime * 1.3) * 0.2);
-  vec2 b2 = vec2(cos(uTime * 0.7 + 2.0) * 0.3, sin(uTime * 0.9 + 1.0) * 0.22);
-  vec2 b3 = vec2(cos(uTime * 1.5 + 4.0) * 0.2, sin(uTime * 0.6 + 3.0) * 0.26);
-  float field = 0.0;
-  field = field + 0.012 / (distance(p, b1) * distance(p, b1) + 0.001);
-  field = field + 0.012 / (distance(p, b2) * distance(p, b2) + 0.001);
-  field = field + 0.012 / (distance(p, b3) * distance(p, b3) + 0.001);
-  float body = smoothstep(0.9, 1.1, field);
-  float glow = pow(smoothstep(0.3, 1.1, field), 3.0) * 0.6;
-  vec3 color = cosinePalette(field * 0.2 + uTime * 0.05, vec3(0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5), vec3(1.0, 1.0, 1.0), vec3(0.3, 0.2, 0.2));
-  fragColor = vec4(color * body + color * glow, 1.0);
-}
-`,
   wgslSrc: `struct BmUniforms {
   uTime : f32,
   uAspect : f32,

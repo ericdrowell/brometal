@@ -154,22 +154,3 @@ function dropAssignments(statements: IrStmt[], dead: Set<string>): IrStmt[] {
  * Whitespace-level GLSL minification. Preprocessor directives keep their own
  * lines; spaces around `+`/`-` are preserved to avoid creating `--`/`++`.
  */
-export function minifyGlsl(source: string): string {
-  const lines = source.split('\n');
-  const directives: string[] = [];
-  const code: string[] = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) continue;
-    if (trimmed.startsWith('#')) {
-      directives.push(trimmed);
-    } else {
-      code.push(trimmed);
-    }
-  }
-  const body = code
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .replace(/ ?([{}();,=*/<>!&|]) ?/g, '$1');
-  return directives.join('\n') + '\n' + body + '\n';
-}
