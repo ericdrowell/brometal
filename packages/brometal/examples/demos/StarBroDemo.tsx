@@ -7,6 +7,7 @@ import {
   createPlane,
   createProgram,
   createRenderer,
+  createStorageBuffer,
   createSphere,
   createTexture,
   loadGlb,
@@ -17,6 +18,7 @@ import DemoStats, { useFrameStats } from "@/components/DemoStats";
 import modelShader from "@/shaders/model.shader.gen";
 import rocksShader from "@/shaders/game-rocks.shader.gen";
 import glowShader from "@/shaders/game-glow.shader.gen";
+import plumeShader from "@/shaders/game-plume.shader.gen";
 import starsShader from "@/shaders/game-stars.shader.gen";
 import laserShader from "@/shaders/game-laser.shader.gen";
 import reticleShader from "@/shaders/game-reticle.shader.gen";
@@ -24,7 +26,6 @@ import ErrorToast, { useBroMetalError } from "@/components/ErrorToast";
 
 const ASTEROIDS = 33;
 const WRAP = 210;
-const PARTICLES = 70;
 const STARS = 400;
 const STAR_WRAP = 210;
 
@@ -87,10 +88,12 @@ export default function StarBroDemo() {
       // Asteroid field: instanced spheres sculpted into lumpy rocks by radial
       // fbm3 noise in the vertex shader, wrapped on the GPU.
       const rocksProgram = createProgram(renderer, rocksShader);
+      // Craters are carved by displacing vertices, so they only exist where
+      // there are vertices to move — at 24x16 the sphere smoothed them away.
       const rock = createSphere({
         radius: 1,
-        widthSegments: 24,
-        heightSegments: 16,
+        widthSegments: 56,
+        heightSegments: 36,
       });
       rocksProgram.attributes.aPosition.set(rock.positions);
       rocksProgram.attributes.aUv.set(rock.uvs);
@@ -210,27 +213,54 @@ export default function StarBroDemo() {
       starsProgram.uniforms.uAhead.set(14);
       starsProgram.uniforms.uColor.set([1, 1, 1]);
 
-      // Engine glow: additive-blended instanced blobs trailing the ship.
-      const glowProgram = createProgram(renderer, glowShader, {
+      // Engine plume: one stretched sphere shaded as a volume of light. No
+      // particles and no per-frame buffer writes — the flame is a function of
+      // time evaluated in the shader, and the same pulse lights the hull.
+      // Measured from the mesh rather than guessed: the four engine nacelles
+      // sit at x = ±0.60, z = 0.28, averaging y = -0.07, stacked in pairs. A
+      // single plume on the fuselage centreline never looked attached because
+      // there is no engine there — the ship's thrust comes from these four.
+      // x is 0.58, just inboard of the 0.60 the vertex clusters average to:
+      // that mean is pulled outboard by the nacelle casings, while what wants
+      // lighting is the bore inside them. 0.55 overshot.
+      const NACELLES: [number, number, number][] = [
+        [-0.58, 0.02, 0.27],
+        [-0.58, -0.16, 0.27],
+        [0.58, 0.02, 0.27],
+        [0.58, -0.16, 0.27],
+      ];
+      /** Centre of the four, for the point light the hull is lit by. */
+      const ENGINE_OFFSET: [number, number, number] = [0, -0.07, 0.34];
+      /** The flame's own outer bloom — still cool, it is plasma. */
+      const ENGINE_COLOR: [number, number, number] = [0.42, 0.68, 1];
+      /**
+       * What the engines *cast* on other surfaces. White rather than the
+       * flame's blue: a light this bright reads as white at the source, and
+       * tinting everything it touches blue made lit rock look painted rather
+       * than lit.
+       */
+      const ENGINE_LIGHT: [number, number, number] = [1, 1, 1];
+      const plumeProgram = createProgram(renderer, plumeShader, {
         blend: "additive",
       });
-      const blob = createSphere({
+      const plumeBall = createSphere({
         radius: 1,
-        widthSegments: 8,
-        heightSegments: 6,
+        widthSegments: 20,
+        heightSegments: 14,
       });
-      glowProgram.attributes.aPosition.set(blob.positions);
-      glowProgram.setIndices(blob.indices);
-      glowProgram.uniforms.uColor.set([0.45, 0.7, 1]);
-      const trail = Array.from({ length: PARTICLES }, () => ({
-        x: 0,
-        y: 0,
-        z: 2,
-        age: Math.random(),
-      }));
-      const trailOffsets = new Float32Array(PARTICLES * 3);
-      const trailScales = new Float32Array(PARTICLES);
-      const trailAlphas = new Float32Array(PARTICLES);
+      plumeProgram.attributes.aPosition.set(plumeBall.positions);
+      plumeProgram.setIndices(plumeBall.indices);
+      plumeProgram.instanceAttributes.iOffset.set(
+        new Float32Array(NACELLES.flat()),
+      );
+      // Near-spherical and sized to the nacelle bore (the rings span x 0.5-0.7,
+      // so ~0.1 fills them). Stretching these along z read as a comet hanging
+      // off the back; what should show is each cylinder lit from within.
+      plumeProgram.uniforms.uSize.set([0.1, 0.1, 0.13]);
+      plumeProgram.uniforms.uCore.set([1, 1, 1]);
+      plumeProgram.uniforms.uEdge.set(ENGINE_COLOR);
+      shipProgram.uniforms.uEngineColor.set(ENGINE_LIGHT);
+      rocksProgram.uniforms.uEngineColor.set(ENGINE_LIGHT);
 
       // Laser bolts: a small ring buffer of instanced beams; each shot just
       // stamps start/direction/birth-time and the shader does the rest.
@@ -238,14 +268,29 @@ export default function StarBroDemo() {
       const laserProgram = createProgram(renderer, laserShader, {
         blend: "additive",
       });
-      laserProgram.attributes.aPosition.set(blob.positions);
-      laserProgram.setIndices(blob.indices);
+      // A cube, not a sphere: the shader squashes it to a sliver and stretches
+      // it along the flight path, the same recipe as the warp streaks.
+      const bolt = createCube({ width: 1, height: 1, depth: 1 });
+      laserProgram.attributes.aPosition.set(bolt.positions);
+      laserProgram.setIndices(bolt.indices);
       const laserStarts = new Float32Array(LASERS * 3);
       const laserDirs = new Float32Array(LASERS * 3);
       const laserBirths = new Float32Array(LASERS).fill(-100);
       laserProgram.instanceAttributes.iStart.set(laserStarts);
       laserProgram.instanceAttributes.iDir.set(laserDirs);
       laserProgram.instanceAttributes.iBirth.set(laserBirths);
+      // Shared with the CPU so each bolt's light sits exactly on the bolt.
+      const BOLT_SPEED = 55;
+      const BOLT_LIFE = 1.1;
+      /** Half the segment's length, so the light rides its middle. */
+      const BOLT_HALF = 2.25;
+      laserProgram.uniforms.uSpeed.set(BOLT_SPEED);
+      laserProgram.uniforms.uLife.set(BOLT_LIFE);
+
+      // xyz = where the bolt is now, w = brightness. Read by the asteroids.
+      const boltLights = new Float32Array(LASERS * 4);
+      const boltBuffer = createStorageBuffer(renderer, boltLights);
+      rocksProgram.uniforms.uBolts.set(boltBuffer);
 
       // Star Fox aiming reticles: two SDF square outlines along the aim ray.
       const reticleProgram = createProgram(renderer, reticleShader, {
@@ -256,37 +301,114 @@ export default function StarBroDemo() {
       reticleProgram.attributes.aUv.set(reticleQuad.uvs);
       reticleProgram.setIndices(reticleQuad.indices);
       reticleProgram.uniforms.uColor.set([0.5, 0.72, 1]);
-      const reticleCenters = new Float32Array(2 * 3);
+      // Near bracket at 45% of the way to the crosshair, far one at the
+      // crosshair itself. All three attributes are static.
+      reticleProgram.instanceAttributes.iAlong.set(
+        new Float32Array([0.45, 1]),
+      );
+      // Clip-space sizes, imitating the perspective that world space used to
+      // supply: index 0 is the near bracket (larger), index 1 rides the cursor
+      // and is the smaller, farther-looking one.
       reticleProgram.instanceAttributes.iSize.set(
-        new Float32Array([0.55, 0.34]),
+        new Float32Array([0.09, 0.05]),
       );
       reticleProgram.instanceAttributes.iAlpha.set(
         new Float32Array([0.4, 0.7]),
       );
-      reticleProgram.instanceAttributes.iCenter.set(reticleCenters);
+
+      // Everything aims off the same pointer, so it must be unprojected the
+      // same way. At a given distance the visible half-height is
+      // tan(fov/2) * distance, and half-width is that times the aspect.
+      const FOV_Y = Math.PI / 4;
+      const CAM_Z = 5.5;
+      const HALF = Math.tan(FOV_Y / 2);
+      /** Where the pointer points, on the plane `distance` in front of the camera. */
+      const unproject = (
+        ndcX: number,
+        ndcY: number,
+        distance: number,
+        aspect: number,
+      ): [number, number] => [
+        ndcX * HALF * distance * aspect,
+        ndcY * HALF * distance,
+      ];
+
+      // The camera drifts with the ship rather than tracking it. At the old 0.7
+      // follow with lookAt aimed at the ship, the ship sat dead centre however
+      // far it flew — it could not visibly reach the edges of the screen,
+      // because the screen came with it.
+      const FOLLOW = 0.12;
+      /** How far ahead of the ship the aim plane sits. */
+      const AIM_DEPTH = 12;
+
+      /**
+       * Where the cursor is pointing, in world space, on a plane AIM_DEPTH ahead.
+       *
+       * Built from the camera's own basis rather than by adding screen offsets
+       * to the ship: the camera tilts down slightly and no longer sits above
+       * the ship, so anything simpler misses by more the further you aim from
+       * centre. Recomputed once per frame and used by both the nose and the
+       * guns, which have to agree or the ship visibly aims off its own shots.
+       */
+      let aimPx = 0;
+      let aimPy = 0;
+      let aimPz = -AIM_DEPTH;
+      const updateAimPoint = (aspect: number): void => {
+        const camX = shipX * FOLLOW;
+        const camY = shipY * FOLLOW + 0.9;
+        // Forward, from the camera to what it looks at.
+        let fx = 0;
+        let fy = shipY * FOLLOW - 0.65 - camY;
+        let fz = -4 - CAM_Z;
+        const fl = Math.hypot(fx, fy, fz);
+        fx /= fl;
+        fy /= fl;
+        fz /= fl;
+        // right = normalize(cross(f, worldUp)) = (-fz, 0, fx) for up = (0,1,0).
+        // Negating this — as an earlier version did — mirrors the horizontal
+        // axis, and because `up` is derived from it the vertical mirrors too, so
+        // the shot goes to the opposite corner from the cursor.
+        let rx = 0 - fz;
+        let ry = 0;
+        let rz = fx;
+        const rl = Math.hypot(rx, ry, rz) || 1;
+        rx /= rl;
+        ry /= rl;
+        rz /= rl;
+        const ux = ry * fz - rz * fy;
+        const uy = rz * fx - rx * fz;
+        const uz = rx * fy - ry * fx;
+
+        const d = CAM_Z + AIM_DEPTH;
+        const sx = cursorX * HALF * d * aspect;
+        const sy = cursorY * HALF * d;
+        aimPx = camX + fx * d + rx * sx + ux * sy;
+        aimPy = camY + fy * d + ry * sx + uy * sy;
+        aimPz = CAM_Z + fz * d + rz * sx + uz * sy;
+      };
 
       const camera = createCamera({ position: [0, 1.1, 4.2] });
 
       // Clicking the canvas takes the mouse (pointer lock) and Escape gives it
       // back, exactly as Brocraft does. Locked, there is no cursor position to
-      // read — only deltas — so the aim point accumulates movement and clamps
-      // to the playfield instead of mapping absolute screen coordinates.
-      const REACH_X = 6;
-      const REACH_Y = 3;
-      const AIM_SENS = 0.009;
+      // read — only deltas — so the pointer accumulates movement in screen
+      // pixels and everything else is derived from where it ends up.
       let targetX = 0;
       let targetY = 0;
+      // The reticle's own position, in NDC. Kept separate from the ship's aim
+      // because it has to track the pointer 1:1 in *pixels* — a mouse moved 10
+      // screen pixels moves this 10 screen pixels — while the ship keeps its
+      // own eased, world-space feel.
+      let cursorX = 0;
+      let cursorY = 0;
       let playing = false;
       const onPointerMove = (event: PointerEvent): void => {
         if (!playing) return;
-        targetX = Math.max(
-          -REACH_X,
-          Math.min(REACH_X, targetX + event.movementX * AIM_SENS),
-        );
-        targetY = Math.max(
-          -REACH_Y,
-          Math.min(REACH_Y, targetY - event.movementY * AIM_SENS),
-        );
+        // NDC spans -1..1 across the canvas, so one CSS pixel is 2/size.
+        const w = Math.max(canvas.clientWidth, 1);
+        const h = Math.max(canvas.clientHeight, 1);
+        cursorX = Math.max(-1, Math.min(1, cursorX + (event.movementX * 2) / w));
+        cursorY = Math.max(-1, Math.min(1, cursorY - (event.movementY * 2) / h));
       };
       const onClick = (): void => void canvas.requestPointerLock();
       const onLockChange = (): void => {
@@ -297,6 +419,8 @@ export default function StarBroDemo() {
           // the prompt; re-locking then starts centred.
           targetX = 0;
           targetY = 0;
+          cursorX = 0;
+          cursorY = 0;
         }
       };
       window.addEventListener("pointermove", onPointerMove);
@@ -313,58 +437,89 @@ export default function StarBroDemo() {
       const pitchM = mat4.scratch();
       const bankM = mat4.scratch();
 
-      // Star Fox aiming: the crosshair rides WITH the ship, offset purely by
-      // the cursor — so the nose deflection never decays as the ship catches
-      // up. Mouse right = nose stays right, indefinitely.
-      const AIM_DEPTH = 12;
-      const CROSSHAIR = 1.2;
+      // Bolts fly at whatever the pointer is over, not at wherever the ship
+      // happens to be heading. That is the whole point of a free cursor: you can
+      // hold course and still shoot something below or beside you.
       let laserSlot = 0;
       const onPointerDown = (): void => {
         if (!playing) return;
-        const dx = targetX * CROSSHAIR;
-        const dy = targetY * CROSSHAIR;
+        // Where the bolts meet: along the line of sight from the ship's centre
+        // through the reticle, but carried twice as far. Converging *at* the
+        // reticle makes the pair cross right where you are looking, which reads
+        // as cross-eyed; pushing the crossing point past it keeps the two bolts
+        // running near-parallel through the target instead.
+        const CONVERGE = 2;
+        const fireX = shipX + (aimPx - shipX) * CONVERGE;
+        const fireY = shipY + (aimPy - shipY) * CONVERGE;
+        const fireZ = aimPz * CONVERGE;
+
+        // Nominal heading, used only to place the muzzles on the ship's wings.
+        const dx = aimPx - shipX;
+        const dy = aimPy - shipY;
         const inv = 1 / Math.hypot(dx, dy, AIM_DEPTH);
         const dirX = dx * inv;
         const dirY = dy * inv;
         const dirZ = -AIM_DEPTH * inv;
-        // Star Fox style: one bolt per wing, offset along the ship's right
-        // vector (cross of fire direction and world up).
         const rl = Math.hypot(dirZ, dirX);
         const rightX = -dirZ / rl;
         const rightZ = dirX / rl;
+
         for (const side of [-1, 1]) {
           const i = laserSlot;
           laserSlot = (laserSlot + 1) % LASERS;
-          laserStarts[i * 3] = shipX + rightX * 0.5 * side + dirX * 0.3;
-          laserStarts[i * 3 + 1] = shipY - 0.05;
-          laserStarts[i * 3 + 2] = rightZ * 0.5 * side + dirZ * 0.3;
-          laserDirs[i * 3] = dirX;
-          laserDirs[i * 3 + 1] = dirY;
-          laserDirs[i * 3 + 2] = dirZ;
+          // Origin unchanged: one muzzle per wing. Measured hull — the nose is
+          // at z = -0.571, so firing from there keeps the bolt clear of the ship.
+          const mx = shipX + rightX * 0.5 * side + dirX * 0.3;
+          const my = shipY - 0.05;
+          const mz = -0.55 + rightZ * 0.5 * side + dirZ * 0.3;
+          laserStarts[i * 3] = mx;
+          laserStarts[i * 3 + 1] = my;
+          laserStarts[i * 3 + 2] = mz;
+
+          // Aim each bolt from its own muzzle at the convergence point. Sharing
+          // one direction sent both wings along parallel rays offset from the
+          // aim point, so the shots bracketed the target and never met it.
+          const tx = fireX - mx;
+          const ty = fireY - my;
+          const tz = fireZ - mz;
+          const tl = Math.hypot(tx, ty, tz) || 1;
+          laserDirs[i * 3] = tx / tl;
+          laserDirs[i * 3 + 1] = ty / tl;
+          laserDirs[i * 3 + 2] = tz / tl;
           laserBirths[i] = lastT;
         }
         laserProgram.instanceAttributes.iStart.set(laserStarts);
         laserProgram.instanceAttributes.iDir.set(laserDirs);
         laserProgram.instanceAttributes.iBirth.set(laserBirths);
+      laserProgram.uniforms.uColor.set([0.25, 0.6, 1]);
       };
       canvas.addEventListener("pointerdown", onPointerDown);
 
       const stop = renderer.loop((t) => {
         tick(t);
+
         const dt = Math.min(t - lastT, 0.05);
         lastT = t;
+
+        // The reachable area is whatever is on screen at the ship's depth, so
+        // the ship can fly to any corner instead of being boxed into a fixed
+        // rectangle that had nothing to do with the viewport.
+        const [reachX, reachY] = unproject(1, 1, CAM_Z, renderer.aspect);
+        targetX = cursorX * reachX;
+        targetY = cursorY * reachY;
 
         // Damped spring toward the cursor — same feel as the old thrust,
         // but the "input" is the distance left to cover.
         vx += ((targetX - shipX) * 12 - vx * 6) * dt;
         vy += ((targetY - shipY) * 12 - vy * 6) * dt;
-        shipX = Math.max(-6, Math.min(6, shipX + vx * dt));
-        shipY = Math.max(-3, Math.min(3, shipY + vy * dt));
+        shipX = Math.max(-reachX, Math.min(reachX, shipX + vx * dt));
+        shipY = Math.max(-reachY, Math.min(reachY, shipY + vy * dt));
 
         // Ship model: translate, aim the nose at the cursor's corridor spot,
         // then bank with steering.
-        const aimYaw = -Math.atan2(targetX * CROSSHAIR, AIM_DEPTH);
-        const aimPitch = Math.atan2(targetY * CROSSHAIR, AIM_DEPTH);
+        updateAimPoint(renderer.aspect);
+        const aimYaw = -Math.atan2(aimPx - shipX, AIM_DEPTH);
+        const aimPitch = Math.atan2(aimPy - shipY, AIM_DEPTH);
         mat4.translation(shipX, shipY, 0, model);
         mat4.multiply(model, mat4.rotationY(aimYaw, yawM), model);
         mat4.multiply(
@@ -374,16 +529,32 @@ export default function StarBroDemo() {
         );
         mat4.multiply(model, mat4.rotationZ(-vx * 0.09, bankM), model);
 
-        // Chase cam: sit low and close behind the ship, just slightly above,
-        // with the ship centered in frame.
-        camera.setPosition(shipX * 0.7, shipY * 0.7 + 0.9, 5.5);
+        camera.setPosition(shipX * FOLLOW, shipY * FOLLOW + 0.9, CAM_Z);
         shipProgram.uniforms.uViewPos.set([
-          shipX * 0.7,
-          shipY * 0.7 + 0.9,
-          5.5,
+          shipX * FOLLOW,
+          shipY * FOLLOW + 0.9,
+          CAM_Z,
         ]);
-        camera.lookAt(shipX, shipY - 0.65, -4);
+        camera.lookAt(shipX * FOLLOW, shipY * FOLLOW - 0.65, -4);
         const viewProj = camera.viewProjection(renderer.aspect);
+
+        // Engine flicker: one scalar, shared by the plume and the hull so the
+        // flame and the light it casts cannot disagree. Two sine terms at
+        // unrelated rates read as combustion rather than a pulse.
+        const pulse =
+          0.82 + Math.sin(t * 37.1) * 0.07 + Math.sin(t * 13.3) * 0.11;
+
+        // The nozzle in world space, for the ship's point light: column-major,
+        // so the basis vectors are columns 0-2 and the translation is column 3.
+        const [ox, oy, oz] = ENGINE_OFFSET;
+        const engineX = model[0]! * ox + model[4]! * oy + model[8]! * oz + model[12]!;
+        const engineY = model[1]! * ox + model[5]! * oy + model[9]! * oz + model[13]!;
+        const engineZ = model[2]! * ox + model[6]! * oy + model[10]! * oz + model[14]!;
+        shipProgram.uniforms.uEnginePos.set([engineX, engineY, engineZ]);
+        shipProgram.uniforms.uPulse.set(pulse);
+        // Same light, so rocks the ship passes brighten in step with the hull.
+        rocksProgram.uniforms.uEnginePos.set([engineX, engineY, engineZ]);
+        rocksProgram.uniforms.uPulse.set(pulse);
 
         dotsProgram.uniforms.uViewProj.set(viewProj);
         dotsProgram.draw();
@@ -391,6 +562,21 @@ export default function StarBroDemo() {
         starsProgram.uniforms.uViewProj.set(viewProj);
         starsProgram.uniforms.uScroll.set(t * 46);
         starsProgram.draw();
+
+        // Advance each bolt's light along its own flight path. Slots holding a
+        // spent shot fall to zero brightness and stop lighting anything.
+        for (let i = 0; i < LASERS; i++) {
+          const age = t - laserBirths[i]!;
+          const alive =
+            Math.max(0, Math.min(1, age * 60)) *
+            Math.max(0, Math.min(1, (BOLT_LIFE - age) * 4));
+          const travel = age * BOLT_SPEED + BOLT_HALF;
+          boltLights[i * 4] = laserStarts[i * 3]! + laserDirs[i * 3]! * travel;
+          boltLights[i * 4 + 1] = laserStarts[i * 3 + 1]! + laserDirs[i * 3 + 1]! * travel;
+          boltLights[i * 4 + 2] = laserStarts[i * 3 + 2]! + laserDirs[i * 3 + 2]! * travel;
+          boltLights[i * 4 + 3] = alive;
+        }
+        boltBuffer.write(boltLights);
 
         rocksProgram.uniforms.uViewProj.set(viewProj);
         rocksProgram.uniforms.uScroll.set(t * 9);
@@ -401,52 +587,30 @@ export default function StarBroDemo() {
         shipProgram.uniforms.uModel.set(model);
         shipProgram.draw();
 
-        // Trail particles: respawn at the ship tail, drift back, fade out.
-        for (let i = 0; i < PARTICLES; i++) {
-          const p = trail[i]!;
-          p.age += dt * 3.2;
-          p.z += dt * 1.6;
-          if (p.age >= 1) {
-            p.age = 0;
-            p.x = shipX + (Math.random() - 0.5) * 0.08;
-            p.y = shipY + (Math.random() - 0.5) * 0.08;
-            p.z = 0.6;
-          }
-          trailOffsets[i * 3] = p.x;
-          trailOffsets[i * 3 + 1] = p.y;
-          trailOffsets[i * 3 + 2] = p.z;
-          trailScales[i] = 0.09 * (1 - p.age) + 0.02;
-          // Denser overlap (70 additive blobs) needs dimmer individuals to
-          // keep the plume's total brightness in range.
-          trailAlphas[i] = 0.14 * (1 - p.age);
-        }
-        glowProgram.instanceAttributes.iOffset.set(trailOffsets);
-        glowProgram.instanceAttributes.iScale.set(trailScales);
-        glowProgram.instanceAttributes.iAlpha.set(trailAlphas);
-        glowProgram.uniforms.uViewProj.set(viewProj);
-        glowProgram.draw();
+        plumeProgram.uniforms.uViewProj.set(viewProj);
+        plumeProgram.uniforms.uModel.set(model);
+        plumeProgram.uniforms.uViewPos.set([shipX * 0.7, shipY * 0.7 + 0.9, 5.5]);
+        plumeProgram.uniforms.uTime.set(t);
+        plumeProgram.uniforms.uPulse.set(pulse);
+        plumeProgram.draw();
 
         laserProgram.uniforms.uViewProj.set(viewProj);
         laserProgram.uniforms.uTime.set(t);
-        laserProgram.uniforms.uViewPos.set([
-          shipX * 0.7,
-          shipY * 0.7 + 0.9,
-          5.5,
-        ]);
         laserProgram.draw();
 
-        // Two reticles on the ship→crosshair line of sight: near at 45%,
-        // far at the crosshair itself.
-        for (const [slot, k] of [
-          [0, 0.45],
-          [1, 1],
-        ] as const) {
-          reticleCenters[slot * 3] = shipX + targetX * CROSSHAIR * k;
-          reticleCenters[slot * 3 + 1] = shipY + targetY * CROSSHAIR * k;
-          reticleCenters[slot * 3 + 2] = -AIM_DEPTH * k;
-        }
-        reticleProgram.instanceAttributes.iCenter.set(reticleCenters);
-        reticleProgram.uniforms.uViewProj.set(viewProj);
+        // Project the ship into the same coordinates the cursor lives in, so
+        // the near bracket can sit on the line between them. Column-major, and
+        // the perspective divide is what turns clip space into NDC.
+        const clipX =
+          viewProj[0]! * shipX + viewProj[4]! * shipY + viewProj[12]!;
+        const clipY =
+          viewProj[1]! * shipX + viewProj[5]! * shipY + viewProj[13]!;
+        const clipW =
+          viewProj[3]! * shipX + viewProj[7]! * shipY + viewProj[15]!;
+        const safeW = Math.abs(clipW) < 1e-4 ? 1e-4 : clipW;
+        reticleProgram.uniforms.uShip.set([clipX / safeW, clipY / safeW]);
+        reticleProgram.uniforms.uCursor.set([cursorX, cursorY]);
+        reticleProgram.uniforms.uAspect.set(renderer.aspect);
         reticleProgram.draw();
       });
 
@@ -462,8 +626,9 @@ export default function StarBroDemo() {
         rocksProgram.dispose();
         starsProgram.dispose();
         dotsProgram.dispose();
-        glowProgram.dispose();
+        plumeProgram.dispose();
         laserProgram.dispose();
+        boltBuffer.dispose();
         reticleProgram.dispose();
         renderer.destroy();
       };
