@@ -74,66 +74,45 @@ export default function Js13kPage() {
         off, depth testing, back-face culling, a matrix stack and mat4 helpers.
       </p>
 
-      <h2>1. Take the runtime</h2>
+      <h2>1. Copy the runtime</h2>
       <p>
-        Paste this into your project as its own file. It is plain source with
-        global functions — no imports, no modules — so your minifier can rename
-        everything in it alongside your own code.
+        Plain source, global functions, no imports — so your minifier can rename
+        all of it alongside your own code. Save it as <code>brometal.js</code>.
       </p>
       <CopyBlock label="brometal.js" code={runtime} maxHeight={420} />
 
-      <h2>2. Write a shader</h2>
-      <p>
-        Typed TypeScript, checked before it ever reaches a GPU. Save it as{' '}
-        <code>src/cube.shader.ts</code>.
-      </p>
-      <CopyBlock label="src/cube.shader.ts" code={shader} maxHeight={340} />
-
-      <h2>3. Compile it</h2>
-      <p>
-        Install BroMetal first. It goes in <code>devDependencies</code> because
-        it only ever runs at build time — the compiler is not part of what you
-        ship, which is the whole reason this fits.
-      </p>
-      <CodeBlock code={`npm install --save-dev brometal
-npx brometal prod --js13k`} />
-      <p>
-        Each shader becomes one global array — source, attribute sizes, instance
-        attribute sizes, uniform block bytes, and texture bindings. Names are the
-        expensive part of a normal build, so none of them ship:
-      </p>
-      <CodeBlock code={`// uniform floats: uMvp @0..15, uModel @16..31, uLight @32..34
-const BM_CUBE = ["...wgsl...", [3,3,2], [], 160, [[1,2]]];`} />
-      <p>
-        The uniform block is a flat <code>Float32Array</code> you fill yourself.
-        Those offsets are written as a comment beside each shader, so they cost
-        nothing at runtime and are there when you need them.
-      </p>
-
-      <h2>4. Write your game</h2>
+      <h2>2. Set up your game</h2>
       <p>
         Everything is a global, so the whole program minifies as one unit. This
-        is a spinning textured cube, lit, with the geometry built at runtime
-        rather than stored.
+        one draws a spinning textured cube.
       </p>
       <CopyBlock label="game.js" code={game} maxHeight={420} />
 
-      <h2>5. Build and zip</h2>
+      <h2>3. Add a shader</h2>
       <p>
-        Concatenate the runtime, the compiled shaders and your game, then minify
-        the whole program in one pass and inline it into your page:
+        Typed TypeScript, checked before it reaches a GPU. Save it as{' '}
+        <code>src/cube.shader.ts</code>.
       </p>
+      <CopyBlock label="src/cube.shader.ts" code={shader} maxHeight={340} />
+      <p>Then compile it:</p>
+      <CodeBlock code={`npm install --save-dev brometal
+npx brometal prod --js13k`} />
+      <p>
+        That writes <code>js13k/shaders.js</code>, where your shader becomes the
+        global <code>BM_CUBE</code> the game above uses. BroMetal is a dev
+        dependency — the compiler never ships.
+      </p>
+
+      <h2>4. Build the dist</h2>
       <CodeBlock code={`npm install --save-dev terser
 
 cat brometal.js js13k/shaders.js game.js > out.js
 terser out.js --compress --mangle --toplevel -o game.min.js
-# inline game.min.js into index.html, then zip that single file`} />
+# inline game.min.js into index.html, then zip that one file`} />
       <p>
-        <code>--toplevel</code> is the flag that matters. With it, the mangler
-        renames the runtime&rsquo;s functions and deletes every one you never
-        call; without it those names survive at full length. Inlining the script
-        into the page is worth roughly 150 bytes on its own, because a zip
-        charges for every file it contains.
+        <code>--toplevel</code> is what pays: it renames the runtime&rsquo;s
+        functions and drops every one you never call. Inlining into the page
+        saves another ~150 bytes, since a zip charges per file.
       </p>
       <p>
         The result opens straight from disk — <code>file://</code> is a secure
@@ -172,11 +151,45 @@ terser out.js --compress --mangle --toplevel -o game.min.js
         not.
       </p>
 
-      <h2>One requirement</h2>
+      <h2>Requirements</h2>
       <p>
-        Shaders compile to WGSL, so this needs WebGPU: Chrome and Edge 113+,
-        Firefox 141+, Safari 26+. Judges play entries in whatever browser they
-        have, so weigh that before committing to it.
+        Shaders compile to WGSL, so this needs WebGPU. It ships on by default
+        here:
+      </p>
+      <table className="js13k-numbers">
+        <tbody>
+          <tr>
+            <td>Chrome, Edge</td>
+            <td>113+</td>
+          </tr>
+          <tr>
+            <td>Firefox</td>
+            <td>141+</td>
+          </tr>
+          <tr>
+            <td>Safari (macOS)</td>
+            <td>26+</td>
+          </tr>
+          <tr>
+            <td>Android — Chrome</td>
+            <td>121+, on Android 12 or newer</td>
+          </tr>
+          <tr>
+            <td>iOS, iPadOS</td>
+            <td>26+</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>On iOS the browser makes no difference.</strong> Every browser
+        there runs on WebKit, so Chrome and Firefox on an iPhone are Safari
+        underneath — the iOS version is the only thing that decides it.
+      </p>
+      <p>
+        A browser version is often tied to the OS, so someone on an older machine
+        cannot simply upgrade. And a link opened inside another app — a chat
+        client, a social feed — usually runs in an embedded web view rather than
+        the real browser, which frequently lacks it.
       </p>
 
       <p className="js13k-footer">
