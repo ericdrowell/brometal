@@ -15,6 +15,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: canonical('/'), lastModified, changeFrequency: 'weekly', priority: 1 },
     { url: canonical('/examples'), lastModified, changeFrequency: 'weekly', priority: 0.9 },
+    { url: canonical('/js13k'), lastModified, changeFrequency: 'monthly', priority: 0.8 },
+    // Was missing entirely — a page nobody links to and the sitemap omits is a
+    // page crawlers never see.
+    { url: canonical('/changelog'), lastModified, changeFrequency: 'weekly', priority: 0.6 },
     ...allExamples().map((example) => ({
       url: canonical(`/examples/${example.slug}`),
       lastModified,

@@ -306,6 +306,53 @@ Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/
 
 Anything outside the subset fails compilation with a precise, actionable error.
 
+## js13k builds
+
+`brometal prod --js13k` swaps the runtime for one sized to a 13 kB budget:
+
+```bash
+npx brometal prod --js13k        # → js13k/brometal.js + js13k/shaders.js
+```
+
+You get global functions rather than modules — `bmInit`, `bmProgram`, `bmAttr`,
+`bmTexture`, `bmDraw`, `bmLoop`, plus mat4 helpers and a matrix stack. Textures,
+instancing, alpha blending and depth control are in; validation, error messages,
+pipeline caching and uniform rings are out.
+
+Both files are **source**. Concatenate them with your game and minify the whole
+program in one pass:
+
+```bash
+cat js13k/brometal.js js13k/shaders.js game.js > out.js
+terser out.js --compress --mangle --toplevel -o out.min.js
+# then inline out.min.js into index.html and zip that one file
+```
+
+`--toplevel` matters: without it the API names survive at full length. A
+prebuilt bundle could not be mangled jointly with your code at all, which is why
+this ships as source.
+
+Measured on a demo using two programs, a texture, instancing and a transparent
+pass: **~3 KB gzipped** for runtime, shaders and game together.
+
+Inline the script rather than shipping it beside the page: a zip charges per
+member for its header and directory record, so one file beats two by roughly 150
+bytes. The starter's `build.mjs` does this for you.
+
+### Starter
+
+`templates/js13k` is a working entry — spinning textured cube, **2,989 bytes
+zipped**, leaving **10,323 bytes** for your game:
+
+```bash
+cd templates/js13k && npm install && npm run build
+open dist/index.html
+```
+
+Everything is inlined into that single file, so it opens straight from disk —
+`file://` is a secure context and WebGPU works there. The build refuses to finish
+over 13,312 bytes and prints what is left.
+
 ## Handling failure
 
 The runtime draws nothing when it fails — no message painted into your canvas,

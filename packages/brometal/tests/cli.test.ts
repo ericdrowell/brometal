@@ -1,8 +1,8 @@
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { compileProject, genPathFor, isShaderFile, scanShaderFiles } from '../src/cli/run.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { compileProject, genPathFor, isShaderFile, runCli, scanShaderFiles } from '../src/cli/run.js';
 import { CUBE_SHADER } from './fixtures.js';
 
 let root: string;
@@ -68,4 +68,29 @@ describe('brometal CLI compilation', () => {
     expect(() => readFileSync(genPathFor(shaderPath), 'utf8')).toThrow();
   });
 
+});
+
+describe('flag handling', () => {
+  it('rejects an unknown flag instead of running anyway', async () => {
+    // This used to fall through to an ordinary build and exit 0, which is how
+    // `--js13k` against a release that predates it quietly emitted .gen.ts files
+    // and failed much later somewhere unrelated.
+    const quiet = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await expect(runCli(['dev', '--bogus', root])).resolves.toBe(1);
+      expect(quiet.mock.calls.flat().join(' ')).toContain('--bogus');
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+
+  it('still accepts the flags it knows', async () => {
+    const quiet = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      // --once compiles and returns rather than entering watch mode.
+      await expect(runCli(['dev', '--once', root])).resolves.toBe(0);
+    } finally {
+      quiet.mockRestore();
+    }
+  });
 });

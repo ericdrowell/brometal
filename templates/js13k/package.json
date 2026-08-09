@@ -1,0 +1,13 @@
+{
+  "name": "brometal-js13k",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && npx serve dist"
+  },
+  "devDependencies": {
+    "brometal": "^0.16.0",
+    "terser": "^5.31.0"
+  }
+}

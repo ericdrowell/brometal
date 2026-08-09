@@ -1,9 +1,16 @@
 import { watch } from 'chokidar';
-import { readdirSync, readFileSync, statSync, unlinkSync, writeFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, unlinkSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { compileShaderSource } from '../compiler/compile.js';
 import { buildGeneratedModule, shaderNameFromFile } from '../compiler/emit-module.js';
 import { CompileError } from '../compiler/errors.js';
+import {
+  buildJs13kRuntime,
+  buildJs13kShader,
+  buildJs13kShaderFile,
+  js13kNameFromFile,
+} from '../js13k/emit.js';
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git']);
 
@@ -14,9 +21,16 @@ Usage:
   brometal dev --once         Compile once without watching (readable output)
   brometal prod [dir]         Compile once with optimizations (constant folding
                               and dead-varying elimination)
+  brometal prod --js13k       Emit a js13k bundle instead of .gen.ts modules
 
 Each src/**/name.shader.ts compiles to a sibling name.shader.gen.ts that your
 app imports and passes to createProgram().
+
+--js13k writes brometal.js (a global-function WebGPU runtime) and shaders.js
+(compact descriptors) into ./js13k. Both are SOURCE: concatenate them with your
+game and minify the whole program together, so your minifier can mangle across
+the boundary. A pre-minified bundle cannot be, and pins the API names at full
+length.
 `;
 
 export function isShaderFile(filePath: string): boolean {
@@ -84,6 +98,18 @@ export async function runCli(argv: string[]): Promise<number> {
   const positional = argv.filter((arg) => !arg.startsWith('--'));
   const command = positional[0];
 
+  // Reject unknown flags rather than ignoring them. A flag this version does not
+  // understand used to fall through to an ordinary build that exited 0 — so
+  // running `--js13k` against a release that predates it quietly produced
+  // .gen.ts files and failed much later, somewhere unrelated.
+  const KNOWN_FLAGS = new Set(['--help', '--once', '--js13k']);
+  const unknown = [...flags].filter((flag) => !KNOWN_FLAGS.has(flag));
+  if (unknown.length > 0) {
+    log(`Unknown flag${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}\n`);
+    log(HELP);
+    return 1;
+  }
+
 
   if (command === undefined || flags.has('--help')) {
     log(HELP);
@@ -102,6 +128,9 @@ export async function runCli(argv: string[]): Promise<number> {
   }
 
   const optimize = command === 'prod';
+  if (flags.has('--js13k')) {
+    return emitJs13k(root, { optimize });
+  }
   const result = compileProject(root, { optimize });
   if (result.compiled.length === 0 && result.errors.length === 0) {
     log(`No *.shader.ts files found under ${root}`);
@@ -161,4 +190,63 @@ function relative(root: string, filePath: string): string {
 
 function log(message: string): void {
   console.log(message);
+}
+
+/**
+ * The js13k runtime is the compiled core with its module syntax removed — the
+ * same files `full` imports, not a parallel copy. One source of truth means a
+ * fix to buffer handling or an attribute format lands in both builds at once.
+ *
+ * Two files, concatenated in dependency order: the stateless facts, then the
+ * core that uses them. They are separate modules so `full` can import the facts
+ * without dragging the core's device state along with them.
+ */
+function js13kRuntimeParts(): string[] {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return [
+    path.join(here, '..', 'tiny', 'gpu.js'),
+    path.join(here, '..', 'tiny', 'index.js'),
+  ];
+}
+
+export function emitJs13k(root: string, options: FileCompileOptions): number {
+  const files = scanShaderFiles(root);
+  if (files.length === 0) {
+    log(`No *.shader.ts files found under ${root}`);
+    return 1;
+  }
+
+  const shaders = [];
+  const failed: string[] = [];
+  for (const filePath of files) {
+    try {
+      const compiled = compileShaderSource(filePath, readFileSync(filePath, 'utf8'), options);
+      shaders.push(buildJs13kShader(js13kNameFromFile(filePath), compiled));
+      log(`✓ ${relative(root, filePath)} → ${js13kNameFromFile(filePath)}`);
+    } catch (error) {
+      failed.push(filePath);
+      reportError(error);
+    }
+  }
+  if (failed.length > 0) {
+    return 1;
+  }
+
+  const outDir = path.join(root, 'js13k');
+  mkdirSync(outDir, { recursive: true });
+
+  const parts = js13kRuntimeParts();
+  const missing = parts.filter((part) => !existsSync(part));
+  if (missing.length > 0) {
+    log(`✗ core runtime missing at ${missing.join(', ')} — run \`npm run build\``);
+    return 1;
+  }
+  const runtime = buildJs13kRuntime(parts.map((part) => readFileSync(part, 'utf8')));
+  writeFileSync(path.join(outDir, 'brometal.js'), runtime);
+  writeFileSync(path.join(outDir, 'shaders.js'), buildJs13kShaderFile(shaders));
+
+  const combined = Buffer.byteLength(runtime) + Buffer.byteLength(buildJs13kShaderFile(shaders));
+  log(`✓ js13k bundle → ${relative(root, outDir)} (${shaders.length} shaders, ${combined} bytes of source)`);
+  log(`  concatenate brometal.js + shaders.js + your game, then minify together`);
+  return 0;
 }

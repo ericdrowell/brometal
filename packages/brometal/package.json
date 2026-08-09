@@ -43,7 +43,12 @@
     "./shaders": {
       "types": "./dist/shaders/index.d.ts",
       "import": "./dist/shaders/index.js"
-    }
+    },
+    "./js13k": {
+      "types": "./dist/js13k/emit.d.ts",
+      "import": "./dist/js13k/emit.js"
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "brometal": "dist/cli/index.js"

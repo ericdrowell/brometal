@@ -36,6 +36,10 @@ const FAQ: { q: string; a: string }[] = [
     a: 'A typical BroMetal app — renderer, program, camera, a geometry generator and the matrix helpers — bundles to about 19 KB minified and 7 KB gzipped. The compiler and CLI are build-time only and are never included, and unused shader functions are tree-shaken away because they inline into shader text rather than shipping as runtime code.',
   },
   {
+    q: 'Can I use BroMetal with js13k?',
+    a: 'Yes — the core of BroMetal was built for it. `brometal prod --js13k` emits a WebGPU runtime as plain global functions that minifies to about 2 KB gzipped, plus your shaders as compact arrays. Because shaders are compiled to WGSL on your machine, the compiler never counts against the 13 KB budget, and a shader mistake is a build error rather than a black screen. A working starter — runtime, a shader and a spinning textured cube — zips to about 3 KB, leaving roughly 10 KB for the game. See brometal.dev/js13k for the runtime source and instructions.',
+  },
+  {
     q: 'Why is BroMetal WebGPU-only?',
     a: 'Because the features worth building on do not exist in WebGL2. Compute shaders and storage buffers have no WebGL2 equivalent, and supporting both meant every feature had to be expressible in the older API. WebGPU now ships in Chrome, Edge, Firefox 141+ and Safari 26+, so the compiler emits WGSL alone and `createRenderer` throws where WebGPU is unavailable.',
   },
@@ -121,6 +125,8 @@ export default function HomePage() {
         <Link href="/changelog">Changelog</Link>
         <span aria-hidden="true"> · </span>
         <Link href="/examples">Examples</Link>
+        <span aria-hidden="true"> · </span>
+        <Link href="/js13k">js13k</Link>
         <span aria-hidden="true"> · </span>
         <a href="https://github.com/ericdrowell/brometal">GitHub</a>
         <span aria-hidden="true"> · </span>

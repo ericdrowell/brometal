@@ -708,3 +708,125 @@ a:hover {
   color: #e8eaf2;
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* js13k page: copyable source blocks. The runtime is a few hundred lines, so
+   each block scrolls inside its own box rather than pushing the page down. */
+.copy-block {
+  margin: 18px 0 26px;
+  border: 1px solid #cbd5e8;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fbfcfe;
+  /* Lifts the block off the page: a soft drop below, plus a one-pixel highlight
+     along the top edge so it reads as raised rather than just darker. */
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.55),
+    0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+.copy-block-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  background: #e8eef8;
+  border-bottom: 1px solid #cbd5e8;
+}
+
+.copy-block-label {
+  font-size: 12.5px;
+  color: #1b2030;
+  font-weight: 600;
+}
+
+.copy-block-meta {
+  margin-left: 10px;
+  color: #6b7488;
+  font-weight: 400;
+}
+
+.copy-block-button {
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid #b9c5da;
+  background: #fff;
+  color: #2a3145;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.copy-block-button:hover {
+  border-color: #8c9cba;
+  color: #000;
+}
+
+/* Unmistakable: the pill changes colour, not just its label. A text swap alone
+   was too quiet to notice on a button you only press once. */
+.copy-block-button.copied {
+  border-color: #1a9e6a;
+  background: rgba(26, 158, 106, 0.14);
+  color: #11774f;
+}
+
+.copy-block-code {
+  cursor: text;
+}
+
+.copy-block-note {
+  margin: 0;
+  padding: 9px 12px 0;
+  font-size: 12.5px;
+  color: #6b7488;
+}
+
+/* Code sits on its own surface, lifted off the page background so a block reads
+   as something to take rather than more prose. */
+.copy-block-code {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  background: #fbfcfe;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #1b2030;
+  white-space: pre;
+}
+
+/* Standalone blocks — the shell commands and the API list — are direct children
+   of the page rather than wrapped in a .copy-block, so they need their own
+   frame. The wrapped ones already have one and would double it up. */
+.prose > .copy-block-code {
+  border: 1px solid #cbd5e8;
+  border-radius: 10px;
+  margin: 18px 0 26px;
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.55),
+    0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+.js13k-numbers {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0 8px;
+}
+
+.js13k-numbers td {
+  padding: 9px 0;
+  border-bottom: 1px solid #1e1e30;
+  color: #a6adc4;
+  font-size: 14.5px;
+}
+
+.js13k-numbers td:last-child {
+  text-align: right;
+  color: #e8eaf2;
+  white-space: nowrap;
+}
+
+.js13k-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #1e1e30;
+  color: #6f7794;
+}

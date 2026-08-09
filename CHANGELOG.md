@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+### Added
+- **`--js13k`: a build for 13-kilobyte games.** `brometal prod --js13k` emits
+  `js13k/brometal.js` — a WebGPU runtime as plain global functions, no modules or
+  classes — plus `js13k/shaders.js` holding each shader as a positional array
+  rather than a typed module. Runtime, three shaders and a small game minify
+  together to about **3 KB gzipped**, leaving ~10 KB of the budget for the game.
+  Covers what a real entry needs: multiple programs, 2D textures from a canvas,
+  instancing, alpha blending with depth writes off, depth testing, optional
+  back-face culling, a matrix stack and mat4 helpers.
+  - Emitted as **source**, not a prebuilt bundle. A js13k entry concatenates
+    everything and runs one minifier, so source lets that minifier mangle across
+    the boundary — including the API names. A prebuilt bundle cannot be mangled
+    jointly and pins them at full length. Comments are free for the same reason.
+  - The compiler is untouched: `--js13k` swaps only the serializer and the
+    runtime, so shaders are still written in the same typed DSL.
+  - Uniform offsets ship as a comment rather than data, so they cost nothing at
+    runtime and are still there when you fill the block by hand.
+- **A js13k starter** at `templates/js13k`: a spinning textured cube that builds
+  to a **2,989-byte zip**, leaving **10,323 bytes** of the budget. Everything is
+  inlined into a single `dist/index.html`, so it opens straight from disk —
+  `file://` is a secure context, so WebGPU works without a server. `npm run build` compiles the
+  shaders, concatenates runtime + shaders + game, minifies the whole program in
+  one pass, zips it, and **fails if the archive goes over 13,312 bytes** —
+  printing what is left when it passes.
+  - `npm run test:template` builds it against the local package and is part of
+    the release chain, so a broken starter cannot ship. It depends on the js13k
+    runtime, the serializer and the shader DSL at once, which makes it the piece
+    most likely to rot unnoticed.
+
+### Improved
+- **One core runtime, shared by both builds.** The js13k runtime was a parallel
+  hand-written implementation with no connection to `src/runtime` — every WebGPU
+  fix had to be made twice, and the three bugs it shipped with (buffer padding,
+  usage bits, `float32x1`) were all in code the regular runtime already had
+  right. It is now `src/tiny`, written as a typed module, compiled by `tsc`, and
+  consumed two ways: `--js13k` strips the module syntax to emit globals, and
+  `full` imports it.
+  - The facts both must agree on — buffer usage bits, vertex formats, the 4-byte
+    write alignment, the `vs_main`/`fs_main` entry points — live in a **stateless**
+    `src/tiny/gpu.ts`. Statelessness is the point: when they sat beside the
+    core's device variables, importing them pulled the whole module in, because
+    mutable module bindings defeat tree-shaking. Split out, sharing them costs
+    the regular runtime nothing (measured 19 bytes *smaller* gzipped than
+    inlining them).
+  - `full` keeps its own program and draw path. Its uniform ring, pipeline cache
+    per pass shape, MSAA and render targets are what make it the larger build;
+    pushing them into the core would defeat the 13 kB budget, and making the core
+    serve them would defeat both.
+- **Breaking: unknown CLI flags are now rejected.** They were collected and
+  ignored, so a misspelled or unsupported flag ran an ordinary build and exited
+  0 — which is how `--js13k` against a release predating it quietly emitted
+  `.gen.ts` files and failed several steps later, pointing at the wrong thing.
+  The CLI now names the flag, prints help and exits 1. If a script passes a stray
+  flag that previously appeared to work, it will now fail; remove the flag.
+
 ## 0.15.0 (2026-08-02)
 
 ### Added

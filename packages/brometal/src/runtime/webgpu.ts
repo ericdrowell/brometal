@@ -8,6 +8,10 @@ import { BroMetalError, type ErrorHandler } from './errors.js';
 import { checkUniformValue, type UniformValue } from './uniforms.js';
 import type { RenderTarget } from './render-target.js';
 import { resizeToDisplaySize } from './canvas.js';
+// The shared facts live in the core runtime so both builds cannot hold a
+// different answer. Each has a wrong spelling that fails silently rather than
+// throwing, which is why they are stated once.
+import { FS_ENTRY, VS_ENTRY, padTo4, vertexFormat } from '../tiny/gpu.js';
 
 /**
  * Render targets hold numbers, not pictures. rgba16float rather than 32: full
@@ -329,13 +333,6 @@ export async function createWebgpuRenderer(
   return renderer;
 }
 
-const VERTEX_FORMATS: Record<number, GPUVertexFormat> = {
-  1: 'float32',
-  2: 'float32x2',
-  3: 'float32x3',
-  4: 'float32x4',
-};
-
 interface GpuAttributeState {
   buffer: GPUBuffer;
   capacity: number;
@@ -421,18 +418,18 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
     layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
     vertex: {
       module,
-      entryPoint: 'vs_main',
+      entryPoint: VS_ENTRY,
       buffers: compiled.layout.attributes.map((entry) => ({
         arrayStride: entry.size * 4,
         stepMode: entry.divisor === 1 ? ('instance' as const) : ('vertex' as const),
         attributes: [
-          { shaderLocation: entry.location, offset: 0, format: VERTEX_FORMATS[entry.size]! },
+          { shaderLocation: entry.location, offset: 0, format: vertexFormat(entry.size) },
         ],
       })),
     },
     fragment: {
       module,
-      entryPoint: 'fs_main',
+      entryPoint: FS_ENTRY,
       targets: [
         {
           format: targetFormat,
@@ -708,9 +705,7 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
           usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
         });
       }
-      const padded = new Uint8Array(byteLength);
-      padded.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
-      device.queue.writeBuffer(indexBuffer, 0, padded);
+      device.queue.writeBuffer(indexBuffer, 0, padTo4(data as ArrayBufferView<ArrayBuffer>));
       indexCount = data.length;
       indexFormat = data instanceof Uint16Array ? 'uint16' : 'uint32';
     },
@@ -837,8 +832,8 @@ function mipmapKit(device: GPUDevice): MipmapKit {
     kit = {
       pipeline: device.createRenderPipeline({
         layout: 'auto',
-        vertex: { module, entryPoint: 'vs_main' },
-        fragment: { module, entryPoint: 'fs_main', targets: [{ format: 'rgba8unorm' }] },
+        vertex: { module, entryPoint: VS_ENTRY },
+        fragment: { module, entryPoint: FS_ENTRY, targets: [{ format: 'rgba8unorm' }] },
         primitive: { topology: 'triangle-list' },
       }),
       sampler: device.createSampler({ magFilter: 'linear', minFilter: 'linear' }),

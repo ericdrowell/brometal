@@ -9,13 +9,14 @@
     "test": "npm run test -w brometal",
     "test:gpu": "node scripts/gpu-test.mjs",
     "sync:examples": "node scripts/sync-examples.mjs",
-    "release": "npm test && npm run typecheck && npm run build && node scripts/release.mjs",
+    "release": "npm test && npm run typecheck && npm run build && npm run test:template && node scripts/release.mjs",
     "typecheck": "npm run typecheck -w brometal && npm run typecheck -w website",
     "shaders": "npm run shaders -w website",
     "dev:website": "npm run dev -w website",
     "dev:website:watch": "npm run dev:watch -w website",
     "prod:website": "npm run prod -w website",
-    "test:no-webgpu": "node scripts/no-webgpu.mjs"
+    "test:no-webgpu": "node scripts/no-webgpu.mjs",
+    "test:template": "node scripts/check-template.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.61.1"
