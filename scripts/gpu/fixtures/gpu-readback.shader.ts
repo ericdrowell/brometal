@@ -1,7 +1,7 @@
 import { shader, vec2, vec4, floor, min, storageRead, storageLength } from 'brometal';
 
 /** Fixture: paints a storage buffer across the canvas so pixels can be asserted. */
-export default shader({
+export const GpuReadback = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uCount: 'float' },
   storage: { uData: 'vec4' },

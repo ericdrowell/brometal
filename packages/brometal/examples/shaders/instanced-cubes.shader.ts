@@ -1,7 +1,7 @@
 import { shader, vec4 } from 'brometal';
 import { rotate3 } from 'brometal/shader-functions';
 
-export default shader({
+export const InstancedCubes = shader({
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   instanceAttributes: {
     iOffset: 'vec3',

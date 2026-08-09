@@ -42,7 +42,7 @@ function bitReverse(index: number): number {
   return reversed;
 }
 
-export default shader({
+export const WaterButterfly = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: {},
   varyings: { vUv: 'vec2' },

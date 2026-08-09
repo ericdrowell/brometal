@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, floor, mod, mix } from 'brometal';
 import { rotate2 } from 'brometal/shader-functions';
 
-export default shader({
+export const Checker = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

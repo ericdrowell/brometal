@@ -36,7 +36,7 @@ import {
  * — and a mirrored shadow still looks like a shadow, just attached to the wrong
  * side of the object, which is a miserable thing to debug.
  */
-export default shader({
+export const ShadowScene = shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3' },
   instanceAttributes: {
     iOffset: 'vec3',

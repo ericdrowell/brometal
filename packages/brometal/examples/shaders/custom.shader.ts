@@ -8,7 +8,7 @@ function palette(t: number): Vec3 {
   );
 }
 
-export default shader({
+export const Custom = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float' },
   varyings: { vUv: 'vec2' },

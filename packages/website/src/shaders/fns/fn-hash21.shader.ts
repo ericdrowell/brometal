@@ -1,7 +1,7 @@
 import { shader, vec2, vec4, floor } from 'brometal';
 import { hash21 } from 'brometal/shader-functions';
 
-export default shader({
+export const FnHash21 = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

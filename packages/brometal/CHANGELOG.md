@@ -6,8 +6,8 @@
 
 ### Added
 - **`--js13k`: a build for 13-kilobyte games.** `brometal prod --js13k` emits
-  `js13k/brometal.js` — a WebGPU runtime as plain global functions, no modules or
-  classes — plus `js13k/shaders.js` holding each shader as a positional array
+  `dist/brometal.js` — a WebGPU runtime as plain global functions, no modules or
+  classes — plus `dist/shaders.js` holding each shader as a positional array
   rather than a typed module. Runtime, three shaders and a small game minify
   together to about **3 KB gzipped**, leaving ~10 KB of the budget for the game.
   Covers what a real entry needs: multiple programs, 2D textures from a canvas,
@@ -19,10 +19,16 @@
     jointly and pins them at full length. Comments are free for the same reason.
   - The compiler is untouched: `--js13k` swaps only the serializer and the
     runtime, so shaders are still written in the same typed DSL.
+  - **Shaders name themselves.** `export const Cube = shader({...})` emits the
+    global `Cube`, which is the identifier your game writes — no prefix, no case
+    conversion, nothing derived from the file name. `--js13k` rejects an
+    `export default` rather than inventing a name for it, and two shaders
+    exporting the same name is an error, since they share one scope. The
+    ordinary build accepts either form.
   - Uniform offsets ship as a comment rather than data, so they cost nothing at
     runtime and are still there when you fill the block by hand.
 - **A js13k starter** at `templates/js13k`: a spinning textured cube that builds
-  to a **2,989-byte zip**, leaving **10,323 bytes** of the budget. Everything is
+  to a **3,008-byte zip**, leaving **10,304 bytes** of the budget. Everything is
   inlined into a single `dist/index.html`, so it opens straight from disk —
   `file://` is a secure context, so WebGPU works without a server. `npm run build` compiles the
   shaders, concatenates runtime + shaders + game, minifies the whole program in

@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, atan, length, abs, fract } from 'brometal';
 import { fbm2, cosinePalette } from 'brometal/shader-functions';
 
-export default shader({
+export const Kaleidoscope = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

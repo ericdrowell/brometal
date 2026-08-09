@@ -23,7 +23,7 @@ npm install brometal
 // src/shaders/cube.shader.ts
 import { shader, vec4 } from 'brometal';
 
-export default shader({
+export const Cube = shader({
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   uniforms: { uMvp: 'mat4' },
   varyings: { vColor: 'vec3' },
@@ -207,7 +207,7 @@ Every prebuilt targets a fullscreen quad (`aPosition`/`aUv` from `createPlane({ 
 import { shader, vec2, vec3, vec4 } from 'brometal';
 import { fbm2, cosinePalette } from 'brometal/shader-functions';
 
-export default shader({
+export const Noise = shader({
   // ...
   fragment({ uTime }, { vUv }) {
     const n = fbm2(vUv.scale(4).add(vec2(uTime, 0)), 5);
@@ -227,7 +227,7 @@ Because every function is typed and compile-checked, they're also ideal building
 Declare a `sampler2D` uniform and sample it with the `texture()` intrinsic; light sources are just uniforms your shader math consumes (the full Blinn-Phong lighting model is expressible in the DSL — see the textures-with-light example):
 
 ```ts
-export default shader({
+export const Lit = shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3', aUv: 'vec2' },
   uniforms: { uViewProj: 'mat4', uLightPos: 'vec3', uTex: 'sampler2D' },
   varyings: { vNormal: 'vec3', vUv: 'vec2' },
@@ -246,7 +246,7 @@ Texture units are assigned by the compiler and baked into the layout, so the run
 Declare per-instance inputs with `instanceAttributes` — they upload to the GPU once and advance per instance, not per vertex:
 
 ```ts
-export default shader({
+export const Instanced = shader({
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   instanceAttributes: { iOffset: 'vec3', iAxis: 'vec3', iSpeed: 'float' },
   uniforms: { uViewProj: 'mat4', uTime: 'float' },
@@ -311,7 +311,7 @@ Anything outside the subset fails compilation with a precise, actionable error.
 `brometal prod --js13k` swaps the runtime for one sized to a 13 kB budget:
 
 ```bash
-npx brometal prod --js13k        # → js13k/brometal.js + js13k/shaders.js
+npx brometal prod --js13k        # → dist/brometal.js + dist/shaders.js
 ```
 
 You get global functions rather than modules — `bmInit`, `bmProgram`, `bmAttr`,
@@ -323,7 +323,7 @@ Both files are **source**. Concatenate them with your game and minify the whole
 program in one pass:
 
 ```bash
-cat js13k/brometal.js js13k/shaders.js game.js > out.js
+cat dist/brometal.js dist/shaders.js game.js > out.js
 terser out.js --compress --mangle --toplevel -o out.min.js
 # then inline out.min.js into index.html and zip that one file
 ```

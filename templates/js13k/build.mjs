@@ -13,7 +13,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const dist = join(root, 'dist');
 const LIMIT = 13312; // js13k: 13 * 1024
 
-/** The CLI, overridable so this repo can test the template against local dist. */
+/** Path to a specific brometal CLI. Unset means the installed one. */
 const CLI = process.env.BROMETAL_CLI;
 
 function run(cmd, args, opts = {}) {
@@ -31,7 +31,7 @@ function run(cmd, args, opts = {}) {
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 
-// 1. Shaders → js13k/brometal.js + js13k/shaders.js
+// 1. Shaders → dist/brometal.js + dist/shaders.js
 if (CLI) {
   run('node', [CLI, 'prod', '--js13k', root]);
 } else {
@@ -39,7 +39,7 @@ if (CLI) {
 }
 
 // 2. One program: runtime, then shaders, then the game.
-for (const required of ['js13k/brometal.js', 'js13k/shaders.js']) {
+for (const required of ['dist/brometal.js', 'dist/shaders.js']) {
   if (!existsSync(join(root, required))) {
     console.error(
       `\n\u2717 ${required} was not produced.\n` +
@@ -49,7 +49,7 @@ for (const required of ['js13k/brometal.js', 'js13k/shaders.js']) {
     process.exit(1);
   }
 }
-const combined = ['js13k/brometal.js', 'js13k/shaders.js', 'game.js']
+const combined = ['dist/brometal.js', 'dist/shaders.js', 'game.js']
   .map((f) => readFileSync(join(root, f), 'utf8'))
   .join('\n');
 const rawPath = join(dist, 'raw.js');

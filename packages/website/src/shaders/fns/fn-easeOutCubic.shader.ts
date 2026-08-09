@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, abs, length, clamp, fract, smoothstep, mix } from 'brometal';
 import { easeOutCubic } from 'brometal/shader-functions';
 
-export default shader({
+export const FnEaseOutCubic = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

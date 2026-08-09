@@ -19,7 +19,7 @@ import { shader, vec4, max, min, floor, storageRead, storageWrite } from 'bromet
  * - Their `instanceIndex` folds all three dispatch axes into one linear index.
  *   This dispatches on X only, so id.x is already that index.
  */
-export default shader({
+export const WaterproProbeVelocity = shader({
   uniforms: { uDeltaTime: 'float', uCount: 'float' },
   storage: {
     /** Written: velocity per probe. */

@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, mix, clamp, length, pow } from 'brometal';
 
 /** A soft studio gradient — something for the glass to pick up and reflect. */
-export default shader({
+export const BallsBackdrop = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTop: 'vec3', uBottom: 'vec3', uGlow: 'vec3' },
   varyings: { vUv: 'vec2' },

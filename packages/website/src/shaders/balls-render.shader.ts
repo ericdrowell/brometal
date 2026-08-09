@@ -29,7 +29,7 @@ import {
  * the vertex shader. The CPU uploads one float per ball — its index — and never
  * learns where any of them ended up.
  */
-export default shader({
+export const BallsRender = shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3' },
   instanceAttributes: { iIndex: 'float' },
   uniforms: {

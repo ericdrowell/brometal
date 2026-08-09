@@ -1,7 +1,7 @@
 import { shader, vec3, vec4 } from 'brometal';
 import { lambert, blinnPhongSpec } from 'brometal/shader-functions';
 
-export default shader({
+export const LightCube = shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3', aColor: 'vec3' },
   uniforms: { uViewProj: 'mat4', uModel: 'mat4', uLightPos: 'vec3', uViewPos: 'vec3' },
   varyings: { vNormal: 'vec3', vColor: 'vec3', vWorldPos: 'vec3' },

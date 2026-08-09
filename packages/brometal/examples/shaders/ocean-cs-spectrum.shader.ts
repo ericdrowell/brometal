@@ -32,7 +32,7 @@ function jonswap(omega: number, peak: number): number {
   return (0.0081 * gravity * gravity * shape * enhancement) / pow(omega, 5);
 }
 
-export default shader({
+export const OceanCsSpectrum = shader({
   uniforms: {
     uPatchSize: 'float', uWindDir: 'vec2', uWindSpeed: 'float',
     uPeakWavelength: 'float', uAmplitude: 'float', uSpread: 'float',

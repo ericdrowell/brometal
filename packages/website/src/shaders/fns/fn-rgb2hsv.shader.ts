@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4 } from 'brometal';
 import { rgb2hsv, cosinePalette } from 'brometal/shader-functions';
 
-export default shader({
+export const FnRgb2hsv = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

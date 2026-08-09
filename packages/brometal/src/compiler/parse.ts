@@ -26,6 +26,12 @@ export interface ParsedHelper {
 
 export interface ParsedShaderModule {
   sourceFile: ts.SourceFile;
+  /**
+   * The identifier the shader is exported under, when it is written as
+   * `export const Cube = shader({...})`. Undefined for `export default`, which
+   * names nothing and leaves the filename as the only source.
+   */
+  exportName?: string;
   attributes: GpuRecord;
   instanceAttributes: GpuRecord;
   uniforms: GpuRecord;
@@ -486,8 +492,10 @@ export function parseShaderModule(
 
   const helpers = parseHelpers(sourceFile);
   const libraryImports = findLibraryImports(sourceFile);
+  const exportName = exportedNameFor(call);
   return {
     sourceFile,
+    ...(exportName === undefined ? {} : { exportName }),
     attributes: attributes ?? {},
     instanceAttributes,
     uniforms,
@@ -500,6 +508,27 @@ export function parseShaderModule(
     computeFn,
     workgroupSize,
   };
+}
+
+/**
+ * The name a shader gives itself: `export const Cube = shader({...})` -> `Cube`.
+ *
+ * The `export` is required rather than incidental. Reading any enclosing const
+ * would mean `const s = shader({...}); export default s` silently started naming
+ * itself `s`, so the modifier is what makes this opt-in — every module written
+ * against an earlier version uses `export default` and keeps its filename.
+ */
+function exportedNameFor(call: ts.CallExpression): string | undefined {
+  const declaration = call.parent;
+  if (!ts.isVariableDeclaration(declaration) || !ts.isIdentifier(declaration.name)) {
+    return undefined;
+  }
+  const statement = declaration.parent.parent;
+  if (!ts.isVariableStatement(statement)) return undefined;
+  const exported = statement.modifiers?.some(
+    (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+  );
+  return exported === true ? declaration.name.text : undefined;
 }
 
 /** `workgroupSize: [x, y, z]` — a literal tuple of positive integers. */

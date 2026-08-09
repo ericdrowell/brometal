@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, texture, sqrt } from 'brometal';
 import { luminance } from 'brometal/shader-functions';
 
-export default shader({
+export const Edges = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float', uTex: 'sampler2D' },
   varyings: { vUv: 'vec2' },

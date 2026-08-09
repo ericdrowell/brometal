@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, atan, length, fract } from 'brometal';
 import { hsv2rgb, fillAA, sdCircle } from 'brometal/shader-functions';
 
-export default shader({
+export const Hsv = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

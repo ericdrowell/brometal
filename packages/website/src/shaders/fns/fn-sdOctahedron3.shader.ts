@@ -6,7 +6,7 @@ function scene(q: Vec3, time: number): number {
   return sdOctahedron3(vec3(r.x, q.y, r.y), 0.62);
 }
 
-export default shader({
+export const FnSdOctahedron3 = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

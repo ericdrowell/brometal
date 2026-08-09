@@ -148,7 +148,7 @@ function equirectSky(map: Sampler2D, direction: Vec3): Vec3 {
   return mix(mix(s00, s10, fx), mix(s01, s11, fx), fy);
 }
 
-export default shader({
+export const WaterSurface = shader({
   // The grid's UVs are unused: every lookup is derived from world XZ so that
   // neighbouring tiles sample one continuous ocean rather than each repeating.
   attributes: { aPosition: 'vec3' },

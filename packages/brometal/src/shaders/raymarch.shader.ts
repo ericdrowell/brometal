@@ -17,7 +17,7 @@ function sceneNormal(q: Vec3, time: number): Vec3 {
   return normalize(vec3(dx, dy, dz));
 }
 
-export default shader({
+export const Raymarch = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

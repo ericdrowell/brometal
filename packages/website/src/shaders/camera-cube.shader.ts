@@ -1,6 +1,6 @@
 import { shader, vec4 } from 'brometal';
 
-export default shader({
+export const CameraCube = shader({
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   uniforms: { uViewProj: 'mat4', uModel: 'mat4' },
   varyings: { vColor: 'vec3' },

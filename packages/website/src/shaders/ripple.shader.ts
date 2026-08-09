@@ -11,7 +11,7 @@ function rippleHeight(uv: Vec2, phaseTime: number, spacing: number): number {
   return wave * falloff;
 }
 
-export default shader({
+export const Ripple = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: {
     uViewProj: 'mat4',

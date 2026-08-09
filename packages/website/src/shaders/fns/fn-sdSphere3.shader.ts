@@ -5,7 +5,7 @@ function scene(q: Vec3, time: number): number {
   return sdSphere3(q, 0.55 + 0.08 * sin(time * 1.5));
 }
 
-export default shader({
+export const FnSdSphere3 = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

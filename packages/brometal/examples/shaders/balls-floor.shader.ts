@@ -24,7 +24,7 @@ import { specGGX, hemisphereLight, shadowFactor } from 'brometal/shader-function
  * Drawn opaque and just inside the glass, so the bottom pane still reads as
  * glass from below without the two z-fighting.
  */
-export default shader({
+export const BallsFloor = shader({
   attributes: { aPosition: 'vec3' },
   uniforms: {
     uViewProj: 'mat4',

@@ -7,7 +7,7 @@ function scene(q: Vec3, time: number): number {
   return sdCapsule3(s, vec3(-0.4, -0.2, 0), vec3(0.4, 0.25 * sin(time), 0), 0.22);
 }
 
-export default shader({
+export const FnSdCapsule3 = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

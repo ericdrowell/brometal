@@ -12,7 +12,7 @@ import { shadowDepth } from 'brometal/shader-functions';
  * so a single bias constant holds for a ball at the top of the pile and one on
  * the floor. See shadow-depth.shader.ts for the longer version of why.
  */
-export default shader({
+export const BallsShadow = shader({
   attributes: { aPosition: 'vec3' },
   instanceAttributes: { iIndex: 'float' },
   uniforms: {

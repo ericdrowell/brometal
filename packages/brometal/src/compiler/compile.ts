@@ -11,6 +11,8 @@ export interface CompileOptions {
 }
 
 export interface CompiledShaderModule {
+  /** The name the module exports itself under, when it declares one. */
+  exportName?: string;
   attributes: GpuRecord;
   instanceAttributes: GpuRecord;
   uniforms: GpuRecord;
@@ -41,6 +43,7 @@ export function compileShaderSource(
 
   const layout = buildLayout(ir);
   const result: CompiledShaderModule = {
+    ...(parsed.exportName === undefined ? {} : { exportName: parsed.exportName }),
     attributes: ir.attributes,
     instanceAttributes: ir.instanceAttributes,
     uniforms: ir.uniforms,

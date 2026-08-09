@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, atan, length, floor, mod, smoothstep, mix } from 'brometal';
 import { rotate2 } from 'brometal/shader-functions';
 
-export default shader({
+export const Tunnel = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

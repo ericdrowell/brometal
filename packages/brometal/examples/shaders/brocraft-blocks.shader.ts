@@ -77,7 +77,7 @@ function blockType(p: Vec2, h: number, depth: number, sea: number): number {
   return t;
 }
 
-export default shader({
+export const BrocraftBlocks = shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3' },
   // One instance per block: (grid X, grid Z, layer below the surface).
   instanceAttributes: { iCell: 'vec3' },

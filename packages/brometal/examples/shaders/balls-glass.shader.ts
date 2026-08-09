@@ -71,7 +71,7 @@ function studioEnv(dir: Vec3, sky: Vec3, horizon: Vec3, keyDir: Vec3): Vec3 {
     .add(vec3(1, 0.97, 0.93).scale(rigB));
 }
 
-export default shader({
+export const BallsGlass = shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3' },
   uniforms: {
     uViewProj: 'mat4',

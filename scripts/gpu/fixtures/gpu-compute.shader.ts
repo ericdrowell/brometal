@@ -7,7 +7,7 @@ import { shader, vec4, floor, min, max, storageWrite } from 'brometal';
  * count, a wrong workgroup size, a mis-bound buffer or unflushed uniforms each
  * produce a different, recognisable wrong answer rather than a uniform blank.
  */
-export default shader({
+export const GpuCompute = shader({
   uniforms: { uCount: 'float' },
   storage: { uOut: 'vec4' },
   workgroupSize: [64, 1, 1],

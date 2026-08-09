@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, mix, smoothstep } from 'brometal';
 import { fbm2 } from 'brometal/shader-functions';
 
-export default shader({
+export const Fbm = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

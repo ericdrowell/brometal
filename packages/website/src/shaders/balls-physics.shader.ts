@@ -44,7 +44,7 @@ import {
  * only be called from uniform control flow in WGSL, so every ball samples every
  * other unconditionally and multiplies the result away when it does not apply.
  */
-export default shader({
+export const BallsPhysics = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: {
     uState: 'sampler2D',

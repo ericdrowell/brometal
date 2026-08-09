@@ -36,8 +36,8 @@ The build prints your budget and **fails if the zip exceeds 13,312 bytes**:
 
 ## How the build works
 
-1. `brometal prod --js13k` compiles `src/*.shader.ts` into `js13k/shaders.js` and
-   copies the runtime to `js13k/brometal.js`.
+1. `brometal prod --js13k` compiles `src/*.shader.ts` into `dist/shaders.js` and
+   writes the runtime to `dist/brometal.js` from the same version.
 2. Runtime + shaders + your game are concatenated into one program.
 3. `terser --toplevel --mangle` minifies all of it in a single pass.
 4. The result is inlined into `index.html` and zipped.
@@ -51,18 +51,18 @@ and central directory record, so one file beats two by about 150 bytes.
 
 ## Writing a shader
 
-Add `src/thing.shader.ts` and it becomes the global `BM_THING`:
+Add `src/thing.shader.ts` exporting `export const Thing = shader({...})` and it becomes the global `Thing`:
 
 ```js
-const BM_THING = ["...wgsl...", [3,3,2], [], 160, [[1,2]]];
+const Thing = ["...wgsl...", [3,3,2], [], 160, [[1,2]]];
 //                               attrs   inst  bytes  [tex,sampler]
 ```
 
 Pass it straight to `bmProgram`:
 
 ```js
-const p = bmProgram(BM_THING[0], {
-  a: BM_THING[1], i: BM_THING[2], u: BM_THING[3], t: BM_THING[4],
+const p = bmProgram(Thing[0], {
+  a: Thing[1], i: Thing[2], u: Thing[3], t: Thing[4],
   cull: 1,          // blend: 1 and zwrite: 0 for transparent passes
 });
 ```
@@ -78,7 +78,7 @@ bmBuffer(data, isIndex)           bmLoop(callback)              bmSave() / bmRes
 ```
 
 Uniforms are a flat `Float32Array` — no names ship. The float offsets for each
-shader are written as a comment above its entry in `js13k/shaders.js`.
+shader are written as a comment above its entry in `dist/shaders.js`.
 
 ## Requires WebGPU
 

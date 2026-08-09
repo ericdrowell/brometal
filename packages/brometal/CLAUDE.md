@@ -22,7 +22,7 @@ string — there is no API that accepts one. Write this:
 // src/shaders/cube.shader.ts
 import { shader, vec4 } from 'brometal';
 
-export default shader({
+export const Cube = shader({
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   uniforms: { uMvp: 'mat4' },
   varyings: { vColor: 'vec3' },

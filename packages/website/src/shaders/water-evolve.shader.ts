@@ -40,7 +40,7 @@ function complexMul(a: Vec2, b: Vec2): Vec2 {
   return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
 }
 
-export default shader({
+export const WaterEvolve = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: {
     uSpectrum: 'sampler2D',

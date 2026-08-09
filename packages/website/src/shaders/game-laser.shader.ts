@@ -14,7 +14,7 @@ import { shader, vec3, vec4, normalize, cross, clamp } from 'brometal';
  * *ahead* of its spawn point. Centring it put half the segment behind the
  * muzzle, which at spawn reads as the ship firing backwards through itself.
  */
-export default shader({
+export const GameLaser = shader({
   attributes: { aPosition: 'vec3' },
   instanceAttributes: { iStart: 'vec3', iDir: 'vec3', iBirth: 'float' },
   uniforms: {

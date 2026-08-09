@@ -6,7 +6,7 @@ function scene(q: Vec3, time: number): number {
   return sdBox3(vec3(r.x, q.y, r.y), vec3(0.42, 0.42, 0.42));
 }
 
-export default shader({
+export const FnSdBox3 = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

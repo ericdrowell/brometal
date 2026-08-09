@@ -15,7 +15,7 @@ import { rotate3, shadowDepth } from 'brometal/shader-functions';
  * has to keep the nearest surface, and without the test that is just whichever
  * triangle happened to be drawn last.
  */
-export default shader({
+export const ShadowDepth = shader({
   attributes: { aPosition: 'vec3' },
   instanceAttributes: { iOffset: 'vec3', iScale: 'vec3', iSpin: 'float' },
   uniforms: { uLightViewProj: 'mat4', uLightPos: 'vec3', uTime: 'float', uRange: 'float' },

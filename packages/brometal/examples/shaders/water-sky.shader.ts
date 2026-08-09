@@ -12,7 +12,7 @@ import { shader, vec4, clamp, mix } from 'brometal';
  * water shader, so the reflection and the backdrop stay driven by one value —
  * and so re-introducing a real sky later is a change to this file alone.
  */
-export default shader({
+export const WaterSky = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uZenith: 'vec3', uHorizon: 'vec3' },
   varyings: { vUv: 'vec2' },

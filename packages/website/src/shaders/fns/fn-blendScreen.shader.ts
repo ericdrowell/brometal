@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, length, smoothstep, sin, cos } from 'brometal';
 import { blendScreen, hsv2rgb } from 'brometal/shader-functions';
 
-export default shader({
+export const FnBlendScreen = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

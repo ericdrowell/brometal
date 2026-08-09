@@ -36,16 +36,10 @@ export default function CopyBlock({
     }
   };
 
-  const lines = code.split('\n').length;
   return (
     <div className="copy-block">
       <div className="copy-block-bar">
-        <span className="copy-block-label">
-          {label}
-          <span className="copy-block-meta">
-            {lines} lines · {new Intl.NumberFormat('en').format(code.length)} bytes
-          </span>
-        </span>
+        <span className="copy-block-label">{label}</span>
         <button
           type="button"
           className={`copy-block-button${copied ? ' copied' : ''}`}

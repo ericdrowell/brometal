@@ -19,7 +19,7 @@ import { shader, vec2, vec3, vec4, texture, floor, mod, fract, min, max, mix, st
  *    render targets clamp at their edges and the patch has to tile.
  */
 
-export default shader({
+export const WaterAssemble = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: {
     uTransform: 'sampler2D',

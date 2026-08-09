@@ -6,7 +6,7 @@ function scene(q: Vec3, time: number): number {
   return min(ground, sdSphere3(q.sub(vec3(0.3 * sin(time), -0.1, 0)), 0.3));
 }
 
-export default shader({
+export const FnSdPlane3 = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

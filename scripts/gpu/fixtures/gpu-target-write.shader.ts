@@ -1,7 +1,7 @@
 import { shader, vec4 } from 'brometal';
 
 /** Fixture: paints its uv into a render target so the round trip can be checked. */
-export default shader({
+export const GpuTargetWrite = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uMark: 'float' },
   varyings: { vUv: 'vec2' },

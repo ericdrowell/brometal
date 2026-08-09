@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, fract, abs } from 'brometal';
 import { easeOutBounce, easeOutElastic, easeInOutCubic, sdCircle, fillAA } from 'brometal/shader-functions';
 
-export default shader({
+export const Easing = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

@@ -70,7 +70,7 @@ function jonswap(omega: number, peak: number): number {
   return (0.0081 * gravity * gravity * shape * enhancement) / pow(omega, 5);
 }
 
-export default shader({
+export const WaterSpectrum = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: {
     /** Side length of this cascade's patch, in metres. */

@@ -9,7 +9,7 @@ function oceanOffset(p: Vec2, time: number): Vec3 {
   return w1.add(w2).add(w3).add(w4);
 }
 
-export default shader({
+export const Ocean = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uViewProj: 'mat4', uModel: 'mat4', uTime: 'float', uViewPos: 'vec3', uSunDir: 'vec3' },
   varyings: { vNormal: 'vec3', vWorldPos: 'vec3', vUv: 'vec2' },

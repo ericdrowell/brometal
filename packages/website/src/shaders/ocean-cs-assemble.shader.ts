@@ -17,7 +17,7 @@ import {
  * a flat buffer has no such ambiguity — the neighbour of (x, y) is (x+1, y) on
  * every backend, and the parity follows.
  */
-export default shader({
+export const OceanCsAssemble = shader({
   uniforms: {
     uPatchSize: 'float', uChoppiness: 'float', uScale: 'float',
     uFoamThreshold: 'float', uCount: 'float',

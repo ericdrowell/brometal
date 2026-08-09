@@ -48,6 +48,8 @@ export interface Js13kSource {
   game: string;
   /** The starter's shader, in the typed DSL. */
   shader: string;
+  /** The page the game draws into. */
+  indexHtml: string;
   /** Minified + gzipped size of the runtime, in bytes. */
   runtimeGzip: number;
 }
@@ -57,10 +59,14 @@ export function readJs13kSource(): Js13kSource {
   // Built by the CLI's own function, so the page shows byte-for-byte what
   // `brometal prod --js13k` writes — header included. Two files in dependency
   // order: the stateless facts, then the core that uses them.
+  const { version } = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8')) as {
+    version: string;
+  };
   const runtime = buildJs13kRuntime(
     ['dist/tiny/gpu.js', 'dist/tiny/index.js'].map((part) =>
       readFileSync(join(pkg, part), 'utf8'),
     ),
+    version,
   );
 
   const template = join(repoRoot(), 'templates', 'js13k');
@@ -68,6 +74,7 @@ export function readJs13kSource(): Js13kSource {
     runtime,
     game: readFileSync(join(template, 'game.js'), 'utf8'),
     shader: readFileSync(join(template, 'src', 'cube.shader.ts'), 'utf8'),
+    indexHtml: readFileSync(join(template, 'index.html'), 'utf8'),
     // Reported unminified here — the page states the measured figure from the
     // build gate rather than approximating it from raw source.
     runtimeGzip: gzipSync(Buffer.from(runtime), { level: 9 }).length,

@@ -1,6 +1,6 @@
 import { shader, vec4 } from 'brometal';
 
-export default shader({
+export const GameGlow = shader({
   attributes: { aPosition: 'vec3' },
   instanceAttributes: { iOffset: 'vec3', iScale: 'float', iAlpha: 'float' },
   uniforms: { uViewProj: 'mat4', uColor: 'vec3' },

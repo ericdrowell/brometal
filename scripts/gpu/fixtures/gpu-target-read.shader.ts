@@ -12,7 +12,7 @@ import { shader, vec2, vec4, texture } from 'brometal';
  * Sampling at `1 - v` is the documented way to undo it, and the two channels
  * agreeing is what proves the row order is the one the docs describe.
  */
-export default shader({
+export const GpuTargetRead = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTarget: 'sampler2D' },
   varyings: { vUv: 'vec2' },

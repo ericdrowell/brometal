@@ -31,7 +31,7 @@ function skyColor(dir: Vec3, sunDir: Vec3, horizon: Vec3, zenith: Vec3, sun: Vec
   return col;
 }
 
-export default shader({
+export const BrocraftSky = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: {
     uRight: 'vec3',

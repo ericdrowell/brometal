@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, length, abs, fract, smoothstep } from 'brometal';
 import { fbm2, cosinePalette } from 'brometal/shader-functions';
 
-export default shader({
+export const Rings = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

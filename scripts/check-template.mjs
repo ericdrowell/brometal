@@ -57,7 +57,7 @@ console.log(`\n✓ template builds and fits (${measured} bytes, ceiling ${STARTE
 // tiny is shared with `full` now, so it will be tempting to grow it to serve
 // the larger build. This is the line that says no.
 const TINY_BUDGET = 3072;
-const runtime = readFileSync(join(template, 'js13k', 'brometal.js'), 'utf8');
+const runtime = readFileSync(join(template, 'dist', 'brometal.js'), 'utf8');
 const minified = execFileSync(
   'npx',
   ['esbuild', '--minify', '--loader=js'],

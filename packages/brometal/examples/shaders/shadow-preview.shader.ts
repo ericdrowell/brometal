@@ -10,7 +10,7 @@ import { shader, vec3, vec4, texture, targetUv, pow, step, mix, max, abs } from 
  * disagreement the lit pass has to get right, just visible here instead of
  * disguised as a misplaced shadow.
  */
-export default shader({
+export const ShadowPreview = shader({
   attributes: { aPosition: 'vec3' },
   uniforms: { uMap: 'sampler2D', uRect: 'vec4' },
   varyings: { vUv: 'vec2' },

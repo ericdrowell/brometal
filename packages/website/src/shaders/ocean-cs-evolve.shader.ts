@@ -18,7 +18,7 @@ function complexMul(a: Vec2, b: Vec2): Vec2 {
   return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
 }
 
-export default shader({
+export const OceanCsEvolve = shader({
   uniforms: { uPatchSize: 'float', uTime: 'float', uCount: 'float' },
   storage: { uSpectrum: 'vec4', uField: 'vec4' },
   workgroupSize: [64, 1, 1],

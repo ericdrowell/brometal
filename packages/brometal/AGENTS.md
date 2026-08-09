@@ -11,7 +11,8 @@ material system, and no shader compiler in the browser. You write the shader.
 
 ## The loop
 
-1. Write `src/shaders/thing.shader.ts` — a `shader({...})` default export.
+1. Write `src/shaders/thing.shader.ts` — `export const Thing = shader({...})`.
+   Name it explicitly; `--js13k` requires the name and uses it as the global.
 2. Run `npx brometal dev` (watch) or `npx brometal prod` (one-shot, optimized).
    This writes `thing.shader.gen.ts` next to it.
 3. Import the **`.gen`** module in your app, never the `.shader.ts` source.

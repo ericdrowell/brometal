@@ -74,7 +74,7 @@ function rockRadius(dir: Vec3, seed: number): number {
   return 1 + (fbm3(q, 4) - 0.5) * 0.4 + craters(dir, seed);
 }
 
-export default shader({
+export const GameRocks = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   instanceAttributes: { iOffset: 'vec3', iScale: 'float', iSeed: 'float' },
   uniforms: {

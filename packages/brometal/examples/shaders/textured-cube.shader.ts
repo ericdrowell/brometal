@@ -1,7 +1,7 @@
 import { shader, vec3, vec4, texture } from 'brometal';
 import { lambert, blinnPhongSpec } from 'brometal/shader-functions';
 
-export default shader({
+export const TexturedCube = shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3', aUv: 'vec2' },
   uniforms: {
     uViewProj: 'mat4',

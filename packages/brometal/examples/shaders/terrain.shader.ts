@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, normalize, mix } from 'brometal';
 import { gfbm2, lambert } from 'brometal/shader-functions';
 
-export default shader({
+export const Terrain = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uViewProj: 'mat4', uModel: 'mat4', uTime: 'float', uLightDir: 'vec3', uAmp: 'float' },
   varyings: { vNormal: 'vec3', vHeight: 'float' },

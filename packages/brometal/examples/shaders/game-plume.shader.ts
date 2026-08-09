@@ -27,7 +27,7 @@ import { fbm3 } from 'brometal/shader-functions';
  * flicker on the hull are the same number rather than two noise functions that
  * drift apart.
  */
-export default shader({
+export const GamePlume = shader({
   attributes: { aPosition: 'vec3' },
   /** One per engine nacelle, in ship space. */
   instanceAttributes: { iOffset: 'vec3' },

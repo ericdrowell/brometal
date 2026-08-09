@@ -1,7 +1,7 @@
 import { shader, vec4, clamp, normalize } from 'brometal';
 
 /** Water Bro — flat sky on a dome around the camera. Matches `water-sky`. */
-export default shader({
+export const WaterSkydome = shader({
   attributes: { aPosition: 'vec3' },
   uniforms: { uViewProj: 'mat4', uModel: 'mat4', uZenith: 'vec3', uHorizon: 'vec3' },
   varyings: { vDir: 'vec3' },

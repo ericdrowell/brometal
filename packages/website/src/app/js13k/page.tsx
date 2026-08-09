@@ -13,7 +13,7 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default function Js13kPage() {
-  const { runtime, game, shader } = readJs13kSource();
+  const { runtime, game, shader, indexHtml } = readJs13kSource();
 
   return (
     <main className="page prose">
@@ -74,49 +74,78 @@ export default function Js13kPage() {
         off, depth testing, back-face culling, a matrix stack and mat4 helpers.
       </p>
 
-      <h2>1. Copy the runtime</h2>
+      <h2>The runtime</h2>
       <p>
-        Plain source, global functions, no imports — so your minifier can rename
-        all of it alongside your own code. Save it as <code>brometal.js</code>.
+        This is all of it — plain source, global functions, no imports, so your
+        minifier renames it alongside your own code and drops every function you
+        never call.
       </p>
-      <CopyBlock label="brometal.js" code={runtime} maxHeight={420} />
-
-      <h2>2. Set up your game</h2>
       <p>
-        Everything is a global, so the whole program minifies as one unit. This
-        one draws a spinning textured cube.
+        <strong>You never copy this.</strong> The compiler writes it, next to
+        your compiled shaders, every time you build. That is deliberate: a shader
+        compiles down to a bare array — <code>[wgsl, attrs, instanceAttrs, uniformBytes, textures]</code>{' '}
+        — that the runtime reads <em>by position</em>, with no names to check
+        against. A runtime fetched from somewhere else could be a version out of
+        step and would not complain; it would build a pipeline from the wrong
+        slots and draw nothing. Emitting the pair from one command means they
+        cannot disagree. Both carry the version that wrote them.
       </p>
-      <CopyBlock label="game.js" code={game} maxHeight={420} />
+      <p>It is reproduced here so you can read what you are about to ship.</p>
+      <CopyBlock label="dist/brometal.js" code={runtime} maxHeight={420} />
 
-      <h2>3. Add a shader</h2>
+      <h2>1. Install BroMetal</h2>
+      <p>
+        Both are dev dependencies. The compiler runs on your machine and never
+        ships; terser is what the build in step 4 shells out to.
+      </p>
+      <CodeBlock code={`npm install --save-dev brometal terser`} />
+
+      <h2>2. Set up shaders</h2>
       <p>
         Typed TypeScript, checked before it reaches a GPU. Save it as{' '}
         <code>src/cube.shader.ts</code>.
       </p>
       <CopyBlock label="src/cube.shader.ts" code={shader} maxHeight={340} />
-      <p>Then compile it:</p>
-      <CodeBlock code={`npm install --save-dev brometal
-npx brometal prod --js13k`} />
+      <p>Then compile the shaders:</p>
+      <CodeBlock code={`npx brometal prod --js13k`} />
       <p>
-        That writes <code>js13k/shaders.js</code>, where your shader becomes the
-        global <code>BM_CUBE</code> the game above uses. BroMetal is a dev
-        dependency — the compiler never ships.
+        That writes both files you need into <code>dist/</code>: the runtime
+        above, and <code>shaders.js</code>, where the shader appears under the
+        name it exported itself as — <code>export const Cube</code> becomes{' '}
+        <code>const Cube</code>, the global your game reaches for next. Nothing
+        is derived from the file name, so there is no second name to look up;{' '}
+        <code>export default</code> is a build error asking you to name it. Two
+        shaders exporting the same name is an error too, since they share one
+        scope.
       </p>
 
-      <h2>4. Build the dist</h2>
-      <CodeBlock code={`npm install --save-dev terser
+      <h2>3. Set up your game</h2>
+      <p>
+        Everything is a global, so the whole program minifies as one unit. This
+        one draws a spinning textured cube with the <code>Cube</code> shader from
+        the previous step.
+      </p>
+      <CopyBlock label="game.js" code={game} maxHeight={420} />
+      <p>
+        And the page it draws into. The <code>&lt;script src=g.js&gt;</code> at
+        the end is a placeholder — nothing ever builds a <code>g.js</code>. Step
+        4 replaces that whole tag with the minified program inlined between{' '}
+        <code>&lt;script&gt;</code> tags, so what you zip is this one file.
+      </p>
+      <CopyBlock label="index.html" code={indexHtml} maxHeight={200} />
 
-cat brometal.js js13k/shaders.js game.js > out.js
+      <h2>4. Build the dist</h2>
+      <CodeBlock code={`cat dist/brometal.js dist/shaders.js game.js > out.js
 terser out.js --compress --mangle --toplevel -o game.min.js
-# inline game.min.js into index.html, then zip that one file`} />
+# replace <script src=g.js> in index.html with game.min.js inlined,
+# then zip that one file`} />
       <p>
         <code>--toplevel</code> is what pays: it renames the runtime&rsquo;s
         functions and drops every one you never call. Inlining into the page
-        saves another ~150 bytes, since a zip charges per file.
-      </p>
-      <p>
-        The result opens straight from disk — <code>file://</code> is a secure
-        context, so WebGPU works without a server.
+        saves another ~150 bytes, since a zip charges per file — which is why
+        that one <code>index.html</code> is the whole deliverable. It opens
+        straight from disk, since <code>file://</code> is a secure context and
+        WebGPU works there.
       </p>
 
       <h2>Built for coding agents</h2>

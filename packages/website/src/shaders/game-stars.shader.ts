@@ -2,7 +2,7 @@ import { shader, vec3, vec4, mod, clamp } from 'brometal';
 
 // Star streaks: unit cubes stretched into thin lines along z, wrapped through
 // a deep tube like the asteroids but much faster — the classic warp tunnel.
-export default shader({
+export const GameStars = shader({
   attributes: { aPosition: 'vec3' },
   instanceAttributes: { iOffset: 'vec3', iLen: 'float', iSeed: 'float' },
   uniforms: { uViewProj: 'mat4', uScroll: 'float', uWrap: 'float', uAhead: 'float', uColor: 'vec3' },

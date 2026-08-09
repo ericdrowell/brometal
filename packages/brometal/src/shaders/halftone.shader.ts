@@ -1,7 +1,7 @@
 import { shader, vec2, vec3, vec4, texture, fract, length, mix } from 'brometal';
 import { luminance, rotate2, fillAA } from 'brometal/shader-functions';
 
-export default shader({
+export const Halftone = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float', uTex: 'sampler2D' },
   varyings: { vUv: 'vec2' },

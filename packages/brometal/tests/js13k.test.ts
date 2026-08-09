@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { compileShaderSource } from '../src/compiler/compile.js';
-import { buildJs13kShader, buildJs13kShaderFile, js13kNameFromFile } from '../src/js13k/emit.js';
+import { buildJs13kShader, buildJs13kShaderFile, js13kNameError } from '../src/js13k/emit.js';
+import { buildGeneratedModule } from '../src/compiler/emit-module.js';
 
 // The core is now shared with `full`, so these invariants guard both builds.
 // Both files, because --js13k concatenates them and the facts they assert about
@@ -35,7 +36,7 @@ export default shader({
 
 describe('js13k shader descriptor', () => {
   const compiled = compileShaderSource('t.shader.ts', TEXTURED);
-  const emitted = buildJs13kShader('BM_T', compiled).source;
+  const emitted = buildJs13kShader('Textured', compiled).source;
   const value = JSON.parse(emitted.slice(emitted.indexOf('['), emitted.lastIndexOf(']') + 1)) as [
     string,
     number[],
@@ -67,15 +68,54 @@ describe('js13k shader descriptor', () => {
     expect(emitted).toMatch(/\/\/ uniform floats: uMvp @0\.\.15/);
   });
 
-  it('derives a global name from the file name', () => {
-    expect(js13kNameFromFile('src/color-cube.shader.ts')).toBe('BM_COLOR_CUBE');
-    expect(js13kNameFromFile('/a/b/game-glow.shader.ts')).toBe('BM_GAME_GLOW');
+  it('explains how to name a shader rather than inventing one', () => {
+    const message = js13kNameError('src/cube.shader.ts');
+    expect(message).toContain('src/cube.shader.ts');
+    expect(message).toContain('export const Cube = shader({...})');
   });
 
   it('emits one file the game can concatenate', () => {
-    const file = buildJs13kShaderFile([buildJs13kShader('BM_A', compiled)]);
-    expect(file).toContain('const BM_A = [');
+    const file = buildJs13kShaderFile([buildJs13kShader('Alpha', compiled)]);
+    expect(file).toContain('const Alpha = [');
     expect(file).toContain('terser --toplevel --mangle');
+  });
+});
+
+describe('shader names declared in code', () => {
+  const named = (name: string): string =>
+    TEXTURED.replace('export default shader({', `export const ${name} = shader({`);
+
+  it('reads the name from an exported const', () => {
+    expect(compileShaderSource('src/anything.shader.ts', named('Cube')).exportName).toBe('Cube');
+  });
+
+  it('leaves export default unnamed, which is what --js13k rejects', () => {
+    expect(compileShaderSource('src/cube.shader.ts', TEXTURED).exportName).toBeUndefined();
+  });
+
+  it('ignores a const that is not exported', () => {
+    // `const s = shader({...}); export default s` must not pick up `s` — a
+    // throwaway local is not a name anyone meant to publish, and under --js13k
+    // it would become the global the game has to type. The export modifier is
+    // what opts in.
+    const source = `${TEXTURED.replace('export default shader({', 'const s = shader({')}\nexport default s;\n`;
+    expect(compileShaderSource('src/cube.shader.ts', source).exportName).toBeUndefined();
+  });
+
+  it('emits the declared name verbatim, with nothing added or reshaped', () => {
+    const compiled = compileShaderSource('src/anything.shader.ts', named('ColorCube'));
+    const emitted = buildJs13kShader(compiled.exportName!, compiled).source;
+    expect(emitted).toContain('const ColorCube = [');
+    // The whole point: no prefix, no case change, nothing to translate.
+    expect(emitted).not.toContain('BM_');
+    expect(emitted).not.toContain('COLOR_CUBE');
+  });
+
+  it('names the generated module after the declared name', () => {
+    const compiled = compileShaderSource('src/anything.shader.ts', named('Cube'));
+    const module = buildGeneratedModule(compiled.exportName ?? 'fallbackShader', compiled);
+    expect(module).toContain('const Cube:');
+    expect(module).toContain('export default Cube;');
   });
 });
 

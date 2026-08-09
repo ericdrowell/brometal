@@ -1,6 +1,6 @@
 import { shader, vec2, vec4, texture, floor, sin } from 'brometal';
 
-export default shader({
+export const Pixelate = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float', uTex: 'sampler2D' },
   varyings: { vUv: 'vec2' },

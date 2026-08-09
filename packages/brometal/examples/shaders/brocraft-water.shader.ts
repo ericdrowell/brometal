@@ -58,7 +58,7 @@ function ripple(p: Vec2, t: number): Vec3 {
   return normalize(vec3(-dx, 1, -dz));
 }
 
-export default shader({
+export const BrocraftWater = shader({
   attributes: { aPosition: 'vec3' },
   // One instance per column: a single quad laid at sea level. Only the surface
   // is ever drawn — the seabed shows through it, so box sides would be nothing

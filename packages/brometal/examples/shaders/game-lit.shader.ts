@@ -1,7 +1,7 @@
 import { shader, vec3, vec4 } from 'brometal';
 import { lambert, hemisphereLight } from 'brometal/shader-functions';
 
-export default shader({
+export const GameLit = shader({
   attributes: { aPosition: 'vec3', aNormal: 'vec3' },
   uniforms: { uViewProj: 'mat4', uModel: 'mat4', uColor: 'vec3', uLightDir: 'vec3' },
   varyings: { vNormal: 'vec3' },

@@ -18,7 +18,7 @@ npm install brometal
 // src/shaders/cube.shader.ts
 import { shader, vec4 } from 'brometal';
 
-export default shader({
+export const Cube = shader({
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   uniforms: { uMvp: 'mat4' },
   varyings: { vColor: 'vec3' },
@@ -204,7 +204,7 @@ Every prebuilt targets a fullscreen quad (`aPosition`/`aUv` from `createPlane({ 
 import { shader, vec2, vec3, vec4 } from 'brometal';
 import { fbm2, cosinePalette } from 'brometal/shader-functions';
 
-export default shader({
+export const Noise = shader({
   // ...
   fragment({ uTime }, { vUv }) {
     const n = fbm2(vUv.scale(4).add(vec2(uTime, 0)), 5);
@@ -308,7 +308,7 @@ across the whole scene instead of needing to scale with depth.
 Declare per-instance inputs with `instanceAttributes` — they upload once and advance per instance, not per vertex. When a shader declares them, `program.draw()` automatically renders instanced:
 
 ```ts
-export default shader({
+export const Instanced = shader({
   attributes: { aPosition: 'vec3', aColor: 'vec3' },
   instanceAttributes: { iOffset: 'vec3', iAxis: 'vec3', iSpeed: 'float' },
   uniforms: { uViewProj: 'mat4', uTime: 'float' },

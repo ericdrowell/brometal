@@ -6,7 +6,7 @@ function scene(q: Vec3, time: number): number {
   return sdTorus3(vec3(q.x, r.x, r.y), vec2(0.5, 0.16));
 }
 
-export default shader({
+export const FnSdTorus3 = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uTime: 'float', uAspect: 'float' },
   varyings: { vUv: 'vec2' },

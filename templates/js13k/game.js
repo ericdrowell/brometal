@@ -40,8 +40,8 @@ bmInit(cv, [0.04, 0.04, 0.09, 1]).then(() => {
   }
   const tex = bmTexture(c2, 0);
 
-  const p = bmProgram(BM_CUBE[0], {
-    a: BM_CUBE[1], i: BM_CUBE[2], u: BM_CUBE[3], t: BM_CUBE[4], cull: 1,
+  const p = bmProgram(Cube[0], {
+    a: Cube[1], i: Cube[2], u: Cube[3], t: Cube[4], cull: 1,
   });
   bmAttr(p, 0, new Float32Array(pos));
   bmAttr(p, 1, new Float32Array(nrm));
@@ -55,8 +55,8 @@ bmInit(cv, [0.04, 0.04, 0.09, 1]).then(() => {
     const proj = bmPersp(1, cv.width / cv.height, 0.1, 100);
 
     // The uniform block is a flat Float32Array. Offsets are in the comment
-    // above BM_CUBE in js13k/shaders.js.
-    const u = new Float32Array(BM_CUBE[3] / 4);
+    // above Cube in dist/shaders.js.
+    const u = new Float32Array(Cube[3] / 4);
     u.set(bmMul(proj, bmMul(view, model)), 0);   // uMvp
     u.set(model, 16);                             // uModel
     u.set([0.5, 0.8, 0.6], 32);                   // uLight

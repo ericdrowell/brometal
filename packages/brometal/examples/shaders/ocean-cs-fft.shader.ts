@@ -30,7 +30,7 @@ function bitReverse(index: number): number {
   return reversed;
 }
 
-export default shader({
+export const OceanCsFft = shader({
   uniforms: { uStage: 'float', uVertical: 'float', uCount: 'float' },
   storage: { uSource: 'vec4', uTarget: 'vec4' },
   workgroupSize: [64, 1, 1],

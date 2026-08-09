@@ -9,7 +9,7 @@ import {
   buildJs13kRuntime,
   buildJs13kShader,
   buildJs13kShaderFile,
-  js13kNameFromFile,
+  js13kNameError,
 } from '../js13k/emit.js';
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git']);
@@ -31,6 +31,10 @@ app imports and passes to createProgram().
 game and minify the whole program together, so your minifier can mangle across
 the boundary. A pre-minified bundle cannot be, and pins the API names at full
 length.
+
+--js13k shaders must name themselves: "export const Cube = shader({...})" emits
+the global "Cube", which is what your game refers to. Nothing is derived from
+the file name, so "export default" is an error.
 `;
 
 export function isShaderFile(filePath: string): boolean {
@@ -68,7 +72,7 @@ export function compileFile(filePath: string, options: FileCompileOptions): void
   for (const warning of compiled.warnings) {
     log(`⚠ ${warning}`);
   }
-  const generated = buildGeneratedModule(shaderNameFromFile(filePath), compiled);
+  const generated = buildGeneratedModule(compiled.exportName ?? shaderNameFromFile(filePath), compiled);
   writeFileSync(genPathFor(filePath), generated);
 }
 
@@ -218,11 +222,30 @@ export function emitJs13k(root: string, options: FileCompileOptions): number {
 
   const shaders = [];
   const failed: string[] = [];
+  const claimedBy = new Map<string, string>();
   for (const filePath of files) {
     try {
       const compiled = compileShaderSource(filePath, readFileSync(filePath, 'utf8'), options);
-      shaders.push(buildJs13kShader(js13kNameFromFile(filePath), compiled));
-      log(`✓ ${relative(root, filePath)} → ${js13kNameFromFile(filePath)}`);
+      const name = compiled.exportName;
+      if (name === undefined) {
+        failed.push(filePath);
+        log(`✗ ${js13kNameError(relative(root, filePath))}`);
+        continue;
+      }
+      // Every shader lands in one concatenated file, so a repeated name is not a
+      // conflict the loader reports — the second const silently wins and the
+      // first shader draws with the wrong pipeline.
+      const owner = claimedBy.get(name);
+      if (owner !== undefined) {
+        failed.push(filePath);
+        log(
+          `✗ ${relative(root, filePath)} and ${relative(root, owner)} both export '${name}' — every shader shares one scope, so rename one`,
+        );
+        continue;
+      }
+      claimedBy.set(name, filePath);
+      shaders.push(buildJs13kShader(name, compiled));
+      log(`✓ ${relative(root, filePath)} → ${name}`);
     } catch (error) {
       failed.push(filePath);
       reportError(error);
@@ -232,7 +255,10 @@ export function emitJs13k(root: string, options: FileCompileOptions): number {
     return 1;
   }
 
-  const outDir = path.join(root, 'js13k');
+  // Into the build directory, not a folder of its own. This is generated output
+  // that a build wipes and rewrites, and it has no business sitting beside the
+  // source it was generated from.
+  const outDir = path.join(root, 'dist');
   mkdirSync(outDir, { recursive: true });
 
   const parts = js13kRuntimeParts();
@@ -241,12 +267,44 @@ export function emitJs13k(root: string, options: FileCompileOptions): number {
     log(`✗ core runtime missing at ${missing.join(', ')} — run \`npm run build\``);
     return 1;
   }
-  const runtime = buildJs13kRuntime(parts.map((part) => readFileSync(part, 'utf8')));
-  writeFileSync(path.join(outDir, 'brometal.js'), runtime);
-  writeFileSync(path.join(outDir, 'shaders.js'), buildJs13kShaderFile(shaders));
 
-  const combined = Buffer.byteLength(runtime) + Buffer.byteLength(buildJs13kShaderFile(shaders));
-  log(`✓ js13k bundle → ${relative(root, outDir)} (${shaders.length} shaders, ${combined} bytes of source)`);
-  log(`  concatenate brometal.js + shaders.js + your game, then minify together`);
+  // Both files, from one command. The descriptors below are positional and the
+  // runtime indexes them by number, so a runtime fetched separately could be a
+  // version out and build the wrong pipeline without erroring. Emitting the
+  // pair together is what makes that impossible rather than merely unlikely.
+  const version = packageVersion();
+  const runtime = buildJs13kRuntime(
+    parts.map((part) => readFileSync(part, 'utf8')),
+    version,
+  );
+  const file = buildJs13kShaderFile(shaders, version);
+  writeFileSync(path.join(outDir, 'brometal.js'), runtime);
+  writeFileSync(path.join(outDir, 'shaders.js'), file);
+
+  const bytes = Buffer.byteLength(runtime) + Buffer.byteLength(file);
+  log(
+    `✓ ${relative(root, outDir)}/brometal.js + shaders.js (${shaders.length} shader${shaders.length === 1 ? '' : 's'}, ${bytes} bytes of source)`,
+  );
+  log(`  concatenate both with your game, then minify together`);
   return 0;
+}
+
+/**
+ * The version stamped into the emitted file.
+ *
+ * The runtime is vendored by hand and the descriptors are positional, so the
+ * two can fall out of step without anything failing loudly — an old
+ * `brometal.js` reading a new array just builds the wrong pipeline. Recording
+ * which compiler wrote the file is what makes that diagnosable.
+ */
+function packageVersion(): string {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(path.join(here, '..', '..', 'package.json'), 'utf8')) as {
+      version?: string;
+    };
+    return pkg.version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
 }

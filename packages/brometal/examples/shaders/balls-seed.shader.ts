@@ -7,7 +7,7 @@ import { hash11 } from 'brometal/shader-functions';
  * jittered by less than the leftover gap, which guarantees no pair starts
  * overlapping — the simulation only has to *keep* them apart from there.
  */
-export default shader({
+export const BallsSeed = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   uniforms: { uCount: 'float', uBounds: 'vec3', uRadius: 'float', uSpread: 'float' },
   varyings: { vUv: 'vec2' },

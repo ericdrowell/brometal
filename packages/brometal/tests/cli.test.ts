@@ -70,6 +70,50 @@ describe('brometal CLI compilation', () => {
 
 });
 
+describe('--js13k naming', () => {
+  const named = (name: string): string =>
+    CUBE_SHADER.replace('export default shader({', `export const ${name} = shader({`);
+
+  const run = async (): Promise<{ code: number; output: string }> => {
+    const quiet = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const code = await runCli(['prod', '--js13k', root]);
+      return { code, output: quiet.mock.calls.flat().join('\n') };
+    } finally {
+      quiet.mockRestore();
+    }
+  };
+
+  it('takes the name from the export, not the file', async () => {
+    writeFileSync(path.join(root, 'anything.shader.ts'), named('Cube'));
+
+    // Reported before the emit step, which needs a built dist this test does
+    // not have. `check-template.mjs` covers the written file on a real GPU.
+    const { output } = await run();
+    expect(output).toContain('anything.shader.ts → Cube');
+  });
+
+  it('refuses to guess a name for a default export', async () => {
+    writeFileSync(path.join(root, 'cube.shader.ts'), CUBE_SHADER);
+
+    const { code, output } = await run();
+    expect(code).toBe(1);
+    expect(output).toContain('export const Cube = shader({...})');
+    // Nothing written: a half-built shaders.js would concatenate into the game
+    // and fail as a blank canvas rather than as this message.
+    expect(() => readFileSync(path.join(root, 'dist/shaders.js'), 'utf8')).toThrow();
+  });
+
+  it('rejects two shaders claiming the same name', async () => {
+    writeFileSync(path.join(root, 'a.shader.ts'), named('Cube'));
+    writeFileSync(path.join(root, 'b.shader.ts'), named('Cube'));
+
+    const { code, output } = await run();
+    expect(code).toBe(1);
+    expect(output).toContain("both export 'Cube'");
+  });
+});
+
 describe('flag handling', () => {
   it('rejects an unknown flag instead of running anyway', async () => {
     // This used to fall through to an ordinary build and exit 0, which is how

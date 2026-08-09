@@ -21,7 +21,7 @@ import { sdBox2, strokeAA } from 'brometal/shader-functions';
  * follows the ship now, so the two are not the same point and assuming they were
  * put the bracket off the line of fire.
  */
-export default shader({
+export const GameReticle = shader({
   attributes: { aPosition: 'vec3', aUv: 'vec2' },
   /** All static. `iAlong` is the fraction of the way out to the cursor. */
   instanceAttributes: { iAlong: 'float', iSize: 'float', iAlpha: 'float' },
