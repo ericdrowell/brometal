@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { EXAMPLE_SECTIONS } from '@/lib/examples';
 import { SITE_URL, allExamples, canonical, jsonLd, pageMetadata } from '@/lib/seo';
+import SiteFooter from '@/components/SiteFooter';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Examples',
@@ -57,6 +58,7 @@ export default function ExamplesPage() {
           </ul>
         </section>
       ))}
+      <SiteFooter />
     </main>
   );
 }

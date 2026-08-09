@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { pageMetadata } from '@/lib/seo';
 import { readJs13kSource } from '@/lib/js13k';
 import CopyBlock from '@/components/CopyBlock';
 import CodeBlock from '@/components/CodeBlock';
+import SiteFooter from '@/components/SiteFooter';
 
 export const metadata: Metadata = pageMetadata({
   title: 'BroMetal for js13k',
@@ -221,13 +221,7 @@ terser out.js --compress --mangle --toplevel -o game.min.js
         the real browser, which frequently lacks it.
       </p>
 
-      <p className="js13k-footer">
-        <Link href="/examples">Examples</Link>
-        <span aria-hidden="true"> · </span>
-        <Link href="/changelog">Changelog</Link>
-        <span aria-hidden="true"> · </span>
-        <a href="https://www.npmjs.com/package/brometal">npm</a>
-      </p>
+      <SiteFooter />
     </main>
   );
 }

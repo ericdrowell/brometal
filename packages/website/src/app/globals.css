@@ -2,6 +2,19 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* Code blocks on the js13k page. A light surface on a near-black page reads
+     as emitting light, so the halo is the accent violet rather than a grey
+     drop: rim, near glow, wide bloom, then one dark shadow underneath to keep
+     the block sitting on the page instead of floating off it. */
+  --code-glow:
+    0 0 0 1px rgba(124, 108, 255, 0.38),
+    0 0 16px rgba(124, 108, 255, 0.42),
+    0 0 44px rgba(124, 108, 255, 0.28),
+    0 0 110px rgba(124, 108, 255, 0.14),
+    0 14px 38px rgba(0, 0, 0, 0.55);
+}
+
 html,
 body {
   margin: 0;
@@ -249,7 +262,7 @@ a:hover {
   color: #c8cfe4;
 }
 
-.home-footer {
+.site-footer {
   margin: 56px 0 0;
   padding-top: 24px;
   border-top: 1px solid #232538;
@@ -258,7 +271,7 @@ a:hover {
   font-size: 14px;
 }
 
-.home-footer a {
+.site-footer a {
   color: #8b9cff;
 }
 
@@ -717,11 +730,7 @@ a:hover {
   border-radius: 10px;
   overflow: hidden;
   background: #fbfcfe;
-  /* Lifts the block off the page: a soft drop below, plus a one-pixel highlight
-     along the top edge so it reads as raised rather than just darker. */
-  box-shadow:
-    0 12px 34px rgba(0, 0, 0, 0.55),
-    0 3px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--code-glow);
 }
 
 .copy-block-bar {
@@ -794,9 +803,7 @@ a:hover {
   border: 1px solid #cbd5e8;
   border-radius: 10px;
   margin: 18px 0 26px;
-  box-shadow:
-    0 12px 34px rgba(0, 0, 0, 0.55),
-    0 3px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--code-glow);
 }
 
 .js13k-numbers {
@@ -818,9 +825,3 @@ a:hover {
   white-space: nowrap;
 }
 
-.js13k-footer {
-  margin-top: 40px;
-  padding-top: 20px;
-  border-top: 1px solid #1e1e30;
-  color: #6f7794;
-}

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import Link from 'next/link';
 import localFont from 'next/font/local';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL, jsonLd } from '@/lib/seo';
+import SiteFooter from '@/components/SiteFooter';
 
 const delogs = localFont({ src: '../../public/fonts/Delogs Goes Hi-Tech.otf' });
 
@@ -121,19 +121,7 @@ export default function HomePage() {
           ))}
         </dl>
       </section>
-      <footer className="home-footer">
-        <Link href="/changelog">Changelog</Link>
-        <span aria-hidden="true"> · </span>
-        <Link href="/examples">Examples</Link>
-        <span aria-hidden="true"> · </span>
-        <Link href="/js13k">js13k</Link>
-        <span aria-hidden="true"> · </span>
-        <a href="https://github.com/ericdrowell/brometal">GitHub</a>
-        <span aria-hidden="true"> · </span>
-        <a href="https://www.npmjs.com/package/brometal">npm</a>
-        <span aria-hidden="true"> · </span>
-        <a href="https://discord.gg/fNbTnAQqyg">Discord</a>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }
