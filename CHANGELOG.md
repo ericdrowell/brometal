@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.16.0 (2026-08-09)
+
 ### Added
 - **`--js13k`: a build for 13-kilobyte games.** `brometal prod --js13k` emits
   `js13k/brometal.js` — a WebGPU runtime as plain global functions, no modules or
