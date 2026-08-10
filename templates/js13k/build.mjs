@@ -49,7 +49,7 @@ for (const required of ['dist/brometal.js', 'dist/shaders.js']) {
     process.exit(1);
   }
 }
-const combined = ['dist/brometal.js', 'dist/shaders.js', 'game.js']
+const combined = ['dist/brometal.js', 'dist/shaders.js', 'src/game.js']
   .map((f) => readFileSync(join(root, f), 'utf8'))
   .join('\n');
 const rawPath = join(dist, 'raw.js');
@@ -71,7 +71,7 @@ run('npx', [
 // directory record — so two files cost more than the same bytes in one. It also
 // makes the result openable straight from disk, since file:// is a secure
 // context and WebGPU works there.
-const page = readFileSync(join(root, 'index.html'), 'utf8').replace(
+const page = readFileSync(join(root, 'src', 'index.html'), 'utf8').replace(
   /<script src=g\.js><\/script>/,
   // Escaping the closing tag guards the case where minified code contains it
   // inside a string, which would end the block early and truncate the game.

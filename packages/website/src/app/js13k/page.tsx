@@ -2,18 +2,17 @@ import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/seo';
 import { readJs13kSource } from '@/lib/js13k';
 import CopyBlock from '@/components/CopyBlock';
-import CodeBlock from '@/components/CodeBlock';
 import SiteFooter from '@/components/SiteFooter';
 
 export const metadata: Metadata = pageMetadata({
   title: 'BroMetal for js13k',
   description:
-    'A 2 kB WebGPU runtime for 13-kilobyte games. Shaders are written in typed TypeScript and compiled to WGSL on your machine, so the compiler never counts against the budget. Copy the runtime and start.',
+    'A 2 kB WebGPU runtime for 13-kilobyte games. Shaders are written in typed TypeScript and compiled to WGSL on your machine, so the compiler never counts against the budget. One command emits the runtime and your compiled shaders together.',
   path: '/js13k',
 });
 
 export default function Js13kPage() {
-  const { runtime, game, shader, indexHtml } = readJs13kSource();
+  const { runtime, game, shader, indexHtml, packageJson, build } = readJs13kSource();
 
   return (
     <main className="page prose">
@@ -73,6 +72,27 @@ export default function Js13kPage() {
         2D textures from a canvas, instancing, alpha blending with depth writes
         off, depth testing, back-face culling, a matrix stack and mat4 helpers.
       </p>
+      <p>
+        <strong>What it does not have is everything else.</strong> No audio, no
+        input handling, no collision or physics, no text and no font rendering,
+        no model loading, no scene graph, no asset pipeline. BroMetal draws
+        triangles and does the matrix maths; a game is what you write in the
+        remaining ten kilobytes. That is the usual shape of a js13k entry — worth
+        knowing before you plan around a library that will hand you more.
+      </p>
+
+      <p className="js13k-template-link">
+        Every file below is taken from a real, working project rather than
+        written for this page.{' '}
+        <a
+          href="https://github.com/ericdrowell/brometal/tree/main/templates/js13k"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Browse the starter on GitHub
+        </a>{' '}
+        to see them in place, with the build script and a README.
+      </p>
 
       <h2>The runtime</h2>
       <p>
@@ -93,12 +113,22 @@ export default function Js13kPage() {
       <p>It is reproduced here so you can read what you are about to ship.</p>
       <CopyBlock label="dist/brometal.js" code={runtime} maxHeight={420} />
 
-      <h2>1. Install BroMetal</h2>
+      <h2>1. Set up the project</h2>
       <p>
-        Both are dev dependencies. The compiler runs on your machine and never
-        ships; terser is what the build in step 4 shells out to.
+        Start with this <code>package.json</code>. Both are dev dependencies —
+        the compiler and the minifier run on your machine and neither ships. The{' '}
+        <code>build</code> script is the one in step 4.
       </p>
-      <CodeBlock code={`npm install --save-dev brometal terser`} />
+      <CopyBlock label="package.json" code={packageJson} maxHeight={260} />
+      <p>Then install:</p>
+      <CopyBlock label="Terminal" code={`npm install`} />
+      <p>
+        Write the <code>package.json</code> first rather than reaching for{' '}
+        <code>npm install --save-dev</code> in an empty folder. With no{' '}
+        <code>package.json</code> present, npm walks <em>up</em> the directory
+        tree and installs into the first project it finds — which may be nowhere
+        near your game, and leaves nothing recording what you depend on.
+      </p>
 
       <h2>2. Set up shaders</h2>
       <p>
@@ -107,7 +137,7 @@ export default function Js13kPage() {
       </p>
       <CopyBlock label="src/cube.shader.ts" code={shader} maxHeight={340} />
       <p>Then compile the shaders:</p>
-      <CodeBlock code={`npx brometal prod --js13k`} />
+      <CopyBlock label="Terminal" code={`npx brometal prod --js13k`} />
       <p>
         That writes both files you need into <code>dist/</code>: the runtime
         above, and <code>shaders.js</code>, where the shader appears under the
@@ -119,33 +149,60 @@ export default function Js13kPage() {
         scope.
       </p>
 
-      <h2>3. Set up your game</h2>
+      <h2>3. Set up game</h2>
       <p>
         Everything is a global, so the whole program minifies as one unit. This
         one draws a spinning textured cube with the <code>Cube</code> shader from
         the previous step.
       </p>
-      <CopyBlock label="game.js" code={game} maxHeight={420} />
+      <CopyBlock label="src/game.js" code={game} maxHeight={420} />
+      <p>
+        Every function it calls is one of about twenty —{' '}
+        <code>bmProgram</code>, <code>bmAttr</code>, <code>bmDraw</code>,{' '}
+        <code>bmLoop</code>, and the mat4 helpers. They fit on one screen:{' '}
+        <a
+          href="https://github.com/ericdrowell/brometal/tree/main/templates/js13k#api"
+          target="_blank"
+          rel="noreferrer"
+        >
+          the whole API reference
+        </a>
+        . Uniforms are a flat <code>Float32Array</code>, since names would cost
+        bytes; the float offset of each one is written as a comment above its
+        shader in <code>dist/shaders.js</code>.
+      </p>
       <p>
         And the page it draws into. The <code>&lt;script src=g.js&gt;</code> at
         the end is a placeholder — nothing ever builds a <code>g.js</code>. Step
         4 replaces that whole tag with the minified program inlined between{' '}
         <code>&lt;script&gt;</code> tags, so what you zip is this one file.
       </p>
-      <CopyBlock label="index.html" code={indexHtml} maxHeight={200} />
+      <CopyBlock label="src/index.html" code={indexHtml} maxHeight={200} />
 
-      <h2>4. Build the dist</h2>
-      <CodeBlock code={`cat dist/brometal.js dist/shaders.js game.js > out.js
-terser out.js --compress --mangle --toplevel -o game.min.js
-# replace <script src=g.js> in index.html with game.min.js inlined,
-# then zip that one file`} />
+      <h2>4. Build</h2>
+      <p>
+        Save this as <code>build.mjs</code>. It compiles your shaders,
+        concatenates runtime + shaders + game, minifies the whole program in one
+        pass, inlines the result into a copy of the page, zips it, and{' '}
+        <strong>refuses to finish if the archive goes over 13,312 bytes</strong>,
+        printing what you have left when it passes. Plain Node, so it behaves the
+        same on Windows.
+      </p>
+      <CopyBlock label="build.mjs" code={build} maxHeight={420} />
+      <CopyBlock label="Terminal" code={`npm run build`} />
       <p>
         <code>--toplevel</code> is what pays: it renames the runtime&rsquo;s
         functions and drops every one you never call. Inlining into the page
         saves another ~150 bytes, since a zip charges per file — which is why
-        that one <code>index.html</code> is the whole deliverable. It opens
+        that one <code>dist/index.html</code> is the whole deliverable. It opens
         straight from disk, since <code>file://</code> is a secure context and
         WebGPU works there.
+      </p>
+      <p>
+        The zip step shells out to the <code>zip</code> binary. Without one, the
+        build still completes and still enforces the budget, measuring the
+        un-zipped page instead — a number always larger than the archive, so it
+        errs toward telling you that you are over.
       </p>
 
       <h2>Built for coding agents</h2>

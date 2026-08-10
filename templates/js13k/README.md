@@ -28,11 +28,15 @@ The build prints your budget and **fails if the zip exceeds 13,312 bytes**:
 | | |
 |---|---|
 | `src/*.shader.ts` | shaders, in BroMetal's typed DSL |
-| `game.js` | your game — plain globals, no imports |
-| `index.html` | the page shell; the build inlines the script into a copy |
-| `js13k/` | generated: runtime + compiled shaders (gitignored) |
+| `src/game.js` | your game — plain globals, no imports |
+| `src/index.html` | the page shell; the build inlines the script into a copy |
+| `dist/brometal.js` | generated: the runtime |
+| `dist/shaders.js` | generated: your compiled shaders |
 | `dist/index.html` | **the whole game in one file** — open this |
 | `dist/game.zip` | what you submit |
+
+Everything you write lives in `src/`; everything in `dist/` is generated and
+gitignored, so it is always safe to delete.
 
 ## How the build works
 
@@ -40,7 +44,8 @@ The build prints your budget and **fails if the zip exceeds 13,312 bytes**:
    writes the runtime to `dist/brometal.js` from the same version.
 2. Runtime + shaders + your game are concatenated into one program.
 3. `terser --toplevel --mangle` minifies all of it in a single pass.
-4. The result is inlined into `index.html` and zipped.
+4. The result is inlined into a copy of `src/index.html`, written to
+   `dist/index.html`, and zipped.
 
 Step 3 is why the runtime ships as readable source: minified jointly, the mangler
 renames its API and deletes every function you never call. A prebuilt bundle

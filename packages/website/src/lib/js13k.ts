@@ -50,6 +50,10 @@ export interface Js13kSource {
   shader: string;
   /** The page the game draws into. */
   indexHtml: string;
+  /** Declares the two dev dependencies and the `build` script. */
+  packageJson: string;
+  /** The build: compile, concatenate, minify, inline, zip, and gate on size. */
+  build: string;
   /** Minified + gzipped size of the runtime, in bytes. */
   runtimeGzip: number;
 }
@@ -72,9 +76,11 @@ export function readJs13kSource(): Js13kSource {
   const template = join(repoRoot(), 'templates', 'js13k');
   return {
     runtime,
-    game: readFileSync(join(template, 'game.js'), 'utf8'),
+    game: readFileSync(join(template, 'src', 'game.js'), 'utf8'),
     shader: readFileSync(join(template, 'src', 'cube.shader.ts'), 'utf8'),
-    indexHtml: readFileSync(join(template, 'index.html'), 'utf8'),
+    indexHtml: readFileSync(join(template, 'src', 'index.html'), 'utf8'),
+    packageJson: readFileSync(join(template, 'package.json'), 'utf8'),
+    build: readFileSync(join(template, 'build.mjs'), 'utf8'),
     // Reported unminified here — the page states the measured figure from the
     // build gate rather than approximating it from raw source.
     runtimeGzip: gzipSync(Buffer.from(runtime), { level: 9 }).length,

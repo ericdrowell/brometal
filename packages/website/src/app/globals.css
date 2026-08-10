@@ -3,16 +3,15 @@
 }
 
 :root {
-  /* Code blocks on the js13k page. A light surface on a near-black page reads
-     as emitting light, so the halo is the accent violet rather than a grey
-     drop: rim, near glow, wide bloom, then one dark shadow underneath to keep
-     the block sitting on the page instead of floating off it. */
-  --code-glow:
-    0 0 0 1px rgba(124, 108, 255, 0.38),
-    0 0 16px rgba(124, 108, 255, 0.42),
-    0 0 44px rgba(124, 108, 255, 0.28),
-    0 0 110px rgba(124, 108, 255, 0.14),
-    0 14px 38px rgba(0, 0, 0, 0.55);
+  /* Code blocks on the js13k page: a soft drop below and a tighter one close in,
+     so a block reads as lifted off the page rather than just a lighter patch of
+     it. Shared by the wrapped blocks and the bare ones. */
+  --code-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.55),
+    0 3px 10px rgba(0, 0, 0, 0.45);
+  /* Tinted rather than white, and kept lighter than the #e8eef8 label bar so the
+     bar still reads as sitting on top of the code rather than beside it. */
+  --code-surface: #f1f5fc;
 }
 
 html,
@@ -729,8 +728,8 @@ a:hover {
   border: 1px solid #cbd5e8;
   border-radius: 10px;
   overflow: hidden;
-  background: #fbfcfe;
-  box-shadow: var(--code-glow);
+  background: var(--code-surface);
+  box-shadow: var(--code-shadow);
 }
 
 .copy-block-bar {
@@ -789,21 +788,25 @@ a:hover {
   margin: 0;
   padding: 12px;
   overflow: auto;
-  background: #fbfcfe;
+  background: var(--code-surface);
   font-size: 12.5px;
   line-height: 1.55;
   color: #1b2030;
   white-space: pre;
 }
 
-/* Standalone blocks — the shell commands and the API list — are direct children
-   of the page rather than wrapped in a .copy-block, so they need their own
-   frame. The wrapped ones already have one and would double it up. */
-.prose > .copy-block-code {
-  border: 1px solid #cbd5e8;
-  border-radius: 10px;
-  margin: 18px 0 26px;
-  box-shadow: var(--code-glow);
+/* A callout rather than a sentence in the prose: it is the one link that makes
+   the snippets below verifiable, and inline it reads as an aside. */
+.js13k-template-link {
+  margin: 32px 0 0;
+  padding: 14px 18px;
+  border: 1px solid #2b2b40;
+  border-left: 3px solid #7c6cff;
+  border-radius: 8px;
+  background: #14141f;
+  color: #a6adc4;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .js13k-numbers {
