@@ -59,7 +59,7 @@ imported `from 'brometal'` is the real API.
 - **Ripples** (`ripples`) — Elastic ripples rolling across a surface — easing functions driving per-vertex animation on the GPU.
 - **Night Ocean** (`night-ocean`) — A moonlit ocean — Gerstner waves in the vertex shader, fbm micro-ripples, fresnel, and a specular glint per pixel.
 - **Day Ocean** (`day-ocean`) — Shallow tropical water in daylight — eight Gerstner waves with an exact analytic normal, a refracted seabed with per-channel absorption, caustics, and foam that keys off steepness rather than height.
-- **Brocraft** (`brocraft`) — A blocky voxel world you can fly through — the terrain, every block material, and all the culling are computed in the vertex shader.
 - **Ball Physics** (`ball-physics`) — Balls colliding in a glass tank, simulated entirely on the GPU — state lives in a float render target and never touches the CPU.
+- **Brocraft** (`brocraft`) — A blocky voxel world you can fly through — the terrain, every block material, and all the culling are computed in the vertex shader.
 - **Star Bro** (`star-bro`) — A playable flight experience — fly the Spitfire through an instanced asteroid field with an additive engine trail and a follow camera.
 - **Legend of Bro** (`legend-of-bro`) — A top-down overworld you can walk around — a tilemap and every animated sprite drawn from one atlas in two instanced draw calls.

@@ -432,6 +432,11 @@ export default function StarBroDemo() {
       let vx = 0;
       let vy = 0;
       let lastT = 0;
+      // World time, which only advances while the pointer is locked. The
+      // scroll, the plumes and the laser ages are all driven from this rather
+      // than the frame clock, so releasing the mouse stops the corridor dead
+      // instead of leaving it flying past an unresponsive ship.
+      let clock = 0;
       const model = mat4.scratch();
       const yawM = mat4.scratch();
       const pitchM = mat4.scratch();
@@ -486,7 +491,7 @@ export default function StarBroDemo() {
           laserDirs[i * 3] = tx / tl;
           laserDirs[i * 3 + 1] = ty / tl;
           laserDirs[i * 3 + 2] = tz / tl;
-          laserBirths[i] = lastT;
+          laserBirths[i] = clock;
         }
         laserProgram.instanceAttributes.iStart.set(laserStarts);
         laserProgram.instanceAttributes.iDir.set(laserDirs);
@@ -498,8 +503,9 @@ export default function StarBroDemo() {
       const stop = renderer.loop((t) => {
         tick(t);
 
-        const dt = Math.min(t - lastT, 0.05);
+        const dt = playing ? Math.min(t - lastT, 0.05) : 0;
         lastT = t;
+        clock += dt;
 
         // The reachable area is whatever is on screen at the ship's depth, so
         // the ship can fly to any corner instead of being boxed into a fixed
@@ -542,7 +548,7 @@ export default function StarBroDemo() {
         // flame and the light it casts cannot disagree. Two sine terms at
         // unrelated rates read as combustion rather than a pulse.
         const pulse =
-          0.82 + Math.sin(t * 37.1) * 0.07 + Math.sin(t * 13.3) * 0.11;
+          0.82 + Math.sin(clock * 37.1) * 0.07 + Math.sin(clock * 13.3) * 0.11;
 
         // The nozzle in world space, for the ship's point light: column-major,
         // so the basis vectors are columns 0-2 and the translation is column 3.
@@ -560,13 +566,13 @@ export default function StarBroDemo() {
         dotsProgram.draw();
 
         starsProgram.uniforms.uViewProj.set(viewProj);
-        starsProgram.uniforms.uScroll.set(t * 46);
+        starsProgram.uniforms.uScroll.set(clock * 46);
         starsProgram.draw();
 
         // Advance each bolt's light along its own flight path. Slots holding a
         // spent shot fall to zero brightness and stop lighting anything.
         for (let i = 0; i < LASERS; i++) {
-          const age = t - laserBirths[i]!;
+          const age = clock - laserBirths[i]!;
           const alive =
             Math.max(0, Math.min(1, age * 60)) *
             Math.max(0, Math.min(1, (BOLT_LIFE - age) * 4));
@@ -579,8 +585,8 @@ export default function StarBroDemo() {
         boltBuffer.write(boltLights);
 
         rocksProgram.uniforms.uViewProj.set(viewProj);
-        rocksProgram.uniforms.uScroll.set(t * 9);
-        rocksProgram.uniforms.uTime.set(t);
+        rocksProgram.uniforms.uScroll.set(clock * 9);
+        rocksProgram.uniforms.uTime.set(clock);
         rocksProgram.draw();
 
         shipProgram.uniforms.uViewProj.set(viewProj);
@@ -590,12 +596,12 @@ export default function StarBroDemo() {
         plumeProgram.uniforms.uViewProj.set(viewProj);
         plumeProgram.uniforms.uModel.set(model);
         plumeProgram.uniforms.uViewPos.set([shipX * 0.7, shipY * 0.7 + 0.9, 5.5]);
-        plumeProgram.uniforms.uTime.set(t);
+        plumeProgram.uniforms.uTime.set(clock);
         plumeProgram.uniforms.uPulse.set(pulse);
         plumeProgram.draw();
 
         laserProgram.uniforms.uViewProj.set(viewProj);
-        laserProgram.uniforms.uTime.set(t);
+        laserProgram.uniforms.uTime.set(clock);
         laserProgram.draw();
 
         // Project the ship into the same coordinates the cursor lives in, so
@@ -643,12 +649,21 @@ export default function StarBroDemo() {
   return (
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
-      {!started ? (
-        <div className="play-prompt">
-          <strong>Click to play</strong>
-          <span>Move the mouse to fly · click to fire · Esc release</span>
+      <div className="panels">
+        <div className="panel">
+          <h1>Star Bro</h1>
+          <p className="panel-note">
+            An instanced asteroid field with shader-drawn lasers and a follow
+            camera. Every rock is one draw call; the bolts light the rocks they
+            pass through from a storage buffer.
+          </p>
+          <h2>Controls</h2>
+          <p className="panel-note">
+            Click the scene to play · move the mouse to fly · click to fire · Esc
+            to pause.
+          </p>
         </div>
-      ) : null}
+      </div>
       <DemoStats stats={stats}>
         Instanced asteroids, shader lasers, follow camera
       </DemoStats>

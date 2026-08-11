@@ -9,25 +9,30 @@ import { shader, vec4, texture } from 'brometal';
  * of the example: a 2D game's renderer is not a pile of special cases, it is one
  * quad submitted a few thousand times.
  *
- * Positions are in **tiles**, not pixels, with +y pointing down the screen the
- * way a tilemap is authored. The orthographic matrix on the CPU side does the
- * flip, so nothing here has to think about it.
+ * Positions are in **art pixels**, with +y pointing down the screen the way a
+ * tilemap is authored. The orthographic matrix on the CPU side does the flip,
+ * so nothing here has to think about it.
  *
- * `iSize` does double duty: a sprite two tiles wide covers two tiles of world
- * and two cells of atlas. They are the same number because a cell is a tile, and
- * keeping it one attribute means a 2×2 tree cannot accidentally be authored as
- * a 2×2 quad showing a 1×1 crop.
+ * Pixels rather than tiles because the scene renders into a target sized in art
+ * pixels, one texel per pixel, which is what makes the result pixel-perfect. The
+ * CPU rounds every position to a whole pixel before it gets here; a sprite at
+ * x = 40.3 would land between texels and shimmer as it moved.
+ *
+ * `iSize` stays in **cells**, since it also picks how much of the atlas to read:
+ * a 2×2 tree is two cells wide there and thirty-two pixels wide in the world.
+ * One attribute for both means a 2×2 quad cannot accidentally be authored
+ * showing a 1×1 crop.
  */
 export const LegendOfBro = shader({
   attributes: { aCorner: 'vec2' },
   instanceAttributes: { iPos: 'vec2', iCell: 'vec2', iSize: 'vec2' },
-  uniforms: { uViewProj: 'mat4', uCell: 'vec2', uAtlas: 'sampler2D' },
+  uniforms: { uViewProj: 'mat4', uCell: 'vec2', uTile: 'float', uAtlas: 'sampler2D' },
   varyings: { vUv: 'vec2' },
 
-  vertex({ aCorner, iPos, iCell, iSize }, { uViewProj, uCell }, v) {
+  vertex({ aCorner, iPos, iCell, iSize }, { uViewProj, uCell, uTile }, v) {
     const span = aCorner.mul(iSize);
     v.vUv = iCell.add(span).mul(uCell);
-    const world = iPos.add(span);
+    const world = iPos.add(span.scale(uTile));
     return uViewProj.mul(vec4(world.x, world.y, 0, 1));
   },
 

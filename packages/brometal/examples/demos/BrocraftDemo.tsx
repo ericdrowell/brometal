@@ -245,8 +245,13 @@ export default function BrocraftDemo() {
         pitch = Math.max(-1.55, Math.min(1.55, pitch));
       };
       const onClick = (): void => void canvas.requestPointerLock();
+      // Tracked in the closure as well as in React state. The loop is created
+      // once, so the `locked` from useState it captured would stay false for
+      // ever; the state drives the crosshair, this drives the clock.
+      let playing = false;
       const onLockChange = (): void => {
         const isLocked = document.pointerLockElement === canvas;
+        playing = isLocked;
         setLocked(isLocked);
         if (!isLocked) keys.clear();
       };
@@ -257,14 +262,22 @@ export default function BrocraftDemo() {
       document.addEventListener("pointerlockchange", onLockChange);
 
       let last = 0;
+      // World time, advancing only while the pointer is locked. The sky and
+      // the water are animated from it rather than the frame clock, so
+      // releasing the mouse actually stops the world instead of leaving the
+      // sun tracking and the sea rolling under a frozen camera.
+      let clock = 0;
       // The position readout is React state, so it is throttled rather than set
       // every frame — the numbers are unreadable faster than this anyway.
       let hudClock = 0;
 
       const stop = renderer.loop((t) => {
         tick(t);
-        const dt = Math.min(t - last, 0.05);
+        // Zero while released: movement, the sky and the water all integrate
+        // from this, so one gate freezes the lot.
+        const dt = playing ? Math.min(t - last, 0.05) : 0;
         last = t;
+        clock += dt;
         if (rebuiltAt !== rebuildRef.current) {
           rebuiltAt = rebuildRef.current;
           rebuild();
@@ -354,7 +367,7 @@ export default function BrocraftDemo() {
         sky.uniforms.uHorizon.set(sky3.horizon);
         sky.uniforms.uZenith.set(sky3.zenith);
         sky.uniforms.uSunColor.set(sky3.sun);
-        sky.uniforms.uTime.set(t);
+        sky.uniforms.uTime.set(clock);
         sky.uniforms.uTanFov.set(Math.tan(FOV / 2));
         sky.uniforms.uAspect.set(renderer.aspect);
         sky.draw();
@@ -368,7 +381,7 @@ export default function BrocraftDemo() {
         water.uniforms.uZenith.set(sky3.zenith);
         water.uniforms.uFogStart.set(fogStart);
         water.uniforms.uFogEnd.set(fogEnd);
-        water.uniforms.uTime.set(t);
+        water.uniforms.uTime.set(clock);
         water.draw();
 
         hudClock += dt;
@@ -426,15 +439,6 @@ export default function BrocraftDemo() {
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
       {locked ? <div className="crosshair" /> : null}
-      {!locked ? (
-        <div className="play-prompt">
-          <strong>Click to play</strong>
-          <span>
-            WASD move · mouse look · Space up · C down · Shift sprint · Esc
-            release
-          </span>
-        </div>
-      ) : null}
       <div className="panels">
         <div className="panel">
           <h1>Brocraft</h1>
@@ -442,6 +446,11 @@ export default function BrocraftDemo() {
             Layered grids of instanced cubes. The CPU uploads integer grid
             offsets <em>once</em>; every height, material, and cull decision is
             made in the vertex shader.
+          </p>
+          <h2>Controls</h2>
+          <p className="panel-note">
+            Click the scene to play · WASD to move · mouse to look · Space up · C
+            down · Shift to sprint · Esc to pause.
           </p>
           <h2>View distance</h2>
           <div className="tiles brocraft-tiles">

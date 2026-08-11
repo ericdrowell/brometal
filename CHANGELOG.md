@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.17.2 (2026-08-11)
+
+- No library changes; maintenance release.
+
 ## 0.17.1 (2026-08-10)
 
 - No library changes; maintenance release.
