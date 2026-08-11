@@ -20,7 +20,7 @@ interface RippleParams {
 
 const DEFAULTS: RippleParams = { speed: 0.7, spacing: 3.2, height: 0.55 };
 
-export default function RippleDemo() {
+export default function RipplesDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
   const paramsRef = useRef<RippleParams>({ ...DEFAULTS });

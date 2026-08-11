@@ -117,22 +117,33 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
           'Shallow tropical water in daylight — eight Gerstner waves with an exact analytic normal, a refracted seabed with per-channel absorption, caustics, and foam that keys off steepness rather than height.',
       },
       {
+        slug: 'ball-physics',
+        name: 'Ball Physics',
+        description:
+          'Balls colliding in a glass tank, simulated entirely on the GPU — state lives in a float render target and never touches the CPU.',
+      },
+    ],
+  },
+  {
+    title: 'Games',
+    examples: [
+      {
         slug: 'brocraft',
         name: 'Brocraft',
         description:
           'A blocky voxel world you can fly through — the terrain, every block material, and all the culling are computed in the vertex shader.',
       },
       {
-        slug: 'ball-physics',
-        name: 'Ball Physics',
-        description:
-          'Balls colliding in a glass tank, simulated entirely on the GPU — state lives in a float render target and never touches the CPU.',
-      },
-      {
         slug: 'star-bro',
         name: 'Star Bro',
         description:
           'A playable flight experience — fly the Spitfire through an instanced asteroid field with an additive engine trail and a follow camera.',
+      },
+      {
+        slug: 'legend-of-bro',
+        name: 'Legend of Bro',
+        description:
+          'A top-down overworld you can walk around — a tilemap and every animated sprite drawn from one atlas in two instanced draw calls.',
       },
     ],
   },

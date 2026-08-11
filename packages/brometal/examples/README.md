@@ -62,3 +62,4 @@ imported `from 'brometal'` is the real API.
 - **Brocraft** (`brocraft`) — A blocky voxel world you can fly through — the terrain, every block material, and all the culling are computed in the vertex shader.
 - **Ball Physics** (`ball-physics`) — Balls colliding in a glass tank, simulated entirely on the GPU — state lives in a float render target and never touches the CPU.
 - **Star Bro** (`star-bro`) — A playable flight experience — fly the Spitfire through an instanced asteroid field with an additive engine trail and a follow camera.
+- **Legend of Bro** (`legend-of-bro`) — A top-down overworld you can walk around — a tilemap and every animated sprite drawn from one atlas in two instanced draw calls.

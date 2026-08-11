@@ -369,12 +369,35 @@ a:hover {
   justify-self: end;
 }
 
+/* Styled as a button rather than bare text: it sits over a live canvas, and
+   plain letters on whatever the demo happens to be drawing are unreadable half
+   the time. The whole thing is one link to the demo's source. */
 .example-nav-title {
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  justify-self: center;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px;
+  background: rgba(16, 16, 26, 0.85);
+  border: 1px solid #2a2a3c;
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+  color: #eef0f8;
+  font-size: 13px;
+}
+
+.example-nav-title:hover {
+  border-color: #4a4a6a;
+  color: #ffffff;
+}
+
+.example-nav-title svg {
+  opacity: 0.7;
+}
+
+.example-nav-title:hover svg {
+  opacity: 1;
 }
 
 .example-nav-link {
@@ -641,33 +664,6 @@ a:hover {
     linear-gradient(#fff, #fff) center / 2px 100% no-repeat,
     linear-gradient(#fff, #fff) center / 100% 2px no-repeat;
   mix-blend-mode: difference;
-}
-
-.play-prompt {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 16px 26px;
-  transform: translate(-50%, -50%);
-  border: 1px solid #2a2a3c;
-  border-radius: 10px;
-  background: rgba(16, 16, 26, 0.78);
-  backdrop-filter: blur(6px);
-  color: #8f96ad;
-  font-size: 12px;
-  text-align: center;
-  pointer-events: none;
-  user-select: none;
-}
-
-.play-prompt strong {
-  color: #e8eaf2;
-  font-size: 15px;
 }
 
 /* Failure toast for the demos. Errors are fatal here — nothing will draw after
