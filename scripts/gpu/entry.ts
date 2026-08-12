@@ -19,6 +19,8 @@ import computeShader from './fixtures/gpu-compute.shader.gen';
 import readbackShader from './fixtures/gpu-readback.shader.gen';
 import targetWriteShader from './fixtures/gpu-target-write.shader.gen';
 import targetReadShader from './fixtures/gpu-target-read.shader.gen';
+import targetRampShader from './fixtures/gpu-target-ramp.shader.gen';
+import targetShowShader from './fixtures/gpu-target-show.shader.gen';
 
 interface Check {
   name: string;
@@ -244,6 +246,50 @@ async function run(): Promise<void> {
       passed: near(storedV!, ownV!, 12),
       detail: `stored v ${storedV} vs this pass's v ${ownV}`,
     });
+  }
+
+  // Filtering. A 2x1 target holding black then white, magnified across the
+  // canvas: nearest gives two flat blocks and a hard step at the seam, linear
+  // gives a ramp. Sampling the exact midpoint is what separates them — nothing
+  // in the node suite can see a sampler parameter, and a wrong one still draws
+  // a plausible image.
+  for (const [filter, expectMidpoint] of [
+    ['nearest', false],
+    ['linear', true],
+  ] as const) {
+    const ramp = createRenderTarget(renderer, { width: 2, height: 1, filter });
+    const writeRamp = createProgram(renderer, targetRampShader);
+    writeRamp.attributes.aPosition.set(quad.positions);
+    writeRamp.attributes.aUv.set(quad.uvs);
+    writeRamp.setIndices(quad.indices);
+
+    const showRamp = createProgram(renderer, targetShowShader);
+    showRamp.attributes.aPosition.set(quad.positions);
+    showRamp.attributes.aUv.set(quad.uvs);
+    showRamp.setIndices(quad.indices);
+    showRamp.uniforms.uTarget.set(ramp.texture);
+
+    await new Promise<void>((resolve) => {
+      const stop = renderer.loop(() => {
+        renderer.drawTo(ramp, () => writeRamp.draw());
+        showRamp.draw();
+        stop();
+        resolve();
+      });
+    });
+
+    // Probe at 40% across. The texel centres sit at 25% and 75%, so this point
+    // is nearer the left texel: nearest must return it unchanged (black), while
+    // linear must return a blend. Probing at exactly 50% would land on the
+    // tie-break between the two texels, where nearest is implementation-defined.
+    const [red] = samplePixel(canvas, Math.floor(canvas.width * 0.4), 32);
+    const interpolated = red! > 40;
+    checks.push({
+      name: `render target sampled ${filter} ${expectMidpoint ? 'interpolates' : 'does not interpolate'}`,
+      passed: interpolated === expectMidpoint,
+      detail: `midpoint red ${red}, ${interpolated ? 'between' : 'at'} the source texels`,
+    });
+    ramp.dispose();
   }
 
   window.__GPU_RESULTS__ = { backend: renderer.backend, mode: 'webgpu', checks };

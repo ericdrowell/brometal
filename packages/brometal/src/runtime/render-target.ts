@@ -15,6 +15,19 @@ export interface RenderTargetOptions {
    * triangle was submitted last.
    */
   depth?: boolean;
+  /**
+   * How the target is sampled. Defaults to `'nearest'`.
+   *
+   * A target holding state wants `'nearest'`: averaging two particles'
+   * positions is meaningless, so interpolation would corrupt the data.
+   *
+   * A target holding an *image* wants `'linear'`. A bloom downsample chain is
+   * the case — each level samples the one above it at half resolution, and
+   * point sampling makes the result blocky and makes it crawl under motion.
+   * Without this the only way to get a smooth downsample is many taps per
+   * texel, emulating the filter the hardware would do for free.
+   */
+  filter?: 'nearest' | 'linear';
 }
 
 /**
@@ -22,8 +35,10 @@ export interface RenderTargetOptions {
  * sample. This is what gives the GPU memory: a pass writes state into a target,
  * the next frame reads it back, and nothing round-trips through the CPU.
  *
- * Targets are RGBA16F and sampled unfiltered — they hold numbers, not pictures,
- * and interpolating between two particles' positions would be meaningless.
+ * Targets are RGBA16F. They are sampled unfiltered by default — a target
+ * holding numbers rather than a picture must not interpolate, because averaging
+ * two particles' positions would be meaningless. Pass `filter: 'linear'` for a
+ * target that does hold a picture, such as a bloom downsample chain.
  *
  * One trap worth knowing: a fullscreen quad drawn into a target covers its rows
  * top-to-bottom, while NDC +y points at the first row — so a hand-rolled uv
@@ -46,5 +61,6 @@ export function createRenderTarget(renderer: Renderer, options: RenderTargetOpti
     Math.max(1, Math.floor(options.width)),
     Math.max(1, Math.floor(options.height)),
     options.depth ?? false,
+    options.filter ?? 'nearest',
   );
 }

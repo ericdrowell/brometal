@@ -879,6 +879,7 @@ export function createWebgpuRenderTarget(
   width: number,
   height: number,
   depth = false,
+  filter: 'nearest' | 'linear' = 'nearest',
 ): RenderTarget {
   const { device } = webgpuInternals(renderer);
   const texture = device.createTexture({
@@ -893,9 +894,11 @@ export function createWebgpuRenderTarget(
       GPUTextureUsage.COPY_SRC,
   });
   const view = texture.createView();
-  // rgba32float is not filterable without an opt-in feature, and averaging two
-  // particles' positions would be meaningless anyway — nearest, always.
-  const sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+  // Nearest by default: a target holding state must not interpolate, because
+  // averaging two particles' positions is meaningless. An image target — a
+  // bloom downsample chain — opts into linear. TARGET_FORMAT is rgba16float,
+  // which is filterable in core WebGPU without an optional feature.
+  const sampler = device.createSampler({ magFilter: filter, minFilter: filter });
   const binding: GpuTextureBinding = { view, sampler };
 
   // Never sampled — it exists only so the pass can sort its own triangles.
