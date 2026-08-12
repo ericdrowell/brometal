@@ -337,6 +337,14 @@ interface GpuAttributeState {
   buffer: GPUBuffer;
   capacity: number;
   elementCount: number;
+  /**
+   * Byte offset the most recent upload was written at, and the frame it
+   * happened in. A second upload within one frame appends rather than
+   * overwriting — see `uploadAttribute`.
+   */
+  offset: number;
+  writtenThisFrame: number;
+  frame: number;
 }
 
 interface GpuTextureBinding {
@@ -594,6 +602,20 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
   const instanceAttributes = {} as { [K in keyof I]: AttributeHandle };
   let isInstanced = false;
 
+  /**
+   * Buffers that a larger allocation replaced during a frame.
+   *
+   * Do not destroy these immediately. A draw command already recorded into the
+   * open render pass still refers to them, and destroying one fails the whole
+   * submit with "used in submit while destroyed" — every draw in the frame
+   * fails, not only the draw that grew.
+   *
+   * The uniform ring below has the same problem and uses the same method:
+   * destroy at the next frame boundary, when the submit that could refer to
+   * them is complete.
+   */
+  const retired: GPUBuffer[] = [];
+
   const uploadAttribute = (entry: AttributeLayoutEntry, data: Float32Array): void => {
     if (data.length % entry.size !== 0) {
       throw new Error(
@@ -602,20 +624,50 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
     }
     const states = entry.divisor === 1 ? instanceStates : vertexStates;
     let state = states.get(entry.name);
-    if (state === undefined || state.capacity < data.byteLength) {
-      state?.buffer.destroy();
-      state = {
-        buffer: device.createBuffer({
-          size: data.byteLength,
-          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        }),
-        capacity: data.byteLength,
-        elementCount: 0,
-      };
-      states.set(entry.name, state);
+
+    // A frame is one command encoder, submitted once at the end. queue.writeBuffer
+    // is ordered against that submit, not against the draw commands inside it, so
+    // every draw in the frame reads whatever was written LAST. Two draws that each
+    // write at offset 0 therefore both read the second batch.
+    //
+    // The uniform ring below has the same problem and uses the same method: a
+    // second upload in the same frame writes at a new offset, and the draw binds
+    // the vertex buffer there. This is what lets one program draw several batches
+    // in one frame.
+    const repeat = state !== undefined && state.frame === internals.frame;
+    const offset = repeat ? state!.writtenThisFrame : 0;
+    const needed = offset + data.byteLength;
+
+    if (state === undefined || state.capacity < needed) {
+      const grown = Math.max(needed, (state?.capacity ?? 0) * 2);
+      const replacement = device.createBuffer({
+        size: grown,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+      if (state !== undefined) {
+        // Draw commands from earlier in this frame still point into the old
+        // buffer, at their own offsets. It stays alive until the frame boundary.
+        retired.push(state.buffer);
+        state.buffer = replacement;
+        state.capacity = grown;
+      } else {
+        state = {
+          buffer: replacement,
+          capacity: grown,
+          elementCount: 0,
+          offset: 0,
+          writtenThisFrame: 0,
+          frame: -1,
+        };
+        states.set(entry.name, state);
+      }
     }
+
     state.elementCount = data.length / entry.size;
-    device.queue.writeBuffer(state.buffer, 0, data as unknown as BufferSource);
+    state.offset = offset;
+    state.writtenThisFrame = offset + data.byteLength;
+    state.frame = internals.frame;
+    device.queue.writeBuffer(state.buffer, offset, data as unknown as BufferSource);
   };
 
   for (const entry of compiled.layout.attributes) {
@@ -742,6 +794,20 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       if (pass === null) {
         throw new Error('BroMetal: draw() must be called inside renderer.loop()');
       }
+      // Per-frame bookkeeping before any early exit. A frame in which every draw
+      // is skipped must still release retired buffers and restart the slot ring,
+      // or the buffers live until dispose() and the ring can overwrite an offset
+      // a recorded draw still uses.
+      if (internals.frame !== lastFrame) {
+        // The GPU has the previous frame, so buffers it retired are safe now.
+        lastFrame = internals.frame;
+        for (const buffer of retired) {
+          buffer.destroy();
+        }
+        retired.length = 0;
+        slot = -1;
+        uniformsDirty = true;
+      }
       const vertexCount = resolveCount(vertexStates, 'vertex');
       const instanceCount = isInstanced ? resolveCount(instanceStates, 'instance') : 1;
       for (const entry of compiled.layout.attributes) {
@@ -750,13 +816,7 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
           throw new Error(`BroMetal: attribute '${entry.name}' has no data — call set(...) before draw()`);
         }
       }
-      if (internals.frame !== lastFrame) {
-        // New frame: restart the slot ring. Forcing a write keeps this frame's
-        // ascending slots from ever overwriting an offset already referenced.
-        lastFrame = internals.frame;
-        slot = -1;
-        uniformsDirty = true;
-      }
+
       flushUniforms();
       if (bindGroup === null) {
         bindGroup = buildBindGroup();
@@ -765,7 +825,9 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       pass.setBindGroup(0, bindGroup, uniformBuffer === null ? [] : [currentOffset]);
       compiled.layout.attributes.forEach((entry, slot) => {
         const states = entry.divisor === 1 ? instanceStates : vertexStates;
-        pass.setVertexBuffer(slot, states.get(entry.name)!.buffer);
+        const state = states.get(entry.name)!;
+        // Bind at the offset holding this draw's data, not at 0.
+        pass.setVertexBuffer(slot, state.buffer, state.offset);
       });
       if (indexBuffer !== null) {
         pass.setIndexBuffer(indexBuffer, indexFormat);
@@ -785,6 +847,10 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       instanceStates.clear();
       indexBuffer?.destroy();
       indexBuffer = null;
+      for (const buffer of retired) {
+        buffer.destroy();
+      }
+      retired.length = 0;
       uniformBuffer?.destroy();
       placeholderTexture.destroy();
     },
