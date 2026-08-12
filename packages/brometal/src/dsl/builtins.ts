@@ -53,6 +53,29 @@ export function texture(): Vec4 {
   return gpuOnly('texture');
 }
 
+/**
+ * Discards the current fragment. The GPU writes no colour and no depth for it.
+ *
+ * Use discard() only in the fragment stage. Put it in an `if` statement:
+ *
+ * ```ts
+ * fragment({ uAtlas, uCutoff }, { vUv }) {
+ *   const texel = texture(uAtlas, vUv);
+ *   if (texel.w < uCutoff) { discard(); }
+ *   return texel;
+ * }
+ * ```
+ *
+ * This function makes cut-out sprites possible. Each fragment that remains is
+ * fully opaque, so the program writes depth, and it can draw the sprites in any
+ * order. Without discard(), a sprite with a transparent edge must blend, a blended
+ * program cannot write depth, and the application must sort the sprites from back
+ * to front on the CPU in each frame.
+ */
+export function discard(): void {
+  gpuOnly('discard');
+}
+
 export function reflect<T extends Vec2 | Vec3 | Vec4>(incident: T, normal: T): T;
 export function reflect(): never {
   return gpuOnly('reflect');

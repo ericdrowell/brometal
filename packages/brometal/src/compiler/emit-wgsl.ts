@@ -214,6 +214,9 @@ function emitStatements(lines: string[], statements: IrStmt[], ctx: EmitContext,
           `${indent}${statement.buffer}[u32(${emitExpr(statement.index, ctx, 0)})] = ${emitExpr(statement.value, ctx, 0)};`,
         );
         break;
+      case 'discard':
+        lines.push(`${indent}discard;`);
+        break;
       case 'return':
         if (ctx.stage === 'vertex') {
           lines.push(`${indent}bm_out.bm_position = ${emitExpr(statement.expr, ctx, 0)};`);

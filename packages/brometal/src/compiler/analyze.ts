@@ -719,6 +719,9 @@ function lowerMutation(
   expr: ts.Expression,
   options: { topLevel: boolean },
 ): IrStmt {
+  if (ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) && expr.expression.text === 'discard') {
+    return lowerDiscard(ctx, expr);
+  }
   // storageWrite is the only call allowed in statement position — it is the
   // sole way a stage produces output other than by returning.
   if (
@@ -819,6 +822,29 @@ function lowerMutation(
     expr,
     `expression statements must be assignments (v.name = ..., x = ..., x += ..., x++) — other side effects are not supported`,
   );
+}
+
+/**
+ * discard() is a statement and not a value. It is the only function call that can
+ * be an expression statement.
+ *
+ * Only fragment() can use it. The vertex stage can call a helper function, and a
+ * discard has no meaning there. Therefore a helper function cannot use it.
+ */
+function lowerDiscard(ctx: StageContext, expr: ts.CallExpression): IrStmt {
+  if (ctx.stage !== 'fragment') {
+    throw errorAt(
+      ctx.sourceFile,
+      expr,
+      ctx.stage === 'vertex'
+        ? `discard() is only valid in fragment() — there is no fragment to throw away in the vertex stage`
+        : `discard() is only valid in fragment(), not in ${ctx.ownerLabel} — a helper may be called from vertex(), where discarding is meaningless`,
+    );
+  }
+  if (expr.arguments.length > 0) {
+    throw errorAt(ctx.sourceFile, expr, `discard() takes no arguments`);
+  }
+  return { kind: 'discard' };
 }
 
 function requireMutableFloat(
@@ -1093,6 +1119,13 @@ function lowerCall(ctx: StageContext, scope: Scope, node: ts.CallExpression): Ir
     throw errorAt(ctx.sourceFile, node, `only vec constructors, intrinsics, and .add/.sub/.mul/.div/.scale method calls are supported`);
   }
   const callee = node.expression.text;
+  if (callee === 'discard') {
+    throw errorAt(
+      ctx.sourceFile,
+      node,
+      `discard() produces no value — call it as its own statement, e.g. \`if (alpha < 0.5) { discard(); }\``,
+    );
+  }
   if (scope.lookup(callee) !== undefined) {
     throw errorAt(ctx.sourceFile, node, `'${callee}' is not callable in shader code`);
   }
