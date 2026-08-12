@@ -27,6 +27,9 @@ export interface WebgpuTargetInternals {
   texture: GPUTexture;
   view: GPUTextureView;
   depthView: GPUTextureView | null;
+  /** Multisampled colour attachment that resolves into `view`, or null at one sample. */
+  msaaView: GPUTextureView | null;
+  samples: number;
 }
 
 /** Internal fields carried by WebGPU-backed renderers (not part of the public API). */
@@ -283,12 +286,23 @@ export async function createWebgpuRenderer(
       const outerDepth = internals.passDepth;
       internals.pass = encoder.beginRenderPass({
         colorAttachments: [
-          {
-            view: binding.view,
-            clearValue: { r: cr, g: cg, b: cb, a: ca },
-            loadOp: 'clear',
-            storeOp: 'store',
-          },
+          binding.msaaView === null
+            ? {
+                view: binding.view,
+                clearValue: { r: cr, g: cg, b: cb, a: ca },
+                loadOp: 'clear' as const,
+                storeOp: 'store' as const,
+              }
+            : {
+                // Draw multisampled, resolve into the target texture. `discard`
+                // because the multisampled attachment has no use after the
+                // resolve, and keeping it would cost bandwidth for nothing.
+                view: binding.msaaView,
+                resolveTarget: binding.view,
+                clearValue: { r: cr, g: cg, b: cb, a: ca },
+                loadOp: 'clear' as const,
+                storeOp: 'discard' as const,
+              },
         ],
         // The pass and the pipeline must agree on whether depth exists, which
         // is why passDepth below tracks this rather than being hardcoded.
@@ -304,7 +318,7 @@ export async function createWebgpuRenderer(
             }),
       });
       internals.passFormat = TARGET_FORMAT;
-      internals.passSamples = 1;
+      internals.passSamples = binding.samples;
       internals.passDepth = binding.depthView !== null;
       try {
         draw();
@@ -879,6 +893,7 @@ export function createWebgpuRenderTarget(
   width: number,
   height: number,
   depth = false,
+  samples = 1,
 ): RenderTarget {
   const { device } = webgpuInternals(renderer);
   const texture = device.createTexture({
@@ -898,14 +913,34 @@ export function createWebgpuRenderTarget(
   const sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
   const binding: GpuTextureBinding = { view, sampler };
 
-  // Never sampled — it exists only so the pass can sort its own triangles.
+  const sampleCount = Math.max(1, Math.floor(samples));
+
+  // Never sampled — it exists only so the pass can sort its own triangles. It
+  // carries the target's sample count because a pass requires every attachment
+  // to agree on it.
   const depthTexture = depth
     ? device.createTexture({
         size: [width, height],
         format: 'depth24plus',
+        sampleCount,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
       })
     : null;
+
+  // The multisampled colour attachment, resolved into the single-sampled target
+  // texture at the end of the pass. Without it the pipeline has to run at one
+  // sample, which is why an off-screen pass loses the anti-aliasing an on-screen
+  // pass keeps. The target texture itself stays single-sampled, so sampling it
+  // afterwards is unchanged.
+  const msaaTexture =
+    sampleCount > 1
+      ? device.createTexture({
+          size: [width, height],
+          format: TARGET_FORMAT,
+          sampleCount,
+          usage: GPUTextureUsage.RENDER_ATTACHMENT,
+        })
+      : null;
 
   const target: RenderTarget & { __wgpu?: WebgpuTargetInternals } = {
     width,
@@ -915,9 +950,16 @@ export function createWebgpuRenderTarget(
     dispose(): void {
       texture.destroy();
       depthTexture?.destroy();
+      msaaTexture?.destroy();
     },
   };
-  target.__wgpu = { texture, view, depthView: depthTexture?.createView() ?? null };
+  target.__wgpu = {
+    texture,
+    view,
+    depthView: depthTexture?.createView() ?? null,
+    msaaView: msaaTexture?.createView() ?? null,
+    samples: sampleCount,
+  };
   return target;
 }
 
