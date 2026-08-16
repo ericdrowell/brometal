@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.17.3 (2026-08-16)
+
 ### Added
 - **Compute shaders reach `--js13k`.** The compiler has always emitted `cs_main`
   for a `compute()` stage; the js13k serializer dropped it and the tiny runtime
