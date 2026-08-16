@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.18.0 (2026-08-16)
+
 ### Added
 - **Render targets reach `--js13k`.** The full runtime has had
   `createRenderTarget` since it had post-processing; the tiny runtime had no way

@@ -2,6 +2,49 @@
 
 ## Unreleased
 
+## 0.18.0 (2026-08-16)
+
+### Added
+- **Render targets reach `--js13k`.** The full runtime has had
+  `createRenderTarget` since it had post-processing; the tiny runtime had no way
+  to draw anywhere but the canvas, so a 13 kB game could not blur, bloom, blit,
+  or render at half resolution — anything needing a second look at the frame it
+  had just drawn. Two new globals close that: `bmTarget(w, h)` makes an
+  off-screen surface, and `bmPassTo(target)` points the rest of the frame at it,
+  with `bmPassTo()` switching back to the screen.
+
+  A target is `rgba16float`, not the canvas format, and that is most of the
+  reason to have one: an 8-bit target clamps at 1 on the way in, so the values a
+  bright-pass is looking for are gone before it runs. Programs that draw into one
+  take `fmt: 1` in their descriptor — a pipeline's colour format is fixed when it
+  is built and has to match the attachment it is used with.
+
+  The handle is `{v, s}` plus a depth view, so a target *is* a `BmTexture`:
+  `bmTextures(prog, target)` binds it back for sampling with no second API. Depth
+  comes with every target rather than being optional, because every pipeline
+  `bmProgram` builds declares a depthStencil state and WebGPU requires the pass
+  to carry a matching attachment — an optional depth would be a target nothing
+  could be drawn into.
+
+  A target clears as its pass opens; the canvas *loads*, because `bmLoop` already
+  cleared it when the frame began. The frame's command encoder moved to module
+  scope as `bmEnc` so both passes are recorded on it, which is what makes the
+  ordering work: pass two samples what pass one drew, with no readback.
+
+  `--toplevel` drops both functions from a game that never calls them.
+
+### Fixed
+- **A `--js13k` shader whose only uniform is a sampler now builds.** With no
+  scalar uniforms there is no uniform block, so the compiler gives binding 0 to
+  the first texture — while the tiny runtime declared a uniform buffer at binding
+  0 unconditionally. The two collided and the pipeline never built, which
+  surfaced as a black screen with no error attributable to it. The uniform entry
+  is now emitted only when the shader has a block, and a program without one
+  allocates no uniform buffer at all.
+
+  This is exactly the shape of a post-process shader — one sampler, no scalars —
+  so render targets would have shipped with their most obvious use broken.
+
 ## 0.17.3 (2026-08-16)
 
 ### Added
