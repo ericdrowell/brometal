@@ -11,11 +11,19 @@ import type { CompiledShaderModule } from '../compiler/compile.js';
  * What is left is the smallest thing the runtime can build a pipeline from — an
  * array, positional, no keys:
  *
- *   [wgsl, vertexAttrSizes, instanceAttrSizes, uniformBytes, textureBindings]
+ *   [wgsl, vertexAttrSizes, instanceAttrSizes, uniformBytes, textureBindings,
+ *    storageBindings]
  *
  * The uniform block becomes a flat `Float32Array` you fill yourself. The offsets
  * are emitted as a comment rather than data, so they cost nothing at runtime and
  * are still there when you are working out what goes where.
+ *
+ * Storage bindings carry a flag as well as an index — `[[1,1]]` is "binding 1,
+ * written by the compute stage" — because that single bit decides both how the
+ * binding is declared and which stages may see it, and only the compiler knows
+ * it. Whether the module has a compute stage is not recorded: it is implied by
+ * which constructor the game calls, and a module with no `cs_main` handed to
+ * bmCompute fails at pipeline creation with a message that says so.
  */
 
 export interface Js13kShader {
@@ -46,11 +54,19 @@ export function buildJs13kShader(name: string, compiled: CompiledShaderModule): 
   }
 
   // Sampler bindings travel in pairs, in declaration order, because that is the
-  // order the runtime walks when it binds textures.
+  // order the runtime walks when it binds textures. Storage buffers take one
+  // binding each and are gathered separately, in their own declaration order,
+  // because bmStorages fills them positionally the same way.
   const textures: number[][] = [];
+  const storage: number[][] = [];
   const offsets: string[] = [];
+  const stores: string[] = [];
   for (const entry of compiled.layout.uniforms) {
-    if (entry.textureBinding !== undefined && entry.samplerBinding !== undefined) {
+    if (entry.type === 'storage') {
+      const written = compiled.storageWritten?.includes(entry.name) === true;
+      storage.push([entry.textureBinding!, written ? 1 : 0]);
+      stores.push(`${entry.name}${written ? ' (written)' : ''}`);
+    } else if (entry.textureBinding !== undefined && entry.samplerBinding !== undefined) {
       textures.push([entry.textureBinding, entry.samplerBinding]);
     } else if (entry.offset !== undefined) {
       // Byte offset → float index, which is what you index a Float32Array by.
@@ -65,9 +81,18 @@ export function buildJs13kShader(name: string, compiled: CompiledShaderModule): 
     String(compiled.layout.uniformBlockSize),
     JSON.stringify(textures),
   ];
+  // Only when there are any: the array is positional, so a trailing empty one is
+  // pure cost in a file that ships. Every existing index keeps its meaning.
+  if (storage.length > 0) parts.push(JSON.stringify(storage));
 
-  const header = offsets.length > 0 ? `// uniform floats: ${offsets.join(', ')}\n` : '';
-  return { name, source: `${header}const ${name} = [${parts.join(',')}];\n` };
+  // Which buffer is which, in the order bmStorages wants them. Positional
+  // arguments with no names at the call site is exactly where a comment earns
+  // its place, and like the uniform offsets it costs nothing at runtime.
+  const notes = [
+    offsets.length > 0 ? `// uniform floats: ${offsets.join(', ')}\n` : '',
+    stores.length > 0 ? `// bmStorages order: ${stores.join(', ')}\n` : '',
+  ].join('');
+  return { name, source: `${notes}const ${name} = [${parts.join(',')}];\n` };
 }
 
 /** Joins every shader into the single file the game concatenates. */
@@ -77,8 +102,10 @@ export function buildJs13kShaderFile(shaders: Js13kShader[], version = 'unknown'
     '// Concatenate both with your game, then minify the whole program together',
     '// (terser --toplevel --mangle).',
     '//',
-    '// Each entry is [wgsl, attrSizes, instanceAttrSizes, uniformBytes, textureBindings]',
-    '// and goes straight into bmProgram(src[0], { a: src[1], i: src[2], u: src[3], t: src[4] }).',
+    '// Each entry is [wgsl, attrSizes, instanceAttrSizes, uniformBytes, textureBindings,',
+    '// storageBindings] and goes straight into',
+    '//   bmProgram(src[0], { a: src[1], i: src[2], u: src[3], t: src[4], s: src[5] })',
+    '// or bmCompute(...) with the same descriptor, for a shader with a compute() stage.',
     '',
     ...shaders.map((shader) => shader.source),
   ].join('\n');

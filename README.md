@@ -316,8 +316,12 @@ npx brometal prod --js13k        # → dist/brometal.js + dist/shaders.js
 
 You get global functions rather than modules — `bmInit`, `bmProgram`, `bmAttr`,
 `bmTexture`, `bmDraw`, `bmLoop`, plus mat4 helpers and a matrix stack. Textures,
-instancing, alpha blending and depth control are in; validation, error messages,
-pipeline caching and uniform rings are out.
+instancing, alpha blending, depth control and compute are in; validation, error
+messages, pipeline caching and uniform rings are out.
+
+Compute is `bmCompute` / `bmStore` / `bmStorages` / `bmDispatch`. A storage
+buffer written by a compute program and bound read-only to one that draws is how
+state gets from one to the other — there is no readback in this runtime.
 
 Both files are **source**. Concatenate them with your game and minify the whole
 program in one pass:

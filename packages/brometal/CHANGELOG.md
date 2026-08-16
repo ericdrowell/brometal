@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### Added
+- **Compute shaders reach `--js13k`.** The compiler has always emitted `cs_main`
+  for a `compute()` stage; the js13k serializer dropped it and the tiny runtime
+  had no way to dispatch one, so a 13 kB game could write the shader and never
+  run it. Four new globals close that: `bmCompute(wgsl, opts)` builds a compute
+  pipeline from the same positional descriptor `bmProgram` takes, `bmStore(data)`
+  makes a storage buffer from a typed array, `bmStorages(prog, ...buffers)` binds
+  them in declaration order, and `bmDispatch(prog, x, y, z)` runs it.
+
+  The descriptor grows a sixth element, `[[binding, writtenByCompute], ...]`,
+  emitted only for shaders that declare `storage` — every existing index keeps
+  its meaning and a shader without storage emits the same five as before. The
+  written bit comes from the compiler because only it knows, and it decides more
+  than the access mode: WebGPU forbids a `read_write` storage binding from being
+  visible to the vertex stage. That restriction is on the *binding*, not the
+  buffer, which is the whole seam — one `GPUBuffer`, written by a compute
+  program and bound read-only by the program that draws, so a vertex shader can
+  read what compute produced with no readback and nothing a frame stale.
+
+  Dispatching inside `bmLoop`'s callback lands before that frame's drawing: the
+  loop records its render pass first but submits only after the callback
+  returns, so a submit from within it is queued ahead, and work runs in
+  submission order.
+
+  A game that only draws pays about 100 bytes for the storage bindings
+  `bmProgram` now accepts; `--toplevel` drops the four new functions entirely.
+
+### Improved
+- **`--js13k` textures are visible to the vertex stage.** They were bound
+  FRAGMENT-only, so sampling one in a vertex shader — a displacement map, or
+  per-instance transforms read from a texture — was rejected at pipeline
+  creation, while the full runtime allowed it. Compute forced the question,
+  since a compute pipeline has no fragment stage to name, and the mask now
+  follows the pipeline kind. No source change is needed and nothing that worked
+  before behaves differently.
+
 ## 0.17.2 (2026-08-11)
 
 - No library changes; maintenance release.

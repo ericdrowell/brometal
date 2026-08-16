@@ -18,10 +18,16 @@
 
 import {
   BUF_INDEX,
+  BUF_STORAGE,
   BUF_UNIFORM,
   BUF_VERTEX,
+  CS_ENTRY,
   FS_ENTRY,
   TEX_UPLOAD,
+  VIS_COMPUTE,
+  VIS_RENDER,
+  VIS_STORAGE_RO,
+  VIS_STORAGE_RW,
   VS_ENTRY,
   padTo4,
   vertexFormat,
@@ -72,6 +78,8 @@ export interface BmProgramOpts {
   u?: number;
   /** [textureBinding, samplerBinding] pairs, as the compiler assigned them. */
   t?: number[][];
+  /** [binding, writtenByCompute] pairs for storage buffers, in declaration order. */
+  s?: number[][];
   blend?: number;
   zwrite?: number;
   cull?: number;
@@ -83,31 +91,81 @@ export interface BmTexture {
 }
 
 export interface BmProgram {
-  p: GPURenderPipeline;
+  p: GPURenderPipeline | GPUComputePipeline;
   l: GPUBindGroupLayout;
   ub: GPUBuffer;
   t: number[][];
+  /** [binding, written] pairs, in the order bmStorages fills them. */
+  st: number[][];
   b: GPUBuffer[];
   ix: GPUBuffer | null;
   n: number;
   bg: GPUBindGroup | null;
   tx: BmTexture[];
+  /** Storage buffers, positionally matching `st`. */
+  sb: GPUBuffer[];
+}
+
+/**
+ * The bind group layout both pipeline kinds share.
+ *
+ * Binding 0 is always the uniform block; textures and storage buffers follow at
+ * the indices the compiler chose, so this mirrors the emitted WGSL exactly.
+ *
+ * Textures take `vis` rather than FRAGMENT alone, which they had before compute
+ * existed here. A compute pipeline has no fragment stage to name, so the mask
+ * has to follow the pipeline kind — and for a render pipeline the widening to
+ * VERTEX|FRAGMENT costs nothing and makes vertex texture fetch work, which the
+ * full runtime has always allowed and this quietly rejected.
+ *
+ * Storage visibility ignores `vis` and follows whether the *compiler* saw a
+ * write — a property of the shader, not of the pipeline kind. So a buffer this
+ * module writes is hidden from the vertex stage, while one it only reads stays
+ * visible there, which is how a draw program picks up what compute produced.
+ */
+function bmLayout(vis: number, texes: number[][], stores: number[][]): GPUBindGroupLayout {
+  const entries: GPUBindGroupLayoutEntry[] = [{ binding: 0, visibility: vis, buffer: {} }];
+  for (const [tex, samp] of texes) {
+    entries.push({ binding: tex, visibility: vis, texture: {} });
+    entries.push({ binding: samp, visibility: vis, sampler: {} });
+  }
+  for (const [binding, written] of stores) {
+    entries.push({
+      binding,
+      visibility: written ? VIS_STORAGE_RW : VIS_STORAGE_RO,
+      buffer: { type: written ? 'storage' : 'read-only-storage' },
+    });
+  }
+  return bmDevice.createBindGroupLayout({ entries });
+}
+
+/** The empty shell every program starts as, before its buffers are attached. */
+function bmShell(
+  p: GPURenderPipeline | GPUComputePipeline,
+  l: GPUBindGroupLayout,
+  opts: BmProgramOpts,
+): BmProgram {
+  return {
+    p,
+    l,
+    ub: bmDevice.createBuffer({ size: opts.u || 16, usage: BUF_UNIFORM }),
+    t: opts.t || [],
+    st: opts.s || [],
+    b: [],
+    ix: null,
+    n: 0,
+    bg: null,
+    tx: [],
+    sb: [],
+  };
 }
 
 export function bmProgram(wgsl: string, opts: BmProgramOpts): BmProgram {
   const module = bmDevice.createShaderModule({ code: wgsl });
   const attrs = opts.a || [];
   const insts = opts.i || [];
-  const texes = opts.t || [];
 
-  // Binding 0 is always the uniform block; textures follow at the indices the
-  // compiler chose, so this layout has to mirror the emitted WGSL exactly.
-  const layoutEntries: GPUBindGroupLayoutEntry[] = [{ binding: 0, visibility: 3, buffer: {} }];
-  for (const [tex, samp] of texes) {
-    layoutEntries.push({ binding: tex, visibility: 2, texture: {} });
-    layoutEntries.push({ binding: samp, visibility: 2, sampler: {} });
-  }
-  const bindLayout = bmDevice.createBindGroupLayout({ entries: layoutEntries });
+  const bindLayout = bmLayout(VIS_RENDER, opts.t || [], opts.s || []);
 
   // One vertex buffer per attribute: simpler than interleaving, and the extra
   // bind cost is irrelevant next to the bytes a packing scheme would take.
@@ -153,18 +211,25 @@ export function bmProgram(wgsl: string, opts: BmProgramOpts): BmProgram {
     },
   });
 
-  const uniforms = bmDevice.createBuffer({ size: opts.u || 16, usage: BUF_UNIFORM });
-  return {
-    p: pipeline,
-    l: bindLayout,
-    ub: uniforms,
-    t: texes,
-    b: [],
-    ix: null,
-    n: 0,
-    bg: null,
-    tx: [],
-  };
+  return bmShell(pipeline, bindLayout, opts);
+}
+
+/**
+ * A compute program. Same descriptor, `cs_main` instead of the draw pair.
+ *
+ * Separate from bmProgram rather than a flag on it: a compute-only module has
+ * no `vs_main`, so one constructor would have to branch around
+ * createRenderPipeline and that branch would ship in every game. Kept apart,
+ * `--toplevel` drops this whole function from a game that only draws.
+ */
+export function bmCompute(wgsl: string, opts: BmProgramOpts): BmProgram {
+  const module = bmDevice.createShaderModule({ code: wgsl });
+  const bindLayout = bmLayout(VIS_COMPUTE, opts.t || [], opts.s || []);
+  const pipeline = bmDevice.createComputePipeline({
+    layout: bmDevice.createPipelineLayout({ bindGroupLayouts: [bindLayout] }),
+    compute: { module, entryPoint: CS_ENTRY },
+  });
+  return bmShell(pipeline, bindLayout, opts);
 }
 
 // A vertex, instance or index buffer. `index` picks the INDEX usage bit.
@@ -233,25 +298,77 @@ export function bmTextures(prog: BmProgram, ...textures: BmTexture[]): void {
   prog.bg = null;
 }
 
+/**
+ * A storage buffer, sized and seeded from a typed array.
+ *
+ * Returned rather than attached to a program, because the point of one is to
+ * outlive a single program: compute writes it, a vertex stage reads it, two
+ * programs holding one GPUBuffer. For pure output pass a zeroed array — an
+ * explicit `new Float32Array(n)` says the size out loud.
+ */
+export function bmStore(data: ArrayBufferView<ArrayBuffer>): GPUBuffer {
+  const buffer = bmDevice.createBuffer({
+    size: (data.byteLength + 3) & ~3,
+    usage: BUF_STORAGE,
+  });
+  bmDevice.queue.writeBuffer(buffer, 0, padTo4(data));
+  return buffer;
+}
+
+/** Bind storage buffers in the order the shader declares them. */
+export function bmStorages(prog: BmProgram, ...buffers: GPUBuffer[]): void {
+  prog.sb = buffers;
+  prog.bg = null;
+}
+
 export function bmUniforms(prog: BmProgram, floats: Float32Array<ArrayBuffer>): void {
   bmDevice.queue.writeBuffer(prog.ub, 0, floats);
 }
 
-// Draw the bound geometry. `count` instances, defaulting to one.
-export function bmDraw(prog: BmProgram, count?: number): void {
+/** Lazily built, and thrown away whenever a binding changes. */
+function bmBind(prog: BmProgram): GPUBindGroup {
   if (!prog.bg) {
     const entries: GPUBindGroupEntry[] = [{ binding: 0, resource: { buffer: prog.ub } }];
     prog.t.forEach(([tex, samp], i) => {
       entries.push({ binding: tex, resource: prog.tx[i].v });
       entries.push({ binding: samp, resource: prog.tx[i].s });
     });
+    prog.st.forEach(([binding], i) => {
+      entries.push({ binding, resource: { buffer: prog.sb[i] } });
+    });
     prog.bg = bmDevice.createBindGroup({ layout: prog.l, entries });
   }
-  bmPass.setPipeline(prog.p);
-  bmPass.setBindGroup(0, prog.bg);
+  return prog.bg;
+}
+
+// Draw the bound geometry. `count` instances, defaulting to one.
+export function bmDraw(prog: BmProgram, count?: number): void {
+  bmPass.setPipeline(prog.p as GPURenderPipeline);
+  bmPass.setBindGroup(0, bmBind(prog));
   for (let i = 0; i < prog.b.length; i++) bmPass.setVertexBuffer(i, prog.b[i]);
   bmPass.setIndexBuffer(prog.ix!, 'uint16');
   bmPass.drawIndexed(prog.n, count || 1);
+}
+
+/**
+ * Run a compute program over `x` by `y` by `z` workgroups.
+ *
+ * Its own encoder and submit: a compute pass cannot nest inside the render pass
+ * bmLoop holds open, and seeding a buffer before the loop starts has to work.
+ *
+ * **Called inside bmLoop's callback, this lands before that frame's drawing.**
+ * The loop records its pass first but submits only after the callback returns,
+ * so a submit from inside the callback is queued ahead of it — and work runs in
+ * submission order. What compute writes here, the same frame draws.
+ */
+export function bmDispatch(prog: BmProgram, x: number, y?: number, z?: number): void {
+  const encoder = bmDevice.createCommandEncoder();
+  const pass = encoder.beginComputePass();
+  pass.setPipeline(prog.p as GPUComputePipeline);
+  pass.setBindGroup(0, bmBind(prog));
+  pass.dispatchWorkgroups(x, y || 1, z || 1);
+  pass.end();
+  bmDevice.queue.submit([encoder.finish()]);
 }
 
 // The frame loop. Sizes the drawing buffer to the CSS box, rebuilds the depth

@@ -156,3 +156,11 @@ Storage access is `storageRead(buffer, index)` / `storageWrite(buffer, index,
 value)` / `storageLength(buffer)` — **not** `buffer[i]`. The DSL has no indexing.
 Run it with `program.dispatch(x, y, z)`, where the counts are workgroups rather
 than threads.
+
+`--js13k` supports compute too, as `bmCompute` / `bmStore` / `bmStorages` /
+`bmDispatch` (see `templates/js13k/README.md`). Two rules there that the full
+runtime hides from you: the shader that **writes** a storage buffer and the one
+that **reads** it in a vertex stage must be separate programs, because WebGPU
+forbids a `read_write` binding from being visible to the vertex stage — bind the
+same buffer to both, and the compiler marks each side. And the tiny runtime has
+no readback at all, so whatever the GPU owns stays there.

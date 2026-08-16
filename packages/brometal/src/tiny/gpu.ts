@@ -21,12 +21,32 @@ export const BUF_VERTEX = 40;
 export const BUF_INDEX = 24;
 /** COPY_DST 8 | UNIFORM 64. */
 export const BUF_UNIFORM = 72;
+/** COPY_DST 8 | STORAGE 128. */
+export const BUF_STORAGE = 136;
 /** COPY_DST 2 | TEXTURE_BINDING 4 | RENDER_ATTACHMENT 16. */
 export const TEX_UPLOAD = 22;
 
 /** The entry points the compiler emits. Renaming one breaks both runtimes. */
 export const VS_ENTRY = 'vs_main';
 export const FS_ENTRY = 'fs_main';
+export const CS_ENTRY = 'cs_main';
+
+/**
+ * Which stages a binding is visible to: VERTEX 1 | FRAGMENT 2 | COMPUTE 4.
+ *
+ * Naming a stage the pipeline does not have invalidates the layout, and with it
+ * the pipeline, the bind group and the submit — the error names the submit.
+ *
+ * The last two differ by spec, not preference: a `read_write` storage binding
+ * may not be visible to the vertex stage, a read-only one may be visible
+ * anywhere. That asymmetry is the seam compute writes through to rendering —
+ * the restriction is on the binding, so the same buffer bound read-only in a
+ * second program is fine.
+ */
+export const VIS_RENDER = 3;
+export const VIS_COMPUTE = 4;
+export const VIS_STORAGE_RW = 6;
+export const VIS_STORAGE_RO = 7;
 
 /**
  * Component count to vertex format. One component is `float32`, not

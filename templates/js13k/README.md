@@ -59,18 +59,21 @@ and central directory record, so one file beats two by about 150 bytes.
 Add `src/thing.shader.ts` exporting `export const Thing = shader({...})` and it becomes the global `Thing`:
 
 ```js
-const Thing = ["...wgsl...", [3,3,2], [], 160, [[1,2]]];
-//                               attrs   inst  bytes  [tex,sampler]
+const Thing = ["...wgsl...", [3,3,2], [], 160, [[1,2]], [[3,1]]];
+//                               attrs   inst  bytes  [tex,sampler]  [binding,written]
 ```
 
 Pass it straight to `bmProgram`:
 
 ```js
 const p = bmProgram(Thing[0], {
-  a: Thing[1], i: Thing[2], u: Thing[3], t: Thing[4],
+  a: Thing[1], i: Thing[2], u: Thing[3], t: Thing[4], s: Thing[5],
   cull: 1,          // blend: 1 and zwrite: 0 for transparent passes
 });
 ```
+
+The last slot is only there for a shader that declares `storage`, so most
+shaders emit five entries and `s` is simply undefined.
 
 ## API
 
@@ -80,10 +83,51 @@ bmProgram(wgsl, opts)             bmTextures(prog, ...textures) bmLook(eye, at, 
 bmAttr(prog, slot, floats)        bmUniforms(prog, floats)      bmMul(a, b)  bmIdentity()
 bmIndex(prog, uint16s)            bmDraw(prog, instanceCount)   bmTrans/bmScale/bmRotX/Y/Z
 bmBuffer(data, isIndex)           bmLoop(callback)              bmSave() / bmRestore() / bmM
+
+bmCompute(wgsl, opts)             bmStore(typedArray)
+bmStorages(prog, ...buffers)      bmDispatch(prog, x, y, z)
 ```
 
 Uniforms are a flat `Float32Array` — no names ship. The float offsets for each
 shader are written as a comment above its entry in `dist/shaders.js`.
+
+## Compute
+
+A shader with a `compute()` stage goes to `bmCompute` instead of `bmProgram` —
+same descriptor, `cs_main` instead of the draw pair. State lives in a storage
+buffer, and the same buffer can be bound to a program that draws:
+
+```js
+const state = bmStore(new Float32Array(4));   // zeroed: pure output
+
+const sim = bmCompute(Sim[0], { u: Sim[3], s: Sim[5] });
+bmStorages(sim, state);
+
+const draw = bmProgram(Thing[0], { a: Thing[1], u: Thing[3], s: Thing[5] });
+bmStorages(draw, state);                      // one buffer, two programs
+
+bmLoop(() => {
+  bmDispatch(sim, 1);                         // lands before this frame's draws
+  bmDraw(draw);
+});
+```
+
+Two rules that are not obvious and fail without a useful error:
+
+- **The shader that writes the buffer and the shader that reads it must be
+  different programs.** WebGPU forbids a `read_write` storage binding from being
+  visible to the vertex stage. The restriction is on the binding, not the
+  buffer — so the compute shader declares it and writes, the render shader
+  declares it and only reads, and the compiler marks each side accordingly.
+- **`bmDispatch` inside `bmLoop` runs before that frame's drawing.** The loop
+  submits after your callback returns, so your dispatch is queued first and work
+  runs in submission order. No readback, nothing a frame stale.
+
+The tiny runtime has no way to read a buffer back to JavaScript. State that the
+GPU owns, the GPU keeps — if the CPU needs a number, keep that number on the CPU.
+
+`bmStorages` binds positionally, and `dist/shaders.js` writes the order above
+each shader as a comment.
 
 ## Requires WebGPU
 
