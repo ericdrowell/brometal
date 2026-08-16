@@ -19,6 +19,7 @@ import computeShader from './fixtures/gpu-compute.shader.gen';
 import readbackShader from './fixtures/gpu-readback.shader.gen';
 import targetWriteShader from './fixtures/gpu-target-write.shader.gen';
 import targetReadShader from './fixtures/gpu-target-read.shader.gen';
+import batchShader from './fixtures/gpu-batch.shader.gen';
 
 interface Check {
   name: string;
@@ -243,6 +244,43 @@ async function run(): Promise<void> {
       name: `render target preserves row order (${label})`,
       passed: near(storedV!, ownV!, 12),
       detail: `stored v ${storedV} vs this pass's v ${ownV}`,
+    });
+  }
+
+  // Two batches through one program in one frame. queue.writeBuffer is ordered
+  // against the frame's single submit, not against the draws inside it, so
+  // without per-draw offsets both draws read whatever was written last and the
+  // left half comes out the colour of the right. Growing the buffer between the
+  // two uploads also retires the first one mid-frame, which is the second
+  // defect: destroying it immediately fails the whole submit.
+  {
+    const batch = createProgram(renderer, batchShader);
+    await new Promise<void>((resolve) => {
+      const stop = renderer.loop(() => {
+        // Left half, red. Two vertices' worth of tint.
+        batch.attributes.aPosition.set(new Float32Array([-1, -1, 0, 0, -1, 0, -1, 1, 0]));
+        batch.attributes.aTint.set(new Float32Array([1, 0, 0, 1, 0, 0, 1, 0, 0]));
+        batch.draw();
+        // Right half, blue. A second upload in the same frame, to the same
+        // attributes, and larger so the buffer grows and the first is retired.
+        batch.attributes.aPosition.set(
+          new Float32Array([0, -1, 0, 1, -1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, -1, 0]),
+        );
+        batch.attributes.aTint.set(
+          new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]),
+        );
+        batch.draw();
+        stop();
+        resolve();
+      });
+    });
+
+    const [leftRed, , leftBlue] = samplePixel(canvas, 40, 32);
+    const [rightRed, , rightBlue] = samplePixel(canvas, 216, 32);
+    checks.push({
+      name: 'two batches in one frame keep their own attribute data',
+      passed: leftRed! > 150 && leftBlue! < 100 && rightBlue! > 150 && rightRed! < 100,
+      detail: `left rgb(${leftRed},_,${leftBlue}) expected red, right rgb(${rightRed},_,${rightBlue}) expected blue`,
     });
   }
 
