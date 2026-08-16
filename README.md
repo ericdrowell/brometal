@@ -323,6 +323,11 @@ Compute is `bmCompute` / `bmStore` / `bmStorages` / `bmDispatch`. A storage
 buffer written by a compute program and bound read-only to one that draws is how
 state gets from one to the other — there is no readback in this runtime.
 
+Post-processing is `bmTarget(w, h)` and `bmPassTo(target)`. Targets are
+`rgba16float`, so a bright-pass can find what came out brighter than white;
+programs drawing into one take `fmt: 1`, and a target binds back through
+`bmTextures` like any other texture.
+
 Both files are **source**. Concatenate them with your game and minify the whole
 program in one pass:
 

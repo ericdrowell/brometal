@@ -25,6 +25,20 @@ export const BUF_UNIFORM = 72;
 export const BUF_STORAGE = 136;
 /** COPY_DST 2 | TEXTURE_BINDING 4 | RENDER_ATTACHMENT 16. */
 export const TEX_UPLOAD = 22;
+/**
+ * TEXTURE_BINDING 4 | RENDER_ATTACHMENT 16, for a render target. No COPY_DST:
+ * nothing is uploaded into one, it is drawn into. Drop either bit and it fails
+ * silently in its own way — without 16 the pass rejects the texture, without 4
+ * the draw that samples it back rejects the bind group, a frame later.
+ */
+export const TEX_TARGET = 20;
+/**
+ * The format render targets are drawn in. Half float, not the canvas format,
+ * and that is most of the reason to have targets at all: an 8-bit one clamps at
+ * 1 on the way in, so the values a post-process pass is looking for — the ones
+ * brighter than white — are gone before it runs.
+ */
+export const TEX_HDR = 'rgba16float';
 
 /** The entry points the compiler emits. Renaming one breaks both runtimes. */
 export const VS_ENTRY = 'vs_main';

@@ -164,3 +164,9 @@ that **reads** it in a vertex stage must be separate programs, because WebGPU
 forbids a `read_write` binding from being visible to the vertex stage — bind the
 same buffer to both, and the compiler marks each side. And the tiny runtime has
 no readback at all, so whatever the GPU owns stays there.
+
+`--js13k` has render targets as `bmTarget(w, h)` / `bmPassTo(target)`. They are
+`rgba16float` rather than the canvas format, so a program drawing into one needs
+`fmt: 1` in its descriptor — a pipeline's colour format is fixed at build time
+and has to match the attachment, and a mismatch fails at pipeline creation with
+no drawing to point at.

@@ -86,6 +86,8 @@ bmBuffer(data, isIndex)           bmLoop(callback)              bmSave() / bmRes
 
 bmCompute(wgsl, opts)             bmStore(typedArray)
 bmStorages(prog, ...buffers)      bmDispatch(prog, x, y, z)
+
+bmTarget(width, height)           bmPassTo(target)   // omit target for the screen
 ```
 
 Uniforms are a flat `Float32Array` — no names ship. The float offsets for each
@@ -125,6 +127,39 @@ Two rules that are not obvious and fail without a useful error:
 
 The tiny runtime has no way to read a buffer back to JavaScript. State that the
 GPU owns, the GPU keeps — if the CPU needs a number, keep that number on the CPU.
+
+## Render targets
+
+Draw the frame into a texture, then draw *with* that texture: blur, bloom, a
+half-resolution pass, anything that needs a second look at what you just drew.
+
+```js
+const scene = bmTarget(canvas.width, canvas.height);
+// Programs that draw into a target need fmt: 1 — a pipeline's colour format is
+// fixed when it is built and has to match the attachment.
+const world = bmProgram(World[0], { a: World[1], u: World[3], fmt: 1 });
+const post  = bmProgram(Post[0],  { a: Post[1],  u: Post[3], t: Post[4] });
+
+bmLoop(() => {
+  bmPassTo(scene);          // the world, into the target
+  bmDraw(world);
+  bmPassTo();               // back to the screen
+  bmTextures(post, scene);  // a target is a texture; bind it as one
+  bmDraw(post);
+});
+```
+
+Three things that are not obvious:
+
+- **Targets are `rgba16float`, not the canvas format**, and that is most of the
+  point. An 8-bit target clamps at 1 on the way in, so a bright-pass looking for
+  what came out brighter than white finds it was thrown away before it ran.
+- **A target clears when its pass opens; the canvas loads.** `bmLoop` already
+  cleared the canvas when the frame began, and clearing it again on the way back
+  would throw away everything drawn before the detour.
+- **Sample it with `targetUv(clipPosition)`, not by hand.** A target's rows run
+  top to bottom while NDC +y points at the first of them, so `ndc * 0.5 + 0.5`
+  reads it upside down.
 
 `bmStorages` binds positionally, and `dist/shaders.js` writes the order above
 each shader as a comment.

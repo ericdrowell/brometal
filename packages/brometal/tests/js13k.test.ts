@@ -119,6 +119,50 @@ describe('js13k compute descriptor', () => {
   });
 });
 
+describe('tiny runtime render target surface', () => {
+  it('offers a target and a way to point a pass at one', () => {
+    for (const fn of ['bmTarget', 'bmPassTo']) {
+      expect(CODE).toContain(`function ${fn}(`);
+    }
+  });
+
+  it('uses the usage bits and format a target cannot work without', () => {
+    // TEXTURE_BINDING|RENDER_ATTACHMENT = 20. Dropping either fails silently in
+    // its own way: without 16 the pass rejects the texture, without 4 the draw
+    // that samples it back rejects the bind group a whole frame later.
+    expect(CODE).toMatch(/TEX_TARGET\s*=\s*20/);
+    // Half float is the point of the feature. An 8-bit target clamps on the way
+    // in, so a post-process pass looking for values brighter than white finds
+    // that they were thrown away before it ran.
+    expect(CODE).toMatch(/TEX_HDR\s*=\s*'rgba16float'/);
+    expect(CODE).toContain('format: opts.fmt ? TEX_HDR : bmFormat');
+  });
+
+  it('clears a target but loads the canvas', () => {
+    // bmLoop already cleared the canvas when the frame opened. Clearing it again
+    // on the way back from a target would throw away everything drawn before the
+    // detour — which is the whole scene, in the frame shape this exists for.
+    expect(CODE).toContain("loadOp: target ? 'clear' : 'load'");
+  });
+
+  it('holds the encoder where a second pass can reach it', () => {
+    // Both passes must be recorded on the same encoder: passes run in the order
+    // they were recorded on it, and that ordering is what lets the frame sample
+    // in pass two what it drew in pass one.
+    expect(CODE).toMatch(/bmEnc = bmDevice\.createCommandEncoder\(\)/);
+    expect(CODE).toContain('bmDevice.queue.submit([bmEnc.finish()])');
+  });
+
+  it('gives every target a depth attachment', () => {
+    // Not a preference. Every pipeline bmProgram builds declares a depthStencil
+    // state, and WebGPU requires the pass to carry a depth attachment when the
+    // pipeline declares one — an optional depth would be a target nothing could
+    // be drawn into, failing at the first draw rather than at construction.
+    expect(CODE).toMatch(/format: 'depth24plus'/);
+    expect(CODE).toContain('view: target ? target.d : bmDepth!.createView()');
+  });
+});
+
 describe('tiny runtime compute surface', () => {
   it('offers a compute pipeline, storage buffers and dispatch', () => {
     for (const fn of ['bmCompute', 'bmStore', 'bmStorages', 'bmDispatch']) {
@@ -256,16 +300,21 @@ describe('tiny runtime', () => {
     // available here. `npm run test:template` gates the real number — ~2.4 KB
     // gzipped against a 3 KB budget.
     //
-    // Raised from 16000 when compute landed. That is the ceiling doing its job
-    // rather than failing at it: the jump was a new capability — compute
-    // pipelines, storage buffers, dispatch — and the number was re-set once the
-    // growth had been looked at and the prose trimmed, not nudged to fit.
+    // Raised from 16000 when compute landed, and from 22000 when render targets
+    // did. Both times the ceiling did its job rather than failing at it: the jump
+    // was a new capability, and the number was re-set once the growth had been
+    // looked at, not nudged to fit.
+    //
+    // Targets cost 2535 bytes gzipped against the 3072 budget in
+    // `test:template` — and nothing at all to a game that never calls bmTarget,
+    // because `--toplevel` deletes both new functions along with everything else
+    // it never sees called.
     //
     // Source length is not what a game pays. Comments never reach the zip, and
     // a game that only draws pays about 100 bytes of it, for the storage
     // bindings bmProgram must accept to read what compute produced. Judge a
     // change against test:template; judge it against this one for scope creep.
-    expect(RUNTIME.length).toBeLessThan(22000);
+    expect(RUNTIME.length).toBeLessThan(26500);
   });
 
   it('carries nothing only the full runtime needs', () => {

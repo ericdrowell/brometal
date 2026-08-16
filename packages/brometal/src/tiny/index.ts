@@ -23,6 +23,8 @@ import {
   BUF_VERTEX,
   CS_ENTRY,
   FS_ENTRY,
+  TEX_HDR,
+  TEX_TARGET,
   TEX_UPLOAD,
   VIS_COMPUTE,
   VIS_RENDER,
@@ -42,6 +44,13 @@ export let bmCanvas: HTMLCanvasElement;
 export let bmClear: readonly number[];
 /** The render pass currently open inside bmLoop's callback. */
 export let bmPass: GPURenderPassEncoder;
+/**
+ * The frame's command encoder, held here rather than inside bmLoop's closure so
+ * bmPassTo can open a second pass on it. Passes recorded on one encoder run in
+ * the order they were recorded, which is what lets a game draw a scene into a
+ * target and then sample it in the same frame.
+ */
+export let bmEnc: GPUCommandEncoder;
 
 // Model-view matrix stack, the shape SafeSpace used: mutate the current matrix,
 // push before a subtree, pop after.
@@ -83,6 +92,15 @@ export interface BmProgramOpts {
   blend?: number;
   zwrite?: number;
   cull?: number;
+  /**
+   * Set when this program draws into a render target rather than the canvas.
+   *
+   * A pipeline's colour format is fixed when it is built and has to match the
+   * attachment it is used with, so one program cannot serve both. This is the
+   * flag rather than the format itself because there are only two answers and a
+   * string costs bytes in a build that counts them.
+   */
+  fmt?: number;
 }
 
 export interface BmTexture {
@@ -90,10 +108,16 @@ export interface BmTexture {
   s: GPUSampler;
 }
 
+/** A BmTexture that can also be drawn into, plus the depth its pass needs. */
+export interface BmTarget extends BmTexture {
+  d: GPUTextureView;
+}
+
 export interface BmProgram {
   p: GPURenderPipeline | GPUComputePipeline;
   l: GPUBindGroupLayout;
-  ub: GPUBuffer;
+  /** The uniform block's buffer, or null for a shader that declares no block. */
+  ub: GPUBuffer | null;
   t: number[][];
   /** [binding, written] pairs, in the order bmStorages fills them. */
   st: number[][];
@@ -123,8 +147,13 @@ export interface BmProgram {
  * module writes is hidden from the vertex stage, while one it only reads stays
  * visible there, which is how a draw program picks up what compute produced.
  */
-function bmLayout(vis: number, texes: number[][], stores: number[][]): GPUBindGroupLayout {
-  const entries: GPUBindGroupLayoutEntry[] = [{ binding: 0, visibility: vis, buffer: {} }];
+function bmLayout(vis: number, u: number, texes: number[][], stores: number[][]): GPUBindGroupLayout {
+  // Binding 0 is the uniform block only when there *is* one. A shader whose
+  // uniforms are all samplers has no block, and the compiler then gives binding
+  // 0 to the first texture — so declaring one here anyway collides with it and
+  // the pipeline never builds. That is exactly the shape of a post-process
+  // shader: one sampler, no scalars.
+  const entries: GPUBindGroupLayoutEntry[] = u ? [{ binding: 0, visibility: vis, buffer: {} }] : [];
   for (const [tex, samp] of texes) {
     entries.push({ binding: tex, visibility: vis, texture: {} });
     entries.push({ binding: samp, visibility: vis, sampler: {} });
@@ -148,7 +177,11 @@ function bmShell(
   return {
     p,
     l,
-    ub: bmDevice.createBuffer({ size: opts.u || 16, usage: BUF_UNIFORM }),
+    // No block, no buffer — and `ub` is then what bmBind tests to decide whether
+    // to bind one. WebGPU rejects a zero-sized buffer anyway, which is what the
+    // old `|| 16` was there to dodge; a buffer nothing in the shader can read is
+    // a stranger thing to allocate than none at all.
+    ub: opts.u ? bmDevice.createBuffer({ size: opts.u, usage: BUF_UNIFORM }) : null,
     t: opts.t || [],
     st: opts.s || [],
     b: [],
@@ -165,7 +198,7 @@ export function bmProgram(wgsl: string, opts: BmProgramOpts): BmProgram {
   const attrs = opts.a || [];
   const insts = opts.i || [];
 
-  const bindLayout = bmLayout(VIS_RENDER, opts.t || [], opts.s || []);
+  const bindLayout = bmLayout(VIS_RENDER, opts.u || 0, opts.t || [], opts.s || []);
 
   // One vertex buffer per attribute: simpler than interleaving, and the extra
   // bind cost is irrelevant next to the bytes a packing scheme would take.
@@ -190,7 +223,7 @@ export function bmProgram(wgsl: string, opts: BmProgramOpts): BmProgram {
       module,
       entryPoint: FS_ENTRY,
       targets: [{
-        format: bmFormat,
+        format: opts.fmt ? TEX_HDR : bmFormat,
         // A ternary, not `&&`: the falsy branch has to be undefined, and 0 is
         // not a blend state.
         blend: opts.blend
@@ -224,7 +257,7 @@ export function bmProgram(wgsl: string, opts: BmProgramOpts): BmProgram {
  */
 export function bmCompute(wgsl: string, opts: BmProgramOpts): BmProgram {
   const module = bmDevice.createShaderModule({ code: wgsl });
-  const bindLayout = bmLayout(VIS_COMPUTE, opts.t || [], opts.s || []);
+  const bindLayout = bmLayout(VIS_COMPUTE, opts.u || 0, opts.t || [], opts.s || []);
   const pipeline = bmDevice.createComputePipeline({
     layout: bmDevice.createPipelineLayout({ bindGroupLayouts: [bindLayout] }),
     compute: { module, entryPoint: CS_ENTRY },
@@ -290,6 +323,66 @@ export function bmTexture(source: GPUCopyExternalImageSource & { width: number; 
   };
 }
 
+/**
+ * An off-screen surface to draw into and then sample: half of a post-process.
+ *
+ * The handle is `{v, s}` plus a depth view, so it *is* a BmTexture and
+ * `bmTextures(prog, target)` binds it with no second API.
+ *
+ * **Depth comes with it, always.** Every pipeline bmProgram builds declares a
+ * depthStencil state, and WebGPU requires a matching attachment on the pass — a
+ * target without depth would be one nothing could be drawn into, so making it
+ * optional moves an unbuildable API to a validation error at first draw.
+ *
+ * **Sampled linearly**, unlike `full`'s targets: there they hold simulation
+ * state, here they are nearly always about to be blurred or downsampled. A pass
+ * reading exact texel centres gets the exact texel either way.
+ */
+export function bmTarget(w: number, h: number): BmTarget {
+  return {
+    v: bmDevice
+      .createTexture({ size: [w, h], format: TEX_HDR, usage: TEX_TARGET })
+      .createView(),
+    s: bmDevice.createSampler({ magFilter: 'linear', minFilter: 'linear' }),
+    d: bmDevice
+      .createTexture({ size: [w, h], format: 'depth24plus', usage: 16 })
+      .createView(),
+  };
+}
+
+/**
+ * Point the rest of the frame at a target, or back at the canvas.
+ *
+ * Ends the open pass and starts another on the same encoder. A target clears as
+ * it opens; the canvas *loads*, because bmLoop cleared it when the frame began
+ * and clearing again would throw away everything drawn before the detour.
+ *
+ *   bmPassTo(scene)   // the world, into an HDR target
+ *   ...draws...
+ *   bmPassTo()        // back to the screen
+ *   bmTextures(post, scene); bmDraw(post)
+ *
+ * Programs drawing into a target need `fmt: 1`: a pipeline's colour format is
+ * baked in and has to match the attachment.
+ */
+export function bmPassTo(target?: BmTarget): void {
+  bmPass.end();
+  bmPass = bmEnc.beginRenderPass({
+    colorAttachments: [{
+      view: target ? target.v : bmCtx.getCurrentTexture().createView(),
+      clearValue: bmClear,
+      loadOp: target ? 'clear' : 'load',
+      storeOp: 'store',
+    }],
+    depthStencilAttachment: {
+      view: target ? target.d : bmDepth!.createView(),
+      depthClearValue: 1,
+      depthLoadOp: 'clear',
+      depthStoreOp: 'store',
+    },
+  });
+}
+
 // Bind textures in the order the shader declares them. Rebuilding the bind
 // group here rather than caching is deliberate: SafeSpace-style rendering swaps
 // texture per batch, and a cache keyed on the set would cost more than it saves.
@@ -322,13 +415,18 @@ export function bmStorages(prog: BmProgram, ...buffers: GPUBuffer[]): void {
 }
 
 export function bmUniforms(prog: BmProgram, floats: Float32Array<ArrayBuffer>): void {
-  bmDevice.queue.writeBuffer(prog.ub, 0, floats);
+  // Unguarded on purpose, per the no-validation rule: calling this on a program
+  // whose shader declares no uniform block is a mistake in the game, and the
+  // null it throws on names the line.
+  bmDevice.queue.writeBuffer(prog.ub!, 0, floats);
 }
 
 /** Lazily built, and thrown away whenever a binding changes. */
 function bmBind(prog: BmProgram): GPUBindGroup {
   if (!prog.bg) {
-    const entries: GPUBindGroupEntry[] = [{ binding: 0, resource: { buffer: prog.ub } }];
+    const entries: GPUBindGroupEntry[] = prog.ub
+      ? [{ binding: 0, resource: { buffer: prog.ub } }]
+      : [];
     prog.t.forEach(([tex, samp], i) => {
       entries.push({ binding: tex, resource: prog.tx[i].v });
       entries.push({ binding: samp, resource: prog.tx[i].s });
@@ -387,8 +485,8 @@ export function bmLoop(callback: (seconds: number) => void): void {
         usage: 16,
       });
     }
-    const encoder = bmDevice.createCommandEncoder();
-    bmPass = encoder.beginRenderPass({
+    bmEnc = bmDevice.createCommandEncoder();
+    bmPass = bmEnc.beginRenderPass({
       colorAttachments: [{
         view: bmCtx.getCurrentTexture().createView(),
         clearValue: bmClear,
@@ -403,8 +501,10 @@ export function bmLoop(callback: (seconds: number) => void): void {
       },
     });
     callback(now / 1000);
+    // Whichever pass is open when the callback returns — bmPassTo may have
+    // swapped it more than once — is the one that gets closed.
     bmPass.end();
-    bmDevice.queue.submit([encoder.finish()]);
+    bmDevice.queue.submit([bmEnc.finish()]);
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
