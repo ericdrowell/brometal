@@ -45,7 +45,9 @@ export type IrStmt =
       body: IrStmt[];
     }
   | { kind: 'storageWrite'; buffer: string; index: IrExpr; value: IrExpr }
-  | { kind: 'return'; expr: IrExpr };
+  | { kind: 'return'; expr: IrExpr }
+  /** Fragment stage only. Discards the fragment. The GPU writes no colour and no depth. */
+  | { kind: 'discard' };
 
 export interface HelperParam {
   name: string;
