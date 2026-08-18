@@ -246,6 +246,28 @@ async function run(): Promise<void> {
     });
   }
 
+  // present(): one frame, drawn synchronously, with no requestAnimationFrame in
+  // sight. loop() is built on it, so this also proves the extraction kept the
+  // pass setup intact — a present that skipped the resize or the submit would
+  // leave the canvas empty here.
+  {
+    const presentProgram = createProgram(renderer, targetReadShader);
+    presentProgram.attributes.aPosition.set(quad.positions);
+    presentProgram.attributes.aUv.set(quad.uvs);
+    presentProgram.setIndices(quad.indices);
+    presentProgram.uniforms.uTarget.set(target.texture);
+
+    const before = samplePixel(canvas, 128, 32);
+    renderer.present(() => presentProgram.draw());
+    const after = samplePixel(canvas, 128, 32);
+
+    checks.push({
+      name: 'present() draws a frame without a loop',
+      passed: after.some((channel, index) => channel !== before[index]) || after[2]! > 0,
+      detail: `canvas ${before.slice(0, 3).join(',')} -> ${after.slice(0, 3).join(',')}`,
+    });
+  }
+
   window.__GPU_RESULTS__ = { backend: renderer.backend, mode: 'webgpu', checks };
 }
 

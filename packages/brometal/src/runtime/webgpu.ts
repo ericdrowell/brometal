@@ -185,6 +185,70 @@ export async function createWebgpuRenderer(
     get aspect(): number {
       return canvas.width / Math.max(canvas.height, 1);
     },
+    present(callback: () => void): void {
+      if (needsResize || observer === null) {
+        needsResize = false;
+        resizeToDisplaySize(canvas, window.devicePixelRatio || 1);
+        if (depthTexture === null || depthTexture.width !== canvas.width || depthTexture.height !== canvas.height) {
+          depthTexture?.destroy();
+          depthTexture = device.createTexture({
+            size: [canvas.width, canvas.height],
+            format: 'depth24plus',
+            sampleCount: internals.sampleCount,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+          depthView = depthTexture.createView();
+          if (internals.sampleCount > 1) {
+            msaaTexture?.destroy();
+            msaaTexture = device.createTexture({
+              size: [canvas.width, canvas.height],
+              format,
+              sampleCount: internals.sampleCount,
+              usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+            msaaView = msaaTexture.createView();
+          }
+        }
+      }
+      internals.frame++;
+      const [r, g, b, a] = internals.clearColor;
+      const encoder = device.createCommandEncoder();
+      // With MSAA the pass renders into the multisampled texture and
+      // resolves into the swapchain; the samples themselves are discarded.
+      const swapchainView = context.getCurrentTexture().createView();
+      internals.pass = encoder.beginRenderPass({
+        colorAttachments: [
+          msaaView !== null
+            ? {
+                view: msaaView,
+                resolveTarget: swapchainView,
+                clearValue: { r, g, b, a },
+                loadOp: 'clear',
+                storeOp: 'discard',
+              }
+            : {
+                view: swapchainView,
+                clearValue: { r, g, b, a },
+                loadOp: 'clear',
+                storeOp: 'store',
+              },
+        ],
+        depthStencilAttachment: {
+          view: depthView!,
+          depthClearValue: 1,
+          depthLoadOp: 'clear',
+          depthStoreOp: 'store',
+        },
+      });
+      internals.passFormat = format;
+      internals.passSamples = internals.sampleCount;
+      internals.passDepth = true;
+      callback();
+      internals.pass.end();
+      internals.pass = null;
+      device.queue.submit([encoder.finish()]);
+    },
+
     loop(callback: (elapsedSeconds: number) => void): () => void {
       let frameId = 0;
       let running = true;
@@ -192,67 +256,7 @@ export async function createWebgpuRenderer(
 
       const frame = (now: number): void => {
         if (!running) return;
-        if (needsResize || observer === null) {
-          needsResize = false;
-          resizeToDisplaySize(canvas, window.devicePixelRatio || 1);
-          if (depthTexture === null || depthTexture.width !== canvas.width || depthTexture.height !== canvas.height) {
-            depthTexture?.destroy();
-            depthTexture = device.createTexture({
-              size: [canvas.width, canvas.height],
-              format: 'depth24plus',
-              sampleCount: internals.sampleCount,
-              usage: GPUTextureUsage.RENDER_ATTACHMENT,
-            });
-            depthView = depthTexture.createView();
-            if (internals.sampleCount > 1) {
-              msaaTexture?.destroy();
-              msaaTexture = device.createTexture({
-                size: [canvas.width, canvas.height],
-                format,
-                sampleCount: internals.sampleCount,
-                usage: GPUTextureUsage.RENDER_ATTACHMENT,
-              });
-              msaaView = msaaTexture.createView();
-            }
-          }
-        }
-        internals.frame++;
-        const [r, g, b, a] = internals.clearColor;
-        const encoder = device.createCommandEncoder();
-        // With MSAA the pass renders into the multisampled texture and
-        // resolves into the swapchain; the samples themselves are discarded.
-        const swapchainView = context.getCurrentTexture().createView();
-        internals.pass = encoder.beginRenderPass({
-          colorAttachments: [
-            msaaView !== null
-              ? {
-                  view: msaaView,
-                  resolveTarget: swapchainView,
-                  clearValue: { r, g, b, a },
-                  loadOp: 'clear',
-                  storeOp: 'discard',
-                }
-              : {
-                  view: swapchainView,
-                  clearValue: { r, g, b, a },
-                  loadOp: 'clear',
-                  storeOp: 'store',
-                },
-          ],
-          depthStencilAttachment: {
-            view: depthView!,
-            depthClearValue: 1,
-            depthLoadOp: 'clear',
-            depthStoreOp: 'store',
-          },
-        });
-        internals.passFormat = format;
-        internals.passSamples = internals.sampleCount;
-        internals.passDepth = true;
-        callback((now - startedAt) / 1000);
-        internals.pass.end();
-        internals.pass = null;
-        device.queue.submit([encoder.finish()]);
+        renderer.present(() => callback((now - startedAt) / 1000));
         frameId = requestAnimationFrame(frame);
       };
       frameId = requestAnimationFrame(frame);
