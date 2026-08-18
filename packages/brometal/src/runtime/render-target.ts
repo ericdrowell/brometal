@@ -15,6 +15,17 @@ export interface RenderTargetOptions {
    * triangle was submitted last.
    */
   depth?: boolean;
+  /**
+   * Multisample count for drawing into this target. Defaults to 1.
+   *
+   * `createRenderer(canvas, { antialias: true })` gives the screen 4x MSAA. A
+   * pass that renders into a target instead gets one sample, so adopting an
+   * off-screen pass — an HDR buffer before tone mapping, a post-processing
+   * chain — costs all anti-aliasing on every silhouette edge. Pass `4` to keep
+   * it. The target texture stays single-sampled and receives the resolve, so
+   * sampling it afterwards is unchanged.
+   */
+  samples?: number;
 }
 
 /**
@@ -46,5 +57,6 @@ export function createRenderTarget(renderer: Renderer, options: RenderTargetOpti
     Math.max(1, Math.floor(options.width)),
     Math.max(1, Math.floor(options.height)),
     options.depth ?? false,
+    options.samples ?? 1,
   );
 }
