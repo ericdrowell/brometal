@@ -38,6 +38,15 @@ export interface Renderer {
   readonly canvas: HTMLCanvasElement;
   /** Drawing-buffer aspect ratio, for building projection matrices. */
   readonly aspect: number;
+  /**
+   * Draw exactly one frame, now.
+   *
+   * `loop` owns `requestAnimationFrame`, which a host that already has its own
+   * frame loop cannot give up, and a capture needs one frame on demand rather
+   * than a stream of them. `present` is `loop`'s body without the scheduling —
+   * resize, begin the pass, run the callback, submit.
+   */
+  present(callback: () => void): void;
   loop(callback: (elapsedSeconds: number) => void): () => void;
   /**
    * Runs `draw` with every `program.draw()` writing into `target` instead of
