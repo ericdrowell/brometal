@@ -219,8 +219,11 @@ export default shader({
 
   it('helpers and loops survive the prod optimize/minify pipeline', () => {
     const compiled = compile(PLASMA_SHADER, { optimize: true });
-    expect(compiled.wgslSrc).toContain('fn palette(t : f32) -> vec3f {');
-    expect(compiled.wgslSrc).toContain('for (var i = 0.0; i < 5.0; i = i + 1.0) {');
+    // Name-agnostic: a prod build shortens every module-local identifier, so
+    // this asserts the shapes survive rather than what they are called. The
+    // renaming itself is covered in minify.test.ts.
+    expect(compiled.wgslSrc).toMatch(/fn \w+\(\w+ : f32\) -> vec3f \{/);
+    expect(compiled.wgslSrc).toMatch(/for \(var (\w+) = 0\.0; \1 < 5\.0; \1 = \1 \+ 1\.0\) \{/);
   });
 
   it('supports the new intrinsics', () => {

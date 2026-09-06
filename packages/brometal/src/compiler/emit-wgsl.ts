@@ -1,5 +1,6 @@
 import type { ShaderLayout } from '../dsl/types.js';
 import type { HelperIr, IrExpr, IrStmt, IrType, ShaderIr } from './ir.js';
+import { buildRenameMap } from './minify.js';
 import { formatFloat, helperClosure } from './ir.js';
 
 /**
@@ -46,9 +47,18 @@ interface EmitContext {
   attributes: Set<string>;
   uniforms: Set<string>;
   varyings: Set<string>;
+  /** Module-local names to shorten. Empty unless the build asked to optimize. */
+  rename: Map<string, string>;
+  /** Helper names, so a call to one is renamed and a call to `sin` is not. */
+  helpers: Set<string>;
 }
 
-export function emitWgsl(ir: ShaderIr, layout: ShaderLayout): string {
+/** A local's emitted name. Anything not in the map is already its own answer. */
+function short(name: string, ctx: EmitContext): string {
+  return ctx.rename.get(name) ?? name;
+}
+
+export function emitWgsl(ir: ShaderIr, layout: ShaderLayout, minify = false): string {
   const lines: string[] = [];
 
   const blockMembers = layout.uniforms.filter(
@@ -115,6 +125,12 @@ export function emitWgsl(ir: ShaderIr, layout: ShaderLayout): string {
       ),
     ),
     varyings: new Set(Object.keys(ir.varyings)),
+    // Renaming is a size optimization and nothing else, so it rides with the
+    // rest of them rather than being its own switch: a dev build keeps the
+    // names the shader was written with, which is what you want when a compile
+    // error points at a line.
+    rename: minify ? buildRenameMap(ir) : new Map<string, string>(),
+    helpers: new Set(ir.helpers.map((helper) => helper.name)),
   };
 
   emitHelpers(
@@ -153,7 +169,7 @@ export function emitWgsl(ir: ShaderIr, layout: ShaderLayout): string {
     if (ir.compute.idParam !== undefined) {
       // The DSL is float-only, so the u32 invocation id is converted once here
       // rather than at every use.
-      lines.push(`  let ${ir.compute.idParam} = vec3f(bm_gid);`);
+      lines.push(`  let ${short(ir.compute.idParam, computeCtx)} = vec3f(bm_gid);`);
     }
     emitStatements(lines, ir.compute.statements, computeCtx, 1);
     lines.push('}');
@@ -185,10 +201,10 @@ function emitHelper(lines: string[], helper: HelperIr, ctx: EmitContext): void {
     .map((param) =>
       param.type === 'sampler2D' || param.type === 'sampler3D'
         ? `${param.name} : texture_${param.type === 'sampler3D' ? '3d' : '2d'}<f32>, ${param.name}_sampler : sampler`
-        : `${param.name} : ${WGSL_TYPES[param.type]}`,
+        : `${short(param.name, ctx)} : ${WGSL_TYPES[param.type]}`,
     )
     .join(', ');
-  lines.push(`fn ${helper.name}(${params}) -> ${WGSL_TYPES[helper.returnType]} {`);
+  lines.push(`fn ${short(helper.name, ctx)}(${params}) -> ${WGSL_TYPES[helper.returnType]} {`);
   emitStatements(lines, helper.statements, ctx, 1);
   lines.push('}');
 }
@@ -199,13 +215,15 @@ function emitStatements(lines: string[], statements: IrStmt[], ctx: EmitContext,
     switch (statement.kind) {
       case 'decl': {
         const keyword = statement.mutable ? 'var' : 'let';
-        lines.push(`${indent}${keyword} ${statement.name} = ${emitExpr(statement.expr, ctx, 0)};`);
+        lines.push(
+          `${indent}${keyword} ${short(statement.name, ctx)} = ${emitExpr(statement.expr, ctx, 0)};`,
+        );
         break;
       }
       case 'assign': {
         const target = ctx.varyings.has(statement.target)
           ? `bm_out.${statement.target}`
-          : statement.target;
+          : short(statement.target, ctx);
         lines.push(`${indent}${target} = ${emitExpr(statement.expr, ctx, 0)};`);
         break;
       }
@@ -232,10 +250,10 @@ function emitStatements(lines: string[], statements: IrStmt[], ctx: EmitContext,
         break;
       }
       case 'for': {
-        const init = `var ${statement.init.name} = ${emitExpr(statement.init.expr, ctx, 0)}`;
+        const init = `var ${short(statement.init.name, ctx)} = ${emitExpr(statement.init.expr, ctx, 0)}`;
         const update =
           statement.update.kind === 'assign'
-            ? `${statement.update.target} = ${emitExpr(statement.update.expr, ctx, 0)}`
+            ? `${short(statement.update.target, ctx)} = ${emitExpr(statement.update.expr, ctx, 0)}`
             : '';
         lines.push(`${indent}for (${init}; ${emitExpr(statement.condition, ctx, 0)}; ${update}) {`);
         emitStatements(lines, statement.body, ctx, depth + 1);
@@ -248,7 +266,7 @@ function emitStatements(lines: string[], statements: IrStmt[], ctx: EmitContext,
 
 function emitIdent(name: string, ctx: EmitContext): string {
   if (ctx.stage === 'helper') {
-    return name;
+    return short(name, ctx);
   }
   if (ctx.attributes.has(name)) {
     return `bm_in.${name}`;
@@ -260,7 +278,7 @@ function emitIdent(name: string, ctx: EmitContext): string {
     // Vertex reads its own writes from bm_out; fragment reads inputs.
     return ctx.stage === 'vertex' ? `bm_out.${name}` : `bm_in.${name}`;
   }
-  return name;
+  return short(name, ctx);
 }
 
 function emitExpr(expr: IrExpr, ctx: EmitContext, parentPrecedence: number): string {
@@ -369,5 +387,8 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
   if (constructor !== undefined) {
     return `${constructor}(${rendered})`;
   }
-  return `${expr.callee}(${rendered})`;
+  // A call to one of the shader's own helpers is renamed with it; a call to a
+  // WGSL builtin is not, and the two share a namespace only by accident.
+  const callee = ctx.helpers.has(expr.callee) ? short(expr.callee, ctx) : expr.callee;
+  return `${callee}(${rendered})`;
 }

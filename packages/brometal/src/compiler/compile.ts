@@ -49,7 +49,7 @@ export function compileShaderSource(
     uniforms: ir.uniforms,
     varyings: ir.varyings,
     layout,
-    wgslSrc: emitWgsl(ir, layout),
+    wgslSrc: emitWgsl(ir, layout, options.optimize === true),
     warnings,
   };
   if (ir.storageWritten.length > 0) {
