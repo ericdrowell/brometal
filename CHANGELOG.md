@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.19.0 (2026-09-06)
+
 ### Improved
 - **`brometal prod` now shortens the identifiers it emits into WGSL.** Locals,
   loop variables, helper functions and their parameters are renamed to one or two

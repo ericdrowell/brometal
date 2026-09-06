@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 0.19.0 (2026-09-06)
+
+### Improved
+- **`brometal prod` now shortens the identifiers it emits into WGSL.** Locals,
+  loop variables, helper functions and their parameters are renamed to one or two
+  characters. Entry points, attributes, uniforms, varyings and storage bindings
+  keep their names — the host binds against those, and renaming an entry point
+  fails at pipeline creation, which shows up as a blank canvas rather than an
+  error. A dev build is untouched, so a compile error still points at the name
+  you wrote.
+
+  Shader source usually ships as a string inside the bundle, so this is paid for
+  byte by byte. Names are also the part a compressor cannot guess: a repeated
+  symbol is cheap but never free, since every occurrence still costs bits in
+  proportion to its length. On a large shader-heavy project it measured out at
+  about five per cent of the whole compressed bundle.
+
+  **Whitespace is deliberately left alone.** Stripping it was measured on the
+  same project and made the compressed output *larger* — indentation is the most
+  predictable text in the file, so removing it deletes context without deleting
+  cost. Renaming and reformatting are not the same optimization.
+
+  Generated names are a letter, or a letter and a digit. No WGSL reserved word
+  and no builtin contains a digit, so the pool cannot collide with either — which
+  matters more than it sounds, since the reserved-for-future list is long, full
+  of ordinary words, and grows.
+
 ## 0.18.0 (2026-08-16)
 
 ### Added
