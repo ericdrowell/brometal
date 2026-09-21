@@ -29,6 +29,7 @@ export {
   clamp,
   cos,
   cross,
+  discard,
   distance,
   dot,
   exp,

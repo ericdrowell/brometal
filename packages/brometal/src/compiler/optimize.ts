@@ -25,6 +25,8 @@ function foldStmt(statement: IrStmt): IrStmt {
       return { ...statement, expr: foldExpr(statement.expr) };
     case 'assign':
       return { ...statement, expr: foldExpr(statement.expr) };
+    case 'discard':
+      return statement;
     case 'return':
       return { ...statement, expr: foldExpr(statement.expr) };
     case 'storageWrite':
