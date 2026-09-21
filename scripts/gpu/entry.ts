@@ -19,6 +19,7 @@ import computeShader from './fixtures/gpu-compute.shader.gen';
 import readbackShader from './fixtures/gpu-readback.shader.gen';
 import targetWriteShader from './fixtures/gpu-target-write.shader.gen';
 import targetReadShader from './fixtures/gpu-target-read.shader.gen';
+import targetEdgeShader from './fixtures/gpu-target-edge.shader.gen';
 
 interface Check {
   name: string;
@@ -244,6 +245,59 @@ async function run(): Promise<void> {
       passed: near(storedV!, ownV!, 12),
       detail: `stored v ${storedV} vs this pass's v ${ownV}`,
     });
+  }
+
+  // Multisampling into a target. A diagonal edge drawn into an off-screen
+  // target, then magnified: at one sample the edge is a hard step between black
+  // and white, and at four the resolve leaves intermediate values along it.
+  // Counting distinct values across a scanline is what separates them — the
+  // node suite cannot see a sample count, and a wrong one still draws a
+  // plausible image, just an aliased one.
+  for (const [samples, expectIntermediates] of [
+    [1, false],
+    [4, true],
+  ] as const) {
+    const edge = createRenderTarget(renderer, { width: 64, height: 64, depth: true, samples });
+    const drawEdge = createProgram(renderer, targetEdgeShader);
+    drawEdge.attributes.aPosition.set(new Float32Array([-1, -1, 0, 1, -1, 0, -1, 1, 0]));
+
+    // Reuse the existing read fixture rather than adding another: its blue
+    // channel is the stored value straight out of the target.
+    const showEdge = createProgram(renderer, targetReadShader);
+    showEdge.attributes.aPosition.set(quad.positions);
+    showEdge.attributes.aUv.set(quad.uvs);
+    showEdge.setIndices(quad.indices);
+    showEdge.uniforms.uTarget.set(edge.texture);
+
+    await new Promise<void>((resolve) => {
+      const stop = renderer.loop(() => {
+        renderer.drawTo(edge, () => drawEdge.draw());
+        showEdge.draw();
+        stop();
+        resolve();
+      });
+    });
+
+    // Read one row and count how many distinct blues appear. A hard step gives
+    // two; a resolved edge adds partial coverage between them. Sampling is
+    // nearest here, so any intermediate value came from the resolve rather than
+    // from the magnification.
+    const scratch = document.createElement('canvas');
+    scratch.width = canvas.width;
+    scratch.height = canvas.height;
+    const ctx = scratch.getContext('2d')!;
+    ctx.drawImage(canvas, 0, 0);
+    const row = ctx.getImageData(0, Math.floor(canvas.height / 2), canvas.width, 1).data;
+    const distinct = new Set<number>();
+    for (let i = 0; i < row.length; i += 4) distinct.add(row[i + 2]!);
+    const hasIntermediates = distinct.size > 2;
+
+    checks.push({
+      name: `render target at ${samples} sample(s) ${expectIntermediates ? 'resolves a soft edge' : 'leaves a hard edge'}`,
+      passed: hasIntermediates === expectIntermediates,
+      detail: `${distinct.size} distinct values across the scanline`,
+    });
+    edge.dispose();
   }
 
   window.__GPU_RESULTS__ = { backend: renderer.backend, mode: 'webgpu', checks };
