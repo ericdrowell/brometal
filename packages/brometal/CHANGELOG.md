@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.20.0 (2026-09-21)
+
 ### Added
 - **GPU-generated work queues.** Atomic storage operations, unsigned bit-packing
   helpers, integer typed-array storage, and indirect compute/draw execution are
