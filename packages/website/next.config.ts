@@ -1,8 +1,7 @@
 import type { NextConfig } from 'next';
 
-// `npm run dev` bundles the local workspace brometal package; `npm run prod`
-// (BROMETAL_SOURCE=npm) bundles the published npm package instead, so the
-// production build exercises exactly what registry users install.
+// Development uses the workspace. Production aliases the same imports to the
+// package Vercel refreshed from npm immediately before building.
 const useNpmPackage = process.env.BROMETAL_SOURCE === 'npm';
 
 const nextConfig: NextConfig = {

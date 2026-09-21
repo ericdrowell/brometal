@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Improved
+- **Production now exercises the published npm package without lockfile
+  failures.** Vercel refreshes `brometal@latest` before building instead of
+  rejecting a stale lockfile, while releases install the exact published
+  version in isolation and smoke-test its exports, geometry, and shader CLI.
+
 ## 0.20.0 (2026-09-21)
 
 ### Added

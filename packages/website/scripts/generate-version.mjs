@@ -1,33 +1,11 @@
-/**
- * Writes src/lib/version.ts with the brometal version this build bundles:
- * the local workspace package for dev builds, or the published npm package
- * when BROMETAL_SOURCE=npm — so the header always shows what's really running.
- */
+/** Writes src/lib/version.ts with the BroMetal version this build bundles. */
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const useNpmPackage = process.env.BROMETAL_SOURCE === 'npm';
-
-function readVersion() {
-  if (!useNpmPackage) {
-    return JSON.parse(
-      readFileSync(new URL('../../brometal/package.json', import.meta.url), 'utf8'),
-    ).version;
-  }
-  const candidates = [
-    new URL('../node_modules/brometal-published/package.json', import.meta.url),
-    new URL('../../../node_modules/brometal-published/package.json', import.meta.url),
-  ];
-  for (const candidate of candidates) {
-    try {
-      return JSON.parse(readFileSync(candidate, 'utf8')).version;
-    } catch {
-      // try the next location
-    }
-  }
-  throw new Error('generate-version: could not locate brometal-published/package.json');
-}
-
-const version = readVersion();
+const manifest = useNpmPackage
+  ? new URL('../../../node_modules/brometal-published/package.json', import.meta.url)
+  : new URL('../../brometal/package.json', import.meta.url);
+const version = JSON.parse(readFileSync(manifest, 'utf8')).version;
 const target = new URL('../src/lib/version.ts', import.meta.url);
 writeFileSync(
   target,

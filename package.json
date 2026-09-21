@@ -10,6 +10,7 @@
     "test:gpu": "node scripts/gpu-test.mjs",
     "sync:examples": "node scripts/sync-examples.mjs",
     "release": "npm test && npm run typecheck && npm run build && npm run test:template && node scripts/release.mjs",
+    "smoke:published": "node scripts/smoke-published.mjs",
     "typecheck": "npm run typecheck -w brometal && npm run typecheck -w website",
     "shaders": "npm run shaders -w website",
     "dev:website": "npm run dev -w website",

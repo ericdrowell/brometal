@@ -36,8 +36,7 @@ try {
 
 // Uncommitted work can ride along with the release: pass a commit message as
 // the second argument and it is committed and pushed as part of the release,
-// so the Vercel deploy triggered by the push builds against the fresh publish
-// instead of failing the preflight.
+// so the Vercel deploy triggered by the push follows the fresh publication.
 const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim();
 if (dirty !== '') {
   if (commitMessage === undefined || commitMessage.trim() === '') {
@@ -78,52 +77,13 @@ exec('node', ['scripts/sync-examples.mjs']);
 exec('git', ['add', '-A']);
 exec('git', ['commit', '-m', `release brometal ${tag}`]);
 exec('git', ['tag', tag]);
-// Publish BEFORE pushing: the push below is what triggers the Vercel deploy,
-// so by holding it until the registry serves the new version (and the lockfile
-// points at it), the deploy builds green on the first try. If publish fails
-// (auth, OTP), everything is still local — fix the issue, then run by hand:
-//   npm publish -w brometal
-//   npm update brometal-published -w website
-//   git commit -am "point website at brometal <tag>" && git push origin HEAD --tags
+// Publish before pushing so a failed authentication or OTP challenge leaves
+// the release commit and tag local. The website always builds the workspace
+// package, so deployment does not need to wait for npm registry propagation.
 exec('npm', ['publish', '-w', 'brometal']);
 console.log(`✓ published brometal@${version}`);
-
-// Point the website's published-package alias at the new version so the
-// deploy triggered by the push builds against the fresh release.
-console.log('Updating brometal-published in the website workspace...');
-if (await registryHas(version)) {
-  exec('npm', ['update', 'brometal-published', '-w', 'website']);
-  const installed = JSON.parse(
-    readFileSync(new URL('../node_modules/brometal-published/package.json', import.meta.url), 'utf8'),
-  ).version;
-  if (installed !== version) {
-    console.warn(
-      `⚠ brometal-published resolved to ${installed}, expected ${version} — run \`npm update brometal-published -w website\` again shortly`,
-    );
-  }
-  const lockfileDirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim();
-  if (lockfileDirty !== '') {
-    exec('git', ['commit', '-am', `point website at brometal ${tag}`]);
-  }
-} else {
-  console.warn(
-    `⚠ registry has not served brometal@${version} yet — run \`npm update brometal-published -w website\`, commit, and push once it appears`,
-  );
-}
+exec('node', ['scripts/smoke-published.mjs', version]);
 
 exec('git', ['push', 'origin', 'HEAD']);
 exec('git', ['push', 'origin', tag]);
 console.log(`✓ pushed ${tag} — the triggered deploy builds against brometal@${version}`);
-
-async function registryHas(expected) {
-  for (let attempt = 0; attempt < 6; attempt++) {
-    try {
-      const latest = execSync('npm view brometal version', { encoding: 'utf8' }).trim();
-      if (latest === expected) return true;
-    } catch {
-      // registry hiccup — retry below
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-  return false;
-}
