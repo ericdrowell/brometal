@@ -11,13 +11,18 @@ import { createWebgpuStorageBuffer } from './webgpu.js';
  */
 export interface BroMetalStorageBuffer {
   /** Replace the contents. The buffer is not resized — length must still fit. */
-  write(data: Float32Array<ArrayBuffer>): void;
+  write(data: StorageBufferData): void;
   dispose(): void;
 }
 
+export type StorageBufferData =
+  | Float32Array<ArrayBuffer>
+  | Uint32Array<ArrayBuffer>
+  | Int32Array<ArrayBuffer>;
+
 export function createStorageBuffer(
   renderer: Renderer,
-  data: Float32Array<ArrayBuffer>,
+  data: StorageBufferData,
 ): BroMetalStorageBuffer {
   return createWebgpuStorageBuffer(renderer, data);
 }

@@ -16,6 +16,7 @@ const COMPONENT_COUNTS: Record<GpuType, number> = {
   sampler2D: 1,
   sampler3D: 1,
   storage: 1,
+  atomic: 1,
 };
 
 const UNIFORM_KINDS: Record<GpuType, UniformKind> = {
@@ -27,6 +28,7 @@ const UNIFORM_KINDS: Record<GpuType, UniformKind> = {
   sampler2D: '1i',
   sampler3D: '1i',
   storage: '1i',
+  atomic: '1i',
 };
 
 /**

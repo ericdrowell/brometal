@@ -252,6 +252,14 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
           'A moonlit ocean — Gerstner waves in the vertex shader, fbm micro-ripples, fresnel, and a specular glint per pixel.',
       },
       {
+        slug: 'nanite-style',
+        name: 'Nanite-Style Teapots',
+        description:
+          'A 400 × 400 Utah teapot field represents 1.01 billion source triangles with compute culling, GPU-built visibility queues, and indirect LOD draws.',
+        tags: ['instancing', 'lod', 'clusters', 'performance'],
+        palette: ['#050812', '#ff3f72', '#3b85ff'],
+      },
+      {
         slug: 'day-ocean',
         name: 'Day Ocean',
         description:

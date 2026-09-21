@@ -1,6 +1,7 @@
 import type { CompiledShader, GpuRecord, GpuType } from '../dsl/types.js';
 import type { Renderer } from './context.js';
 import type { UniformValue } from './uniforms.js';
+import type { BroMetalStorageBuffer } from './storage.js';
 import { createWebgpuProgram } from './webgpu.js';
 
 export type BlendMode = 'none' | 'alpha' | 'additive';
@@ -33,6 +34,10 @@ export interface BroMetalProgram<
   draw(): void;
   /** Run the compute stage. Only for shaders declaring compute(); counts are workgroups. */
   dispatch(x: number, y?: number, z?: number): void;
+  /** Dispatch using three u32 workgroup counts written into a GPU buffer. */
+  dispatchIndirect(buffer: BroMetalStorageBuffer, byteOffset?: number): void;
+  /** Draw using WebGPU's four/five-u32 indirect argument layout. */
+  drawIndirect(buffer: BroMetalStorageBuffer, byteOffset?: number): void;
   dispose(): void;
 }
 

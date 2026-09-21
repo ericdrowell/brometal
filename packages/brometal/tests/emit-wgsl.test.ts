@@ -383,6 +383,63 @@ describe('compute stage', () => {
   });
 });
 
+describe('atomic storage buffers', () => {
+  const source = `
+import { shader, atomicAdd, atomicExchange, atomicLoad, atomicMax, storageWrite } from 'brometal';
+export default shader({
+  storage: { counter: 'atomic', output: 'float' },
+  compute({ counter, output }, id) {
+    const slot = atomicAdd(counter, 0, 1);
+    const previous = atomicMax(counter, 1, id.x);
+    const reset = atomicExchange(counter, 2, 0);
+    const current = atomicLoad(counter, 0);
+    storageWrite(output, id.x, slot + previous + reset + current);
+  },
+});`;
+
+  it('emits atomic u32 storage and converts through the float DSL boundary', () => {
+    const wgsl = compile(source).wgslSrc!;
+    expect(wgsl).toContain('var<storage, read_write> counter : array<atomic<u32>>');
+    expect(wgsl).toContain('f32(atomicAdd(&counter[u32(0.0)], u32(1.0)))');
+    expect(wgsl).toContain('f32(atomicMax(&counter[u32(1.0)], u32(id.x)))');
+    expect(wgsl).toContain('f32(atomicExchange(&counter[u32(2.0)], u32(0.0)))');
+    expect(wgsl).toContain('f32(atomicLoad(&counter[u32(0.0)]))');
+  });
+});
+
+describe('unsigned integer operations', () => {
+  it('lowers bit packing through the float-typed DSL boundary', () => {
+    const source = `
+import { shader, bitAnd, bitOr, bitXor, shiftLeft, shiftRight, storageWrite, uint } from 'brometal';
+export default shader({ storage: { output: 'float' }, compute({ output }, id) {
+  const packed = bitOr(shiftLeft(uint(id.x), 14), bitAnd(bitXor(id.y, 7), 16383));
+  storageWrite(output, id.x, shiftRight(packed, 2));
+} });`;
+    const wgsl = compile(source).wgslSrc!;
+    expect(wgsl).toContain('<<');
+    expect(wgsl).toContain('|');
+    expect(wgsl).toContain('&');
+    expect(wgsl).toContain('^');
+    expect(wgsl).toContain('>>');
+  });
+});
+
+describe('draw indices', () => {
+  it('exposes vertex and instance indices to typed vertex shaders', () => {
+    const source = `
+import { shader, instanceId, vertexId, vec4 } from 'brometal';
+export default shader({ attributes: { p: 'vec3' }, varyings: {},
+  vertex({ p }) { return vec4(p.x + instanceId(), p.y + vertexId(), p.z, 1); },
+  fragment() { return vec4(1); }
+});`;
+    const wgsl = compile(source).wgslSrc!;
+    expect(wgsl).toContain('@builtin(vertex_index) bm_vertex_index : u32');
+    expect(wgsl).toContain('@builtin(instance_index) bm_instance_index : u32');
+    expect(wgsl).toContain('f32(bm_in.bm_instance_index)');
+    expect(wgsl).toContain('f32(bm_in.bm_vertex_index)');
+  });
+});
+
 describe('compute-only WGSL validity', () => {
   it('emits no empty render structs', () => {
     const wgsl = compile(COMPUTE_SHADER).wgslSrc!;

@@ -57,6 +57,7 @@ imported `from 'brometal'` is the real API.
 - **Terrain** (`terrain`) — A 65k-vertex plane sculpted into rolling terrain by fbm noise running in the vertex shader.
 - **Ripples** (`ripples`) — Elastic ripples rolling across a surface — easing functions driving per-vertex animation on the GPU.
 - **Night Ocean** (`night-ocean`) — A moonlit ocean — Gerstner waves in the vertex shader, fbm micro-ripples, fresnel, and a specular glint per pixel.
+- **Nanite-Style Teapots** (`nanite-style`) — A 400 × 400 Utah teapot field represents 1.01 billion source triangles with compute culling, GPU-built visibility queues, and indirect LOD draws.
 - **Day Ocean** (`day-ocean`) — Eight Gerstner waves shape tropical water with analytic normals, refracted caustics, depth-aware colour, and steepness-driven foam.
 - **Brocraft** (`brocraft`) — A blocky voxel world you can fly through — the terrain, every block material, and all the culling are computed in the vertex shader.
 - **Star Bro** (`star-bro`) — A playable flight experience — fly the Spitfire through an instanced asteroid field with an additive engine trail and a follow camera.

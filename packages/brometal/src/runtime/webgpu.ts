@@ -3,7 +3,7 @@ import type { AttributeLayoutEntry, CompiledShader, GpuRecord, GpuType } from '.
 import type { AttributeHandle, BroMetalProgram, UniformHandle } from './program.js';
 import type { DrawToOptions, Renderer, RendererOptions } from './context.js';
 import type { BroMetalTexture, TextureOptions, VolumeSource } from './texture.js';
-import type { BroMetalStorageBuffer } from './storage.js';
+import type { BroMetalStorageBuffer, StorageBufferData } from './storage.js';
 import { BroMetalError, type ErrorHandler } from './errors.js';
 import { checkUniformValue, type UniformValue } from './uniforms.js';
 import type { RenderTarget } from './render-target.js';
@@ -185,7 +185,10 @@ export async function createWebgpuRenderer(
     get aspect(): number {
       return canvas.width / Math.max(canvas.height, 1);
     },
-    loop(callback: (elapsedSeconds: number) => void): () => void {
+    loop(
+      callback: (elapsedSeconds: number) => void,
+      beforeRender?: (elapsedSeconds: number) => void,
+    ): () => void {
       let frameId = 0;
       let running = true;
       const startedAt = performance.now();
@@ -217,6 +220,10 @@ export async function createWebgpuRenderer(
           }
         }
         internals.frame++;
+        const elapsed = (now - startedAt) / 1000;
+        // Compute/indirect preparation must happen before the swapchain render
+        // pass is opened. Separate submissions remain ordered on one WebGPU queue.
+        beforeRender?.(elapsed);
         const [r, g, b, a] = internals.clearColor;
         const encoder = device.createCommandEncoder();
         // With MSAA the pass renders into the multisampled texture and
@@ -249,7 +256,7 @@ export async function createWebgpuRenderer(
         internals.passFormat = format;
         internals.passSamples = internals.sampleCount;
         internals.passDepth = true;
-        callback((now - startedAt) / 1000);
+        callback(elapsed);
         internals.pass.end();
         internals.pass = null;
         device.queue.submit([encoder.finish()]);
@@ -737,6 +744,24 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
       pass.end();
       device.queue.submit([encoder.finish()]);
     },
+    dispatchIndirect(buffer: BroMetalStorageBuffer, byteOffset = 0): void {
+      if (compiled.hasCompute !== true) throw new Error('BroMetal: dispatchIndirect() needs a compute shader');
+      const gpuBuffer = (buffer as BroMetalStorageBuffer & { __wgpuBuffer?: GPUBuffer }).__wgpuBuffer;
+      if (gpuBuffer === undefined) throw new Error('BroMetal: dispatchIndirect() expects a WebGPU storage buffer');
+      flushUniforms();
+      computePipeline ??= device.createComputePipeline({
+        layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+        compute: { module, entryPoint: 'cs_main' },
+      });
+      bindGroup ??= buildBindGroup();
+      const encoder = device.createCommandEncoder();
+      const pass = encoder.beginComputePass();
+      pass.setPipeline(computePipeline);
+      pass.setBindGroup(0, bindGroup, uniformBuffer === null ? [] : [currentOffset]);
+      pass.dispatchWorkgroupsIndirect(gpuBuffer, byteOffset);
+      pass.end();
+      device.queue.submit([encoder.finish()]);
+    },
     draw(): void {
       const pass = internals.pass;
       if (pass === null) {
@@ -772,6 +797,35 @@ export function createWebgpuProgram<A extends GpuRecord, I extends GpuRecord, U 
         pass.drawIndexed(indexCount, instanceCount);
       } else {
         pass.draw(vertexCount, instanceCount);
+      }
+    },
+    drawIndirect(buffer: BroMetalStorageBuffer, byteOffset = 0): void {
+      const pass = internals.pass;
+      if (pass === null) throw new Error('BroMetal: drawIndirect() must be called inside renderer.loop()');
+      const gpuBuffer = (buffer as BroMetalStorageBuffer & { __wgpuBuffer?: GPUBuffer }).__wgpuBuffer;
+      if (gpuBuffer === undefined) throw new Error('BroMetal: drawIndirect() expects a WebGPU storage buffer');
+      for (const entry of compiled.layout.attributes) {
+        const states = entry.divisor === 1 ? instanceStates : vertexStates;
+        if (!states.has(entry.name)) throw new Error(`BroMetal: attribute '${entry.name}' has no data — call set(...) before drawIndirect()`);
+      }
+      if (internals.frame !== lastFrame) {
+        lastFrame = internals.frame;
+        slot = -1;
+        uniformsDirty = true;
+      }
+      flushUniforms();
+      bindGroup ??= buildBindGroup();
+      pass.setPipeline(pipelineFor(internals.passFormat, internals.passSamples, internals.passDepth));
+      pass.setBindGroup(0, bindGroup, uniformBuffer === null ? [] : [currentOffset]);
+      compiled.layout.attributes.forEach((entry, slot) => {
+        const states = entry.divisor === 1 ? instanceStates : vertexStates;
+        pass.setVertexBuffer(slot, states.get(entry.name)!.buffer);
+      });
+      if (indexBuffer !== null) {
+        pass.setIndexBuffer(indexBuffer, indexFormat);
+        pass.drawIndexedIndirect(gpuBuffer, byteOffset);
+      } else {
+        pass.drawIndirect(gpuBuffer, byteOffset);
       }
     },
     dispose(): void {
@@ -928,16 +982,16 @@ export function createWebgpuRenderTarget(
 /** A read-only storage buffer, uploaded once from a typed array. */
 export function createWebgpuStorageBuffer(
   renderer: Renderer,
-  data: Float32Array<ArrayBuffer>,
+  data: StorageBufferData,
 ): BroMetalStorageBuffer {
   const { device } = webgpuInternals(renderer);
   const buffer = device.createBuffer({
     size: Math.max(data.byteLength, 16),
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.INDIRECT,
   });
   device.queue.writeBuffer(buffer, 0, data);
   const handle: BroMetalStorageBuffer & { __wgpuBuffer?: GPUBuffer } = {
-    write(next: Float32Array<ArrayBuffer>): void {
+    write(next: StorageBufferData): void {
       device.queue.writeBuffer(buffer, 0, next);
     },
     dispose(): void {

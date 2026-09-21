@@ -38,7 +38,10 @@ export interface Renderer {
   readonly canvas: HTMLCanvasElement;
   /** Drawing-buffer aspect ratio, for building projection matrices. */
   readonly aspect: number;
-  loop(callback: (elapsedSeconds: number) => void): () => void;
+  loop(
+    callback: (elapsedSeconds: number) => void,
+    beforeRender?: (elapsedSeconds: number) => void,
+  ): () => void;
   /**
    * Runs `draw` with every `program.draw()` writing into `target` instead of
    * the screen. This is how state stays on the GPU across frames: a pass writes

@@ -12,6 +12,8 @@ export { createTorus } from './torus.js';
 export type { TorusOptions } from './torus.js';
 export { createTorusKnot } from './torus-knot.js';
 export type { TorusKnotOptions } from './torus-knot.js';
+export { createTeapot } from './teapot.js';
+export type { TeapotOptions } from './teapot.js';
 export { createCircle } from './circle.js';
 export type { CircleOptions } from './circle.js';
 export { createRing } from './ring.js';

@@ -47,6 +47,34 @@ export function storageLength(): number {
   return gpuOnly('storageLength');
 }
 
+/** Atomic operations over a storage buffer declared with element type `atomic`. */
+export function atomicLoad(buffer: Storage<number>, index: number): number;
+export function atomicLoad(): number { return gpuOnly('atomicLoad'); }
+export function atomicAdd(buffer: Storage<number>, index: number, value: number): number;
+export function atomicAdd(): number { return gpuOnly('atomicAdd'); }
+export function atomicMax(buffer: Storage<number>, index: number, value: number): number;
+export function atomicMax(): number { return gpuOnly('atomicMax'); }
+export function atomicExchange(buffer: Storage<number>, index: number, value: number): number;
+export function atomicExchange(): number { return gpuOnly('atomicExchange'); }
+
+/** Unsigned 32-bit operations, represented as numbers at the TypeScript DSL boundary. */
+export function uint(value: number): number;
+export function uint(): number { return gpuOnly('uint'); }
+export function bitAnd(a: number, b: number): number;
+export function bitAnd(): number { return gpuOnly('bitAnd'); }
+export function bitOr(a: number, b: number): number;
+export function bitOr(): number { return gpuOnly('bitOr'); }
+export function bitXor(a: number, b: number): number;
+export function bitXor(): number { return gpuOnly('bitXor'); }
+export function shiftLeft(value: number, bits: number): number;
+export function shiftLeft(): number { return gpuOnly('shiftLeft'); }
+export function shiftRight(value: number, bits: number): number;
+export function shiftRight(): number { return gpuOnly('shiftRight'); }
+
+/** Zero-based indices supplied by the hardware draw call. Vertex stage only. */
+export function instanceId(): number { return gpuOnly('instanceId'); }
+export function vertexId(): number { return gpuOnly('vertexId'); }
+
 export function texture(sampler: Sampler2D, uv: Vec2): Vec4;
 export function texture(sampler: Sampler3D, uvw: Vec3): Vec4;
 export function texture(): Vec4 {

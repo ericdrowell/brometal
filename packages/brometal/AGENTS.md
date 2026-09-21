@@ -173,14 +173,18 @@ along **X** instead, which agrees on both.
 ## API surface
 
 **Runtime:** `createRenderer createProgram createRenderTarget createCamera
-createTexture loadTexture loadGlb parseGlb mat4`
+createTexture createStorageBuffer loadTexture loadGlb parseGlb mat4`. Storage
+buffers accept `Float32Array`, `Uint32Array`, and `Int32Array`. A program can
+submit GPU-authored commands with `dispatchIndirect(buffer)` and
+`drawIndirect(buffer)`.
 
 **Geometry:** `createCube createPlane createSphere createCylinder createCone
-createTorus createTorusKnot createCircle createRing`
+createTorus createTorusKnot createCircle createRing createTeapot`
 
 **DSL intrinsics:** `vec2 vec3 vec4 texture targetUv normalize length distance
 dot cross mix clamp reflect sin cos tan asin acos atan abs sign fract floor sqrt
-pow exp exp2 log mod step smoothstep min max`
+pow exp exp2 log mod step smoothstep min max atomicLoad atomicAdd atomicMax
+atomicExchange uint bitAnd bitOr bitXor shiftLeft shiftRight instanceId vertexId`
 
 **`brometal/shaders`** — 30 precompiled fullscreen effects (fire, caustics,
 raymarching, CRT/glitch image effects). Zero compilation in your app.

@@ -19,6 +19,7 @@ const WGSL_TYPES: Record<IrType, string> = {
   sampler2D: '(sampler2D has no WGSL value type)',
   sampler3D: '(sampler3D has no WGSL value type)',
   storage: '(storage has no WGSL value type)',
+  atomic: 'atomic<u32>',
   bool: 'bool',
 };
 
@@ -101,6 +102,12 @@ export function emitWgsl(ir: ShaderIr, layout: ShaderLayout, minify = false): st
   const hasRenderStages = ir.vertex !== undefined && ir.fragment !== undefined;
   if (hasRenderStages) {
     lines.push('struct BmVSIn {');
+    if (statementsUseCall(ir.vertex!.statements, 'vertexId')) {
+      lines.push('  @builtin(vertex_index) bm_vertex_index : u32,');
+    }
+    if (statementsUseCall(ir.vertex!.statements, 'instanceId')) {
+      lines.push('  @builtin(instance_index) bm_instance_index : u32,');
+    }
     for (const entry of layout.attributes) {
       lines.push(`  @location(${entry.location}) ${entry.name} : ${WGSL_TYPES[entry.type as IrType]},`);
     }
@@ -176,6 +183,27 @@ export function emitWgsl(ir: ShaderIr, layout: ShaderLayout, minify = false): st
   }
 
   return lines.join('\n') + '\n';
+}
+
+function statementsUseCall(statements: IrStmt[], callee: string): boolean {
+  const exprUses = (expr: IrExpr): boolean => {
+    if (expr.kind === 'call') return expr.callee === callee || expr.args.some(exprUses);
+    if (expr.kind === 'binary') return exprUses(expr.left) || exprUses(expr.right);
+    if (expr.kind === 'unary') return exprUses(expr.operand);
+    if (expr.kind === 'swizzle') return exprUses(expr.obj);
+    return false;
+  };
+  return statements.some((statement) => {
+    if (statement.kind === 'decl') return exprUses(statement.expr);
+    if (statement.kind === 'assign') return exprUses(statement.expr);
+    if (statement.kind === 'storageWrite') return exprUses(statement.index) || exprUses(statement.value);
+    if (statement.kind === 'return') return exprUses(statement.expr);
+    if (statement.kind === 'if') return exprUses(statement.condition)
+      || statementsUseCall(statement.then, callee)
+      || (statement.else !== undefined && statementsUseCall(statement.else, callee));
+    return exprUses(statement.init.expr) || exprUses(statement.condition)
+      || statementsUseCall([statement.update], callee) || statementsUseCall(statement.body, callee);
+  });
 }
 
 function emitHelpers(
@@ -327,6 +355,20 @@ function emitCall(expr: IrExpr & { kind: 'call' }, ctx: EmitContext): string {
     }
     // arrayLength takes a pointer and returns u32; the DSL only has floats.
     return `f32(arrayLength(&${buffer.name}))`;
+  }
+  if (expr.callee === 'atomicLoad' || expr.callee === 'atomicAdd' || expr.callee === 'atomicMax' || expr.callee === 'atomicExchange') {
+    const buffer = args[0]!;
+    if (buffer.kind !== 'ident') return '/* unreachable: atomic buffer args are uniform idents */';
+    const pointer = `&${buffer.name}[u32(${emitExpr(args[1]!, ctx, 0)})]`;
+    if (expr.callee === 'atomicLoad') return `f32(atomicLoad(${pointer}))`;
+    return `f32(${expr.callee}(${pointer}, u32(${emitExpr(args[2]!, ctx, 0)})))`;
+  }
+  if (expr.callee === 'uint') return `f32(u32(${emitExpr(args[0]!, ctx, 0)}))`;
+  if (expr.callee === 'instanceId') return 'f32(bm_in.bm_instance_index)';
+  if (expr.callee === 'vertexId') return 'f32(bm_in.bm_vertex_index)';
+  const bitwise = { bitAnd: '&', bitOr: '|', bitXor: '^', shiftLeft: '<<', shiftRight: '>>' }[expr.callee];
+  if (bitwise !== undefined) {
+    return `f32(u32(${emitExpr(args[0]!, ctx, 0)}) ${bitwise} u32(${emitExpr(args[1]!, ctx, 0)}))`;
   }
 
   if (expr.callee === 'texture') {

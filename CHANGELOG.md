@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+- **GPU-generated work queues.** Atomic storage operations, unsigned bit-packing
+  helpers, integer typed-array storage, and indirect compute/draw execution are
+  now available for visibility, culling, and GPU-driven rendering pipelines.
+
 ## 0.19.1 (2026-09-21)
 
 ### Improved
@@ -9,7 +14,8 @@
   previews, search, alphabetical browsing, deep links, modal viewing with
   filtered previous/next navigation, and clearer source links. The shader
   library is split into individual examples, with refreshed showcase pieces
-  including Quantum Halo and a dedicated 3D Toon Shading example.
+  including Quantum Halo, a dedicated 3D Toon Shading example, and a
+  billion-source-triangle Nanite-style Utah teapot field with distance LOD.
 
 ## 0.19.0 (2026-09-06)
 

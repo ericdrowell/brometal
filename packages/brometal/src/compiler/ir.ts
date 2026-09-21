@@ -9,6 +9,7 @@ export type IrType =
   | 'sampler2D'
   | 'sampler3D'
   | 'storage'
+  | 'atomic'
   | 'bool';
 
 export type IrBinaryOp =

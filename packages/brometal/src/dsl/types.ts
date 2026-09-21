@@ -7,6 +7,7 @@ export const GPU_TYPES = [
   'sampler2D',
   'sampler3D',
   'storage',
+  'atomic',
 ] as const;
 
 export type GpuType = (typeof GPU_TYPES)[number];
@@ -99,7 +100,9 @@ export type GpuValue<T extends GpuType> = T extends 'float'
             ? Sampler2D
             : T extends 'sampler3D'
               ? Sampler3D
-              : Storage<unknown>;
+              : T extends 'atomic'
+                ? number
+                : Storage<unknown>;
 
 export type Values<R extends GpuRecord> = { -readonly [K in keyof R]: GpuValue<R[K]> };
 

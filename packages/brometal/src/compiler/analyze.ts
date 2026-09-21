@@ -112,6 +112,18 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
     signature: 'storageLength(buffer) expects a storage buffer',
     check: (args) => (args.length === 1 && args[0]!.type === 'storage' ? 'float' : null),
   },
+  atomicLoad: atomicIntrinsic('atomicLoad', 2),
+  atomicAdd: atomicIntrinsic('atomicAdd', 3),
+  atomicMax: atomicIntrinsic('atomicMax', 3),
+  atomicExchange: atomicIntrinsic('atomicExchange', 3),
+  uint: floatUnary('uint'),
+  bitAnd: floatBinary('bitAnd'),
+  bitOr: floatBinary('bitOr'),
+  bitXor: floatBinary('bitXor'),
+  shiftLeft: floatBinary('shiftLeft'),
+  shiftRight: floatBinary('shiftRight'),
+  instanceId: stageIndexIntrinsic('instanceId'),
+  vertexId: stageIndexIntrinsic('vertexId'),
   texture: {
     signature:
       'texture(sampler, uv) expects a sampler2D with a vec2, or a sampler3D with a vec3',
@@ -169,6 +181,26 @@ const INTRINSICS: Record<string, IntrinsicRule> = {
       args.length === 2 && isVec(args[0]!.type) && args[0]!.type === args[1]!.type ? 'float' : null,
   },
 };
+
+function atomicIntrinsic(name: string, arity: 2 | 3): IntrinsicRule {
+  return {
+    signature: `${name}(buffer, index${arity === 3 ? ', value' : ''}) expects an atomic storage buffer and float arguments`,
+    check: (args, ctx) => {
+      if (ctx.isCompute !== true || args.length !== arity || args[0]!.type !== 'storage' || args.slice(1).some((arg) => arg.type !== 'float')) return null;
+      const buffer = args[0]!;
+      if (buffer.kind !== 'ident' || ctx.storageElements[buffer.name] !== 'atomic') return null;
+      ctx.storageWritten?.add(buffer.name);
+      return 'float';
+    },
+  };
+}
+
+function stageIndexIntrinsic(name: string): IntrinsicRule {
+  return {
+    signature: `${name}() is available only in vertex shaders`,
+    check: (args, ctx) => args.length === 0 && ctx.stage === 'vertex' ? 'float' : null,
+  };
+}
 
 function floatUnary(name: string): IntrinsicRule {
   return {
