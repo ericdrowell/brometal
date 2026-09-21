@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Improved
+- **Releases return immediately after npm publishes.** The separate registry
+  smoke test has been removed; the production website remains the end-to-end
+  check because Vercel builds it against the latest published BroMetal package.
+
+### Fixed
+- **Refreshing BroMetal on Vercel preserves the website build toolchain.** The
+  targeted npm install now includes development dependencies, preventing npm's
+  production mode from pruning the React and Node TypeScript declarations.
+
 ## 0.20.1 (2026-09-21)
 
 ### Improved

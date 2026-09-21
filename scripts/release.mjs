@@ -78,11 +78,10 @@ exec('git', ['add', '-A']);
 exec('git', ['commit', '-m', `release brometal ${tag}`]);
 exec('git', ['tag', tag]);
 // Publish before pushing so a failed authentication or OTP challenge leaves
-// the release commit and tag local. The website always builds the workspace
-// package, so deployment does not need to wait for npm registry propagation.
+// the release commit and tag local. Vercel refreshes the published package
+// during its build; production examples are the end-to-end verification.
 exec('npm', ['publish', '-w', 'brometal']);
 console.log(`✓ published brometal@${version}`);
-exec('node', ['scripts/smoke-published.mjs', version]);
 
 exec('git', ['push', 'origin', 'HEAD']);
 exec('git', ['push', 'origin', tag]);
