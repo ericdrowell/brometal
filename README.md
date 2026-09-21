@@ -254,7 +254,7 @@ export const Instanced = shader({
 });
 ```
 
-When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The lots-of-cubes example renders 125,000 independently tumbling cubes in **one draw call** — each cube's rotation is computed in the vertex shader from a single `uTime` float, so the per-frame CPU→GPU traffic is one mat4 and one float, total.
+When a shader declares instance attributes, `program.draw()` automatically uses instanced rendering. The Quantum Halo example renders 120,000 independently lit cuboids in **one draw call** — each cuboid's motion and lighting are computed on the GPU, so the per-frame CPU→GPU traffic remains tiny.
 
 ## Render targets, physics and shadows
 
@@ -270,7 +270,7 @@ sceneProgram.uniforms.uShadowMap.set(shadowMap.texture);
 
 To sample a target projectively, use the `targetUv(clipPosition)` intrinsic rather than `clip.xy / clip.w * 0.5 + 0.5`. The backends disagree about which row of a target NDC +y lands on, so the hand-rolled version is vertically mirrored on one of them — and a mirrored shadow still looks like a shadow, just attached to the wrong side of the object.
 
-The same machinery is what runs simulation on the GPU: state lives in a target, a fragment pass advances it, and the render pass reads positions straight out of it in the vertex shader. See the Ball Physics and Shadow examples.
+The same machinery can run simulation on the GPU: state lives in a target, a fragment pass advances it, and the render pass reads positions straight out of it in the vertex shader. See the Shadow example for the same render-target workflow.
 
 ## Website & examples
 
@@ -283,14 +283,14 @@ npm run dev:website    # → http://localhost:3005 (uses the LOCAL workspace pac
 npm run prod:website   # → production build against the PUBLISHED npm package
 ```
 
-Example pages: `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-library`, `/examples/shader-functions`, `/examples/terrain`, `/examples/ocean`, `/examples/brocraft`, `/examples/ball-physics`, `/examples/star-bro`.
+Example pages include `/examples/rotating-cube`, `/examples/lots-of-cubes`, `/examples/camera`, `/examples/light`, `/examples/textures`, `/examples/geometries`, `/examples/custom-shader`, `/examples/shader-value-noise`, `/examples/shader-raymarch`, `/examples/shader-functions`, `/examples/terrain`, `/examples/night-ocean`, `/examples/brocraft`, and `/examples/star-bro`.
 
 `dev` bundles the local `packages/brometal` source; `prod` sets `BROMETAL_SOURCE=npm`, which aliases every `brometal` import to the published registry package — so the production build exercises exactly what npm users install. A preflight gate compares the published package's export surface against the local one and fails the build if the registry is behind (webpack would otherwise only warn and ship a runtime-broken bundle). To iterate on shaders, run `npm run shaders:watch` in `packages/website` alongside the dev server.
 
 ### Deploying to Vercel
 
 1. Import the GitHub repo in Vercel and set **Root Directory** to `packages/website` — everything else is auto-detected (`vercel.json` + the `vercel-build` script).
-2. Each deploy builds the workspace compiler, runs the publish preflight, prod-compiles the shaders, and builds Next against the **published** npm package — so brometal.dev always demos exactly what `npm install brometal` delivers, and the CLI gets exercised in CI on every deploy.
+2. Each deploy builds the workspace compiler, runs the publish preflight, prod-compiles the shaders, and builds Next against the **published** npm package — so brometal.dev always shows exactly what `npm install brometal` delivers, and the CLI gets exercised in CI on every deploy.
 3. `npm run release` handles the version handoff automatically: after publishing it updates `brometal-published` in the website workspace and commits + pushes the lockfile, so the next Vercel deploy builds against the fresh release. If the site ever uses features not yet published, the preflight fails the deploy with instructions instead of shipping a broken page.
 
 ## What the DSL supports (MVP)
@@ -341,7 +341,7 @@ terser out.js --compress --mangle --toplevel -o out.min.js
 prebuilt bundle could not be mangled jointly with your code at all, which is why
 this ships as source.
 
-Measured on a demo using two programs, a texture, instancing and a transparent
+Measured on an example using two programs, a texture, instancing and a transparent
 pass: **~3 KB gzipped** for runtime, shaders and game together.
 
 Inline the script rather than shipping it beside the page: a zip charges per
@@ -485,4 +485,3 @@ than Chrome's, and a shader Chrome accepts can be rejected there — which shows
 up as a pass that draws nothing. Playwright cannot drive real Safari, and its
 WebKit build ships no WebGPU, so that gap needs a manual check on a real
 Safari.
-

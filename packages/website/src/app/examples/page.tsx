@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { EXAMPLE_SECTIONS } from '@/lib/examples';
 import { SITE_URL, allExamples, canonical, jsonLd, pageMetadata } from '@/lib/seo';
 import SiteFooter from '@/components/SiteFooter';
+import ExampleGallery from '@/components/ExampleGallery';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Examples',
   description:
-    'Live WebGPU examples built with BroMetal: instancing, shadow mapping, GPU physics, Gerstner ocean waves, a block world and a flight game — each one a typed TypeScript shader compiled at build time.',
+    '54 live WebGPU examples built with BroMetal: instancing, oceans, games, fractals, prebuilt shaders and interactive GPU art — all compiled from TypeScript to WGSL at build time.',
   path: '/examples',
 });
 
@@ -33,31 +33,20 @@ const LIST_SCHEMA = {
 
 export default function ExamplesPage() {
   return (
-    <main className="page">
+    <main className="page examples-page">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLd(LIST_SCHEMA) }}
       />
-      <h1>Examples</h1>
-      <p className="page-intro">
-        Every example below is a live WebGPU scene, drawn by shaders written in
-        TypeScript and compiled to WGSL at build time.
-      </p>
-      {EXAMPLE_SECTIONS.map((section) => (
-        <section key={section.title}>
-          <h2 className="example-section-title">{section.title}</h2>
-          <ul className="example-list">
-            {section.examples.map((example) => (
-              <li key={example.slug}>
-                <Link href={`/examples/${example.slug}`}>
-                  <div className="name">{example.name}</div>
-                  <div className="desc">{example.description}</div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      <header className="examples-hero">
+        <p className="eyebrow">Build with BroMetal</p>
+        <h1>The WebGPU engine<br />for AI coding agents.</h1>
+        <p>
+          {allExamples().length} live examples. Every pixel comes from a TypeScript shader,
+          compiled to WGSL before the browser loads. Open one, move it, then read the source.
+        </p>
+      </header>
+      <ExampleGallery sections={EXAMPLE_SECTIONS} />
       <SiteFooter />
     </main>
   );

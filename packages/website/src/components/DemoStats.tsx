@@ -44,28 +44,20 @@ export function useFrameStats(): { stats: FrameStats; tick: (elapsedSeconds: num
 }
 
 /**
- * The stats line in the bottom-left of a demo. Children are whatever is worth
- * saying about that particular scene — instance counts, draw calls, pass counts
- * — and appear after the timing.
+ * The compact performance readout shared by every demo.
+ *
+ * Keep this to FPS only: scene descriptions and implementation details belong
+ * in the top-right information panel, not in the performance corner.
  */
 export default function DemoStats({
   stats,
-  children,
 }: {
   stats: FrameStats;
   children?: ReactNode;
 }) {
   return (
     <div className="hud">
-      <strong>
-        {stats.fps} fps · {stats.ms.toFixed(1)} ms
-      </strong>
-      {children === undefined ? null : (
-        <>
-          <br />
-          {children}
-        </>
-      )}
+      <strong>{stats.fps} FPS</strong>
     </div>
   );
 }

@@ -659,7 +659,7 @@ export default function StarBroDemo() {
           </p>
           <h2>Controls</h2>
           <p className="panel-note">
-            Click the scene to play · move the mouse to fly · click to fire · Esc
+            Click to play · move the mouse to fly · click to fire · Esc
             to pause.
           </p>
         </div>

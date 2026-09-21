@@ -29,7 +29,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'How is BroMetal different from Three.js?',
-    a: 'Three.js is a scene graph with a material system that generates shader code in the browser at runtime. BroMetal has neither: shaders are compiled on your machine at build time, and there is no scene graph, no material system and no runtime shader generation. That makes BroMetal much smaller and removes first-frame shader compilation, at the cost of doing the work Three.js does for you — you write the shader yourself.',
+    a: 'Three.js uses a retained object graph and a material system that generates shader code in the browser at runtime. BroMetal has neither: shaders are compiled on your machine at build time, and there is no retained object graph, material system or runtime shader generation. That makes BroMetal much smaller and removes first-frame shader compilation, at the cost of doing the work Three.js does for you — you write the shader yourself.',
   },
   {
     q: 'How large is the BroMetal runtime?',
@@ -74,7 +74,7 @@ const FAQ_SCHEMA = {
 
 export default function HomePage() {
   return (
-    <main className="page hero">
+      <main className="page hero">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(FAQ_SCHEMA) }} />
       <h1 className={`hero-title ${delogs.className}`}>BroMetal</h1>
       <Image
@@ -85,10 +85,7 @@ export default function HomePage() {
         priority
         className="hero-head"
       />
-      <p className="tagline">&ldquo;Write TypeScript.&nbsp;&nbsp;Lift Shaders.&nbsp;&nbsp;Ship Shredded.&rdquo;</p>
-      <p className="subhead">
-        Typed shaders compiled at build time &mdash; WebGPU, no compiler in the browser.
-      </p>
+      <p className="tagline">&ldquo;Lift Shaders.&nbsp;&nbsp;Save Tokens.&nbsp;&nbsp;Ship Shredded.&rdquo;</p>
       <a
         className="cta"
         href="https://www.npmjs.com/package/brometal"
@@ -104,7 +101,7 @@ export default function HomePage() {
         <h2>Ethos</h2>
         <p>
           Built for the AI coding era. Everything is TypeScript and compiles into WGSL at build
-          time, with no scene graph and no compiler in the browser. A typical app bundles to about
+          time, with no retained object graph and no compiler in the browser. A typical app bundles to about
           19&nbsp;KB minified and 7&nbsp;KB gzipped, because material systems and runtime shader
           generation are simply never shipped. Less to download, nothing to generate at startup.
           The first frame hits instantly.

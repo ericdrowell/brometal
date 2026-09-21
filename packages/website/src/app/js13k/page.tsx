@@ -75,7 +75,7 @@ export default function Js13kPage() {
       <p>
         <strong>What it does not have is everything else.</strong> No audio, no
         input handling, no collision or physics, no text and no font rendering,
-        no model loading, no scene graph, no asset pipeline. BroMetal draws
+        no model loading, no retained object graph, no asset pipeline. BroMetal draws
         triangles and does the matrix maths; a game is what you write in the
         remaining ten kilobytes. That is the usual shape of a js13k entry — worth
         knowing before you plan around a library that will hand you more.
@@ -223,7 +223,7 @@ export default function Js13kPage() {
         the way it reads any other file in your project.
       </p>
       <p>
-        <strong>43 shaders and 19 complete demos ship alongside them</strong>, in{' '}
+        <strong>43 shaders and 19 complete examples ship alongside them</strong>, in{' '}
         <code>node_modules/brometal/examples</code> — every example from this
         site as real, compiling source rather than documentation snippets. Point
         an assistant at one and ask for something similar.

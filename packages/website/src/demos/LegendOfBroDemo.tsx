@@ -401,7 +401,7 @@ export default function LegendOfBroDemo() {
           <h1>Legend of Bro</h1>
           <p className="panel-note">
             A tilemap and every animated sprite drawn from one atlas in two
-            instanced draw calls. The scene renders at art resolution — one texel
+            instanced draw calls. The example renders at art resolution — one texel
             per pixel of the tileset — then scales up by a whole number, so every
             pixel stays square and the dithered wipe lands on the same grid.
           </p>

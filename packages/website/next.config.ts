@@ -6,6 +6,20 @@ import type { NextConfig } from 'next';
 const useNpmPackage = process.env.BROMETAL_SOURCE === 'npm';
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: '/demos',
+        destination: '/examples',
+        permanent: true,
+      },
+      {
+        source: '/demos/:path*',
+        destination: '/examples/:path*',
+        permanent: true,
+      },
+    ];
+  },
   webpack: (config) => {
     if (useNpmPackage) {
       config.resolve.alias = {

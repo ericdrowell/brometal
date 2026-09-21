@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Improved
+- **Rebuilt the website examples experience.** Examples now have real screenshot
+  previews, search, alphabetical browsing, deep links, modal viewing with
+  filtered previous/next navigation, and clearer source links. The shader
+  library is split into individual examples, with refreshed showcase pieces
+  including Quantum Halo and a dedicated 3D Toon Shading example.
+
 ## 0.19.0 (2026-09-06)
 
 ### Improved

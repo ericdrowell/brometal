@@ -19,7 +19,7 @@ export const SITE_NAME = 'BroMetal';
  * "Lift Shaders. Ship Shredded." is memorable but tells a stranger nothing.
  */
 export const SITE_DESCRIPTION =
-  'BroMetal compiles a typed TypeScript DSL into WGSL at build time and ships a small WebGPU runtime. No shader compiler in the browser, no scene graph.';
+  'BroMetal compiles a typed TypeScript DSL into WGSL at build time and ships a small WebGPU runtime. No shader compiler or retained object graph in the browser.';
 
 /** Canonical URL for a path like `/examples/shadow`. */
 export function canonical(path: string): string {

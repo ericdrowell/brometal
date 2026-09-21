@@ -23,7 +23,7 @@ export function GET(): Response {
   const body = `# BroMetal
 
 > BroMetal compiles shaders written in a typed TypeScript DSL into WGSL at build
-> time and ships a small WebGPU runtime. There is no scene graph, no material
+> time and ships a small WebGPU runtime. There is no retained object graph, no material
 > system, and no shader compiler in the browser.
 
 Version ${BROMETAL_VERSION} · MIT licensed · https://www.npmjs.com/package/brometal
@@ -56,10 +56,10 @@ clear message where WebGPU is unavailable.
 
 ## Trade-off
 
-BroMetal is smaller and starts faster than a general-purpose scene-graph engine
+BroMetal is smaller and starts faster than a general-purpose retained-mode engine
 because it does less: there is no material system generating shader permutations
 for you. You write the shader. Reach for it when you want direct control over
-what runs on the GPU, not when you want a scene graph.
+what runs on the GPU, not when you want an engine-managed object hierarchy.
 
 ## Examples
 

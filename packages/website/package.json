@@ -16,6 +16,7 @@
     "shaders": "node ../brometal/dist/cli/index.js dev --once",
     "shaders:watch": "node ../brometal/dist/cli/index.js dev",
     "shaders:prod": "node ../brometal/dist/cli/index.js prod",
+    "screenshots": "node scripts/capture-example-screenshots.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

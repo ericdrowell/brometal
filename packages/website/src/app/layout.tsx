@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { BROMETAL_VERSION } from '@/lib/version';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL, jsonLd } from '@/lib/seo';
+import EmbedMode from '@/components/EmbedMode';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -92,6 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        <EmbedMode />
         <script
           type="application/ld+json"
           // React escapes text children of <script>, so the JSON has to go in raw.

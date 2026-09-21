@@ -449,7 +449,7 @@ export default function BrocraftDemo() {
           </p>
           <h2>Controls</h2>
           <p className="panel-note">
-            Click the scene to play · WASD to move · mouse to look · Space up · C
+            Click to play · WASD to move · mouse to look · Space up · C
             down · Shift to sprint · Esc to pause.
           </p>
           <h2>View distance</h2>

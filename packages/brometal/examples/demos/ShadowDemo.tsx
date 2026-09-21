@@ -336,7 +336,7 @@ export default function ShadowDemo() {
         <div className="panel">
           <h1>Shadow</h1>
           <p className="panel-note">
-            Shadow mapping in two passes. The scene is drawn from the light into
+            Shadow mapping in two passes. Geometry is drawn from the light into
             a depth-tested render target, each fragment recording its distance
             to the light; the lit pass projects every point back into that map
             and asks whether anything closer was already there. Nine taps per
