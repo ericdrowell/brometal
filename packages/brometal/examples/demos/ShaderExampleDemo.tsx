@@ -11,15 +11,38 @@ import {
   type GpuRecord,
 } from 'brometal';
 import {
-  causticsShader, checkerShader, chromaticShader, crtShader,
-  edgesShader, electricShader, fbmShader, fireShader, glitchShader,
-  halftoneShader, juliaShader, kaleidoscopeShader, lightingShader,
-  metaballsShader, paletteShader, raymarchShader, ringsShader,
-  sdfShader, sepiaShader, starfieldShader, toonShader,
-  tunnelShader, valueNoiseShader, voronoiShader, warpShader, worleyEdgesShader,
+  causticsShader,
+  checkerShader,
+  chromaticShader,
+  crtShader,
+  edgesShader,
+  electricShader,
+  fbmShader,
+  fireShader,
+  glitchShader,
+  halftoneShader,
+  juliaShader,
+  kaleidoscopeShader,
+  lightingShader,
+  metaballsShader,
+  paletteShader,
+  raymarchShader,
+  ringsShader,
+  sdfShader,
+  sepiaShader,
+  starfieldShader,
+  toonShader,
+  tunnelShader,
+  valueNoiseShader,
+  voronoiShader,
+  warpShader,
+  worleyEdgesShader,
 } from 'brometal/shaders';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import ErrorToast, { useBroMetalError } from '@/components/ErrorToast';
+import type { ExampleEntry } from '@/lib/examples';
+import DemoStats, { useFrameStats } from './_site/DemoStats';
+import ErrorToast, { useBroMetalError } from './_site/ErrorToast';
+
+const IMAGE_TEXTURE = 'bricks104';
 
 const SHADERS: Record<string, CompiledShader<GpuRecord, GpuRecord, GpuRecord>> = {
   'value-noise': valueNoiseShader,
@@ -50,28 +73,20 @@ const SHADERS: Record<string, CompiledShader<GpuRecord, GpuRecord, GpuRecord>> =
   sepia: sepiaShader,
 };
 
-interface ShaderExample {
-  shaderKey: string;
-  name: string;
-  description: string;
-  uses: string;
-  needsTexture?: boolean;
-}
-
 type QuadProgram = BroMetalProgram<
   { aPosition: 'vec3'; aUv: 'vec2' },
   GpuRecord,
   { uTime: 'float'; uAspect: 'float' }
 >;
 
-export default function ShaderExampleDemo({ example }: { example: ShaderExample }) {
+export default function ShaderExampleDemo({ example }: { example: ExampleEntry }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { stats, tick } = useFrameStats();
   const { error, report, dismiss } = useBroMetalError();
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const shader = SHADERS[example.shaderKey];
+    const shader = example.shaderKey === undefined ? undefined : SHADERS[example.shaderKey];
     if (canvas === null || shader === undefined) return;
     let cancelled = false;
     let cleanup: (() => void) | null = null;
@@ -91,9 +106,16 @@ export default function ShaderExampleDemo({ example }: { example: ShaderExample 
       program.attributes.aPosition.set(quad.positions);
       program.attributes.aUv.set(quad.uvs);
       program.setIndices(quad.indices);
+
       const texture = example.needsTexture === true
-        ? await loadTexture(renderer, '/textures/bricks104.jpg')
+        ? await loadTexture(renderer, `/textures/${IMAGE_TEXTURE}.jpg`)
         : null;
+      if (cancelled) {
+        texture?.dispose();
+        program.dispose();
+        renderer.destroy();
+        return;
+      }
       if (texture !== null) {
         (program.uniforms as Record<string, { set(value: unknown): void }>).uTex!.set(texture);
       }
@@ -104,6 +126,7 @@ export default function ShaderExampleDemo({ example }: { example: ShaderExample 
         program.uniforms.uAspect.set(renderer.aspect);
         program.draw();
       });
+
       cleanup = () => {
         stop();
         texture?.dispose();
@@ -121,6 +144,15 @@ export default function ShaderExampleDemo({ example }: { example: ShaderExample 
   return (
     <>
       <canvas ref={canvasRef} className="demo-canvas" />
+      <aside className="showcase-caption panel">
+        <p className="showcase-kicker">Prebuilt shader</p>
+        <h1>{example.name}</h1>
+        <p>{example.description}</p>
+        <div className="showcase-tags">
+          {example.uses?.split(' · ').map((name) => <span key={name}>{name}</span>)}
+        </div>
+        <small>Import directly from brometal/shaders. No runtime compilation.</small>
+      </aside>
       <DemoStats stats={stats}>brometal/shaders · precompiled · one draw call</DemoStats>
       <ErrorToast error={error} onDismiss={dismiss} />
     </>

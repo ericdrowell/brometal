@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.19.1 (2026-09-21)
+
 ### Improved
 - **Rebuilt the website examples experience.** Examples now have real screenshot
   previews, search, alphabetical browsing, deep links, modal viewing with

@@ -336,11 +336,9 @@ export default function ShadowDemo() {
         <div className="panel">
           <h1>Shadow</h1>
           <p className="panel-note">
-            Shadow mapping in two passes. Geometry is drawn from the light into
-            a depth-tested render target, each fragment recording its distance
-            to the light; the lit pass projects every point back into that map
-            and asks whether anything closer was already there. Nine taps per
-            fragment soften the edge. The inset is the map itself.
+            A two-pass shadow map records depth from the light, then projects
+            each fragment back into it. Nine samples soften the edges; the inset
+            shows the map.
           </p>
           <div className="row">
             <label htmlFor="height">Light Height</label>

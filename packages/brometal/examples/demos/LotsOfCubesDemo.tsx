@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 import { createProgram, createRenderer, mat4 } from 'brometal';
-import haloShader from '@/shaders/instanced-cubes.shader.gen';
+import haloShader from '../shaders/instanced-cubes.shader.gen';
 import { indices, normals, positions } from '@/lib/cube-geometry';
-import DemoStats, { useFrameStats } from '@/components/DemoStats';
-import ErrorToast, { useBroMetalError } from '@/components/ErrorToast';
+import DemoStats, { useFrameStats } from './_site/DemoStats';
+import ErrorToast, { useBroMetalError } from './_site/ErrorToast';
 
 const RINGS = 600;
 const SLICES = 200;
@@ -113,6 +113,8 @@ export default function LotsOfCubesDemo() {
       const stop = renderer.loop((time) => {
         tick(time);
         const orbit = time * 0.065;
+        // Portrait viewers need more distance because perspective FOV is
+        // vertical; on a wide screen the same sculpture can sit much closer.
         const distance = 105 + Math.max(0, 1.1 - renderer.aspect) * 90;
         const eye: [number, number, number] = [
           Math.sin(orbit) * distance,

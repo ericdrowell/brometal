@@ -173,18 +173,8 @@ export default function DayOceanDemo() {
         <div className="panel">
           <h1>Day Ocean</h1>
           <p className="panel-note">
-            Shallow tropical water. Eight Gerstner waves displace the surface in
-            the vertex shader and give it an exact normal — the surface is a
-            closed-form function of position, so the normal comes from two real
-            tangents rather than from differencing a height map. The fragment
-            refracts the view down to a lit seabed and attenuates what returns
-            per colour channel: red is absorbed roughly ten times faster than
-            blue-green, and that ratio alone is where the turquoise comes from.
-            Foam keys off steepness rather than height, so it breaks on tilted
-            faces instead of capping every crest. A slow noise scales the whole
-            wave sum, giving patches of calmer and rougher water — without it
-            eight waves still read as one uniform field. Every shader was
-            compiled at build time, so the page starts immediately.
+            Eight Gerstner waves shape tropical water with analytic normals,
+            refracted caustics, depth-aware colour, and steepness-driven foam.
           </p>
         </div>
       </div>
